@@ -1,0 +1,101 @@
+// AttendEasy data model.
+// Using SQLite by default so the app runs with zero external setup.
+// To move to Postgres for production: change provider to "postgresql"
+// and set DATABASE_URL to a Postgres connection string — no other
+// code changes are required, Prisma abstracts the rest.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime   @default(now())
+  semesters    Semester[]
+}
+
+model Semester {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  startDate  DateTime
+  endDate    DateTime?
+  isActive   Boolean    @default(true)
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+  subjects   Subject[]
+  slots      Slot[]
+  records    AttendanceRecord[]
+
+  @@index([userId])
+}
+
+model Subject {
+  id         String     @id @default(uuid())
+  semesterId String
+  semester   Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  name       String
+  code       String?
+  color      String     @default("#6366f1")
+  icon       String?
+  threshold  Int        @default(75)
+  archived   Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  slots      Slot[]
+  records    AttendanceRecord[]
+
+  @@index([semesterId])
+}
+
+// A Slot is a recurring weekly timetable entry (day + time + room),
+// OR a one-off extra/rescheduled class when isExtra = true.
+model Slot {
+  id             String    @id @default(uuid())
+  semesterId     String
+  semester       Semester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  subjectId      String
+  subject        Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  day            Int       // 0 = Monday .. 6 = Sunday
+  startTime      String    // "09:00"
+  endTime        String    // "10:00"
+  room           String?
+  prof           String?
+  isExtra        Boolean   @default(false) // true = one-off added/rescheduled class
+  extraDate      DateTime? // set when isExtra: the specific calendar date it occurs on
+  replacesSlotId String?   // set when a reschedule "replaces" the original slot for extraDate
+  createdAt      DateTime  @default(now())
+  records        AttendanceRecord[]
+
+  @@index([semesterId])
+  @@index([subjectId])
+}
+
+model AttendanceRecord {
+  id         String    @id @default(uuid())
+  semesterId String
+  semester   Semester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  subjectId  String
+  subject    Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  slotId     String
+  slot       Slot      @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  date       DateTime  // calendar date this record is for
+  status     String    // "present" | "absent" | "cancelled" | "rescheduled"
+  tag        String?   // for cancelled: "holiday" | "prof_absent" | "exam" | "other"
+  note       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([slotId, date]) // one mark per slot per calendar date
+  @@index([semesterId])
+  @@index([subjectId])
+  @@index([date])
+}
