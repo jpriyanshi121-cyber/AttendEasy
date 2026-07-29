@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight,
+  Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
   Sparkles, Star,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
-import { getToken } from "../lib/api";
+import { api, getToken } from "../lib/api";
 
 // ════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
@@ -230,8 +230,18 @@ function Divider() {
 // ════════════════════════════════════════════════════════════════
 function OnboardingScreen({ onDone }: { onDone:()=>void }) {
   const [step,  setStep]  = useState<0|1>(0);
-  const [name,  setName]  = useState("Arjun");
+  const [name,  setName]  = useState("");
   const [pulse, setPulse] = useState(false);
+
+  const [semesterId, setSemesterId] = useState<string|null>(null);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; threshold:number}[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newThreshold, setNewThreshold] = useState("75");
+  const [error, setError] = useState<string|null>(null);
+
+  const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
 
   useEffect(() => {
     if (step !== 1) return;
@@ -239,11 +249,49 @@ function OnboardingScreen({ onDone }: { onDone:()=>void }) {
     return () => clearInterval(id);
   }, [step]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const { semesters } = await api.get("/semesters");
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (active) {
+          setSemesterId(active.id);
+          const { subjects: fetched } = await api.get(`/subjects?semesterId=${active.id}`);
+          setSubjects(fetched);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  async function addSubject() {
+    if (!newName.trim() || !semesterId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const color = PALETTE[subjects.length % PALETTE.length];
+      const { subject } = await api.post("/subjects", {
+        semesterId,
+        name: newName.trim(),
+        color,
+        threshold: parseInt(newThreshold, 10) || 75,
+      });
+      setSubjects(prev => [...prev, subject]);
+      setNewName("");
+      setNewThreshold("75");
+      setAdding(false);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100vh", display:"flex", flexDirection:"column" }}>
       {step === 0 ? (
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"60px 28px 44px" }}>
-          {/* Logomark */}
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:56 }} className="ae0">
             <div style={{
               width:44, height:44, borderRadius:14,
@@ -307,48 +355,96 @@ function OnboardingScreen({ onDone }: { onDone:()=>void }) {
             <h2 className="ae1" style={{ fontFamily:F.serif, fontWeight:600, fontSize:30, color:T.inkH, lineHeight:1.15, marginBottom:8 }}>
               Your enrolled<br />courses
             </h2>
-            <p className="ae2" style={{ fontSize:14, color:T.inkM }}>Tap any row to edit its threshold or weekly slots.</p>
+            <p className="ae2" style={{ fontSize:14, color:T.inkM }}>Add each subject you're taking this semester.</p>
           </div>
 
           <div style={{ flex:1, overflow:"auto", padding:"0 28px" }}>
-            {SUBJECTS.map((s, i) => (
-              <div key={s.id} className={`ae${i+1}`} style={{
+            {subjects.map((s, i) => (
+              <div key={s.id} className={`ae${Math.min(i+1,5)}`} style={{
                 display:"flex", alignItems:"center", gap:14, padding:"15px 16px",
                 borderRadius:18, marginBottom:10, background:T.card,
                 boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
               }}>
                 <div style={{ width:44, height:44, borderRadius:14, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Icon name={s.icon} size={19} color={s.color} />
+                  <Icon name="BookOpen" size={19} color={s.color} />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{s.name}</div>
                   <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em" }}>
-                    {s.code} · {s.threshold}% threshold · {SLOTS.filter(sl=>sl.subjectId===s.id).length}×/wk
+                    {s.threshold}% threshold
                   </div>
-                </div>
-                <div style={{ width:30, height:30, borderRadius:9, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <ChevronRight size={14} color={T.accent} />
                 </div>
               </div>
             ))}
-            <button style={{
-              width:"100%", padding:"15px", borderRadius:18, marginTop:2, marginBottom:8,
-              border:`1.5px dashed rgba(110,79,145,0.3)`, background:"transparent",
-              color:T.accent, fontFamily:F.sans, fontSize:14, fontWeight:500,
-              cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-            }}>
-              <Plus size={15} /> Add Subject
-            </button>
+
+            {adding ? (
+              <div style={{
+                padding:"16px", borderRadius:18, marginBottom:10, background:T.card,
+                boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
+              }}>
+                <input
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Subject name"
+                  style={{
+                    width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10,
+                    border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
+                    fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box",
+                  }}
+                />
+                <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12 }}>
+                  <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Threshold %</span>
+                  <input
+                    value={newThreshold}
+                    onChange={e => setNewThreshold(e.target.value.replace(/\D/g, ""))}
+                    style={{
+                      width:60, padding:"8px 10px", borderRadius:10,
+                      border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
+                      fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center",
+                    }}
+                  />
+                </div>
+                {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
+                <div style={{ display:"flex", gap:8 }}>
+                  <button
+                    onClick={() => { setAdding(false); setError(null); }}
+                    style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addSubject}
+                    disabled={loading}
+                    style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                  >
+                    {loading ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAdding(true)}
+                style={{
+                  width:"100%", padding:"15px", borderRadius:18, marginTop:2, marginBottom:8,
+                  border:`1.5px dashed rgba(110,79,145,0.3)`, background:"transparent",
+                  color:T.accent, fontFamily:F.sans, fontSize:14, fontWeight:500,
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                }}
+              >
+                <Plus size={15} /> Add Subject
+              </button>
+            )}
           </div>
 
           <div style={{ padding:"20px 28px 52px" }}>
             <button
               onClick={onDone}
+              disabled={subjects.length === 0}
               style={{
                 width:"100%", padding:"18px", borderRadius:20, border:"none",
-                background:T.accent, color:"#fff",
-                fontFamily:F.sans, fontSize:16, fontWeight:600, cursor:"pointer",
-                boxShadow:S.acc,
+                background: subjects.length === 0 ? "rgba(110,79,145,0.25)" : T.accent, color:"#fff",
+                fontFamily:F.sans, fontSize:16, fontWeight:600, cursor: subjects.length === 0 ? "not-allowed" : "pointer",
+                boxShadow: subjects.length === 0 ? "none" : S.acc,
                 transform: pulse ? "scale(1.022)" : "scale(1)",
                 transition:"transform 0.55s cubic-bezier(0.34,1.56,0.64,1)",
               }}
