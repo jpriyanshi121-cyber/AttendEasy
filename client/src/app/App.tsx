@@ -5,11 +5,13 @@ import {
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
   Sparkles, Star,
 } from "lucide-react";
+import AuthScreen from "./AuthScreen";
+import { getToken } from "../lib/api";
 
 // ════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
 // ════════════════════════════════════════════════════════════════
-const T = {
+export const T = {
   bg:          "#FCFBFE",
   card:        "#FFFFFF",
   accent:      "#6E4F91",
@@ -29,13 +31,13 @@ const T = {
   border:      "rgba(110,79,145,0.1)",
 } as const;
 
-const F = {
+export const F = {
   serif: "'Fraunces', Georgia, serif",
   mono:  "'IBM Plex Mono', 'Courier New', monospace",
   sans:  "'Inter', system-ui, sans-serif",
 } as const;
 
-const S = {
+export const S = {
   xs:  "0 1px 4px rgba(27,21,48,0.06)",
   sm:  "0 2px 12px rgba(27,21,48,0.07), 0 1px 3px rgba(27,21,48,0.04)",
   md:  "0 4px 24px rgba(27,21,48,0.10), 0 2px 8px rgba(27,21,48,0.05)",
@@ -1353,6 +1355,7 @@ function TabBar({ active, onChange }: { active:TabId; onChange:(t:TabId)=>void }
 // ROOT APP
 // ════════════════════════════════════════════════════════════════
 export default function App() {
+  const [authed, setAuthed] = useState(!!getToken());
   const [screen,  setScreen]  = useState<Screen>("onboarding");
   const [tab,     setTab]     = useState<TabId>("home");
   const [subjId,  setSubjId]  = useState<string|null>(null);
@@ -1365,6 +1368,10 @@ export default function App() {
     setSubjId(null);
   };
 
+  if (!authed) {
+    return <AuthScreen onSuccess={() => setAuthed(true)} />;
+  }
+  
   return (
     <>
       <style>{`
