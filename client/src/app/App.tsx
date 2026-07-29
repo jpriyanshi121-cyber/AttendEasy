@@ -360,21 +360,7 @@ function OnboardingScreen({ onDone }: { onDone:()=>void }) {
 
           <div style={{ flex:1, overflow:"auto", padding:"0 28px" }}>
             {subjects.map((s, i) => (
-              <div key={s.id} className={`ae${Math.min(i+1,5)}`} style={{
-                display:"flex", alignItems:"center", gap:14, padding:"15px 16px",
-                borderRadius:18, marginBottom:10, background:T.card,
-                boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
-              }}>
-                <div style={{ width:44, height:44, borderRadius:14, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Icon name="BookOpen" size={19} color={s.color} />
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{s.name}</div>
-                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em" }}>
-                    {s.threshold}% threshold
-                  </div>
-                </div>
-              </div>
+              <SubjectSlotRow key={s.id} subject={s} index={i} semesterId={semesterId!} />
             ))}
 
             {adding ? (
@@ -457,6 +443,107 @@ function OnboardingScreen({ onDone }: { onDone:()=>void }) {
     </div>
   );
 }
+
+function SubjectSlotRow({ subject, index, semesterId }: {
+  subject: {id:string; name:string; color:string; threshold:number};
+  index: number;
+  semesterId: string;
+}) {
+  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null}[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [day, setDay] = useState("0");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+  const [room, setRoom] = useState("");
+  const [loading, setLoading] = useState(false);
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+  useEffect(() => {
+    (async () => {
+      const { slots: fetched } = await api.get(`/slots?semesterId=${semesterId}`);
+      setSlots(fetched.filter((s:any) => s.subjectId === subject.id));
+    })();
+  }, [subject.id, semesterId]);
+
+  async function addSlot() {
+    setLoading(true);
+    try {
+      const { slot } = await api.post("/slots", {
+        semesterId, subjectId: subject.id,
+        day: parseInt(day, 10), startTime, endTime, room: room || undefined,
+      });
+      setSlots(prev => [...prev, slot]);
+      setAdding(false);
+      setRoom("");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className={`ae${Math.min(index+1,5)}`} style={{
+      padding:"15px 16px", borderRadius:18, marginBottom:10, background:T.card,
+      boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
+    }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ width:44, height:44, borderRadius:14, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Icon name="BookOpen" size={19} color={subject.color} />
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{subject.name}</div>
+          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em" }}>
+            {subject.threshold}% threshold · {slots.length} slot{slots.length===1?"":"s"}/wk
+          </div>
+        </div>
+      </div>
+
+      {slots.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+          {slots.map(sl => (
+            <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
+              {DAYS[sl.day]} {sl.startTime}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <div style={{ marginTop:12 }}>
+          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+            <select value={day} onChange={e => setDay(e.target.value)} style={{ ...miniField, flex:1 }}>
+              {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
+            </select>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...miniField, width:90 }} />
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...miniField, width:90 }} />
+          </div>
+          <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...miniField, width:"100%", marginBottom:8, boxSizing:"border-box" }} />
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={() => setAdding(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+            <button onClick={addSlot} disabled={loading} style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              {loading ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{
+          marginTop:10, padding:"8px 12px", borderRadius:10, border:`1.5px dashed rgba(110,79,145,0.3)`,
+          background:"transparent", color:T.accent, fontFamily:F.sans, fontSize:12, fontWeight:500,
+          cursor:"pointer", display:"flex", alignItems:"center", gap:6,
+        }}>
+          <Plus size={13} /> Add Class Time
+        </button>
+      )}
+    </div>
+  );
+}
+
+const miniField: React.CSSProperties = {
+  padding:"9px 10px", borderRadius:10,
+  border:`1.5px solid rgba(110,79,145,0.18)`, background:"#FCFBFE",
+  fontFamily:"'Inter', system-ui, sans-serif", fontSize:12, outline:"none",
+};
 
 // ════════════════════════════════════════════════════════════════
 // SCREEN 2 — HOME DASHBOARD
