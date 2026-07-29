@@ -1,15 +1,11 @@
-// AttendEasy data model.
-// Using SQLite by default so the app runs with zero external setup.
-// To move to Postgres for production: change provider to "postgresql"
-// and set DATABASE_URL to a Postgres connection string — no other
-// code changes are required, Prisma abstracts the rest.
+// AttendEasy data model — PostgreSQL version (Neon / Supabase).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
