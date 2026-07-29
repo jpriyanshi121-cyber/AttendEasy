@@ -33,8 +33,7 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/records", recordRoutes);
 
-// TODO (next step): mount /api/subjects, /api/slots,
-// /api/records, /api/reports once built.
+// TODO (next step): /api/reports (PDF export) once the frontend is wired up.
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
