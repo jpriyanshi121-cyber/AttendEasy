@@ -1,10 +1,14 @@
 require("dotenv").config();
+require("express-async-errors");
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 
 const authRoutes = require("./routes/auth");
 const semesterRoutes = require("./routes/semesters");
+const subjectRoutes = require("./routes/subjects");
+const slotRoutes = require("./routes/slots");
+const recordRoutes = require("./routes/records");
 
 const app = express();
 
@@ -25,6 +29,9 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/semesters", semesterRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/slots", slotRoutes);
+app.use("/api/records", recordRoutes);
 
 // TODO (next step): mount /api/subjects, /api/slots,
 // /api/records, /api/reports once built.
