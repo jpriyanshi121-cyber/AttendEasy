@@ -4,6 +4,7 @@ const prisma = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getOwnedSemester } = require("../lib/ownership");
 const { computeStats } = require("../lib/stats");
+const PDFDocument = require("pdfkit");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -164,6 +165,56 @@ router.get("/day", async (req, res) => {
     include: { slot: { include: { subject: true } } },
   });
   res.json({ records });
+});
+
+// Generate a PDF attendance report for the active semester.
+router.get("/report/pdf", async (req, res) => {
+  const semesterId = req.query.semesterId;
+  if (!semesterId) return res.status(400).json({ error: "semesterId is required" });
+
+  const semester = await getOwnedSemester(semesterId, req.userId);
+  if (!semester) return res.status(404).json({ error: "Semester not found" });
+
+  const subjects = await prisma.subject.findMany({ where: { semesterId, archived: false } });
+  const perSubject = await Promise.all(
+    subjects.map(async (subject) => {
+      const records = await prisma.attendanceRecord.findMany({ where: { subjectId: subject.id } });
+      return { subject, stats: computeStats(records, subject.threshold) };
+    })
+  );
+  const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
+  const overall = computeStats(allRecords, 75);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="attendance-report-${semester.name.replace(/\s+/g, "-")}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 50 });
+  doc.pipe(res);
+
+  doc.fontSize(20).text("AttendEasy — Attendance Report", { align: "center" });
+  doc.moveDown(0.3);
+  doc.fontSize(12).fillColor("#666").text(semester.name, { align: "center" });
+  doc.moveDown(1.5);
+
+  doc.fillColor("#000").fontSize(14).text(`Overall Attendance: ${overall.percentage}%`);
+  doc.fontSize(11).fillColor("#444").text(`Attended ${overall.attended} of ${overall.held} held classes`);
+  doc.moveDown(1);
+
+  doc.fillColor("#000").fontSize(14).text("Subject-wise Breakdown");
+  doc.moveDown(0.5);
+
+  perSubject.forEach(({ subject, stats }) => {
+    doc.fontSize(12).fillColor("#000").text(`${subject.name} (min ${subject.threshold}%)`);
+    doc.fontSize(10).fillColor("#444").text(
+      `  ${stats.percentage}% — Attended ${stats.attended}, Missed ${stats.missed}, Cancelled ${stats.cancelled}, Total ${stats.total}`
+    );
+    doc.moveDown(0.6);
+  });
+
+  doc.moveDown(1);
+  doc.fontSize(9).fillColor("#999").text(`Generated on ${new Date().toLocaleDateString("en-IN")}`, { align: "right" });
+
+  doc.end();
 });
 
 module.exports = router;

@@ -1732,6 +1732,31 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 function SettingsScreen({ onSemesters, onOnboarding, onEditTimetable }: {
   onSemesters:()=>void; onOnboarding:()=>void; onEditTimetable:()=>void;
 }) {
+  async function downloadReport() {
+    try {
+      const { semesters } = await api.get("/semesters");
+      const active = semesters.find((s:any) => s.isActive) || semesters[0];
+      if (!active) return;
+
+      const token = getToken();
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/records/report/pdf?semesterId=${active.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to generate report");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attendance-report-${active.name.replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  }
   const groups = [
     { title:"TIMETABLE", items:[
       { I:Edit2,       l:"Edit Subjects",         s:"Manage your courses",        c:"#6E4F91", fn:onEditTimetable as (()=>void)|undefined },
@@ -1744,7 +1769,7 @@ function SettingsScreen({ onSemesters, onOnboarding, onEditTimetable }: {
     ]},
     { title:"DATA & EXPORT", items:[
       { I:Archive,  l:"Manage Semesters",   s:"3 archived",                c:"#6E4F91", fn:onSemesters },
-      { I:Download, l:"Export PDF Report",  s:"Full attendance report",    c:"#8B6FBB", fn:undefined },
+      { I:Download, l:"Export PDF Report",  s:"Full attendance report",    c:"#8B6FBB", fn:downloadReport },
       { I:FileText, l:"Start New Semester", s:"Archive current & reset",   c:"#5A3D78", fn:onOnboarding },
     ]},
   ];
