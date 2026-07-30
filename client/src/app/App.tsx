@@ -49,7 +49,7 @@ export const S = {
 // TYPES
 // ════════════════════════════════════════════════════════════════
 type Status   = "present" | "absent" | "cancelled" | "rescheduled";
-type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings";
+type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings" | "edit-timetable";
 type TabId    = "home" | "timetable" | "calendar" | "settings";
 
 interface Subject  { id: string; name: string; code: string; color: string; icon: string; threshold: number; }
@@ -553,6 +553,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
   onMark:(slotId:string)=>void;
   refreshKey: number;
 }) {
+  const [fabOpen, setFabOpen] = useState(false);
   const [userName, setUserName] = useState("");
   const [overall, setOverall] = useState<{percentage:number}|null>(null);
   const [subjectCards, setSubjectCards] = useState<{subject:any; stats:any; status:string}[]>([]);
@@ -736,7 +737,100 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
           })}
         </div>
       </div>
+
+      {/* FAB */}
+      <button
+        onClick={() => setFabOpen(true)}
+        style={{
+          position:"fixed", right:24, bottom:94, width:58, height:58, borderRadius:"50%",
+          background:T.accent, border:"none", cursor:"pointer", zIndex:20,
+          boxShadow:S.acc,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}
+      >
+        <Plus size={26} color="#fff" />
+      </button>
+
+      {fabOpen && (
+        <ExtraClassModal
+          subjects={subjectCards.map(c => c.subject)}
+          onClose={() => setFabOpen(false)}
+          onSaved={() => { setFabOpen(false); setQuickBusy(null); window.location.reload(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function ExtraClassModal({ subjects, onClose, onSaved }: {
+  subjects: {id:string; name:string; color:string}[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [subjectId, setSubjectId] = useState(subjects[0]?.id || "");
+  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+  const [room, setRoom] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+
+  async function save() {
+    if (!subjectId) { setError("Pick a subject first."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const { semesters } = await api.get("/semesters");
+      const active = semesters.find((s:any) => s.isActive) || semesters[0];
+      await api.post("/slots/extra", {
+        semesterId: active.id,
+        subjectId, date, startTime, endTime,
+        room: room || undefined,
+        mode: "add",
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.44)", backdropFilter:"blur(5px)", zIndex:60 }} />
+      <div style={{
+        position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+        width:"calc(100% - 48px)", maxWidth:340,
+        background:T.card, borderRadius:24, padding:"24px 22px",
+        boxShadow:S.lg, zIndex:61,
+      }}>
+        <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH, marginBottom:16 }}>Add Extra Class</h3>
+
+        {subjects.length === 0 ? (
+          <p style={{ fontSize:13, color:T.inkM }}>Add a subject first before scheduling an extra class.</p>
+        ) : (
+          <>
+            <select value={subjectId} onChange={e => setSubjectId(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:10, boxSizing:"border-box" }}>
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:10, boxSizing:"border-box" }} />
+            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
+            </div>
+            <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:14, boxSizing:"border-box" }} />
+            {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={onClose} style={{ flex:1, padding:"12px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{ flex:1, padding:"12px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -980,20 +1074,42 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 5 — MARK ATTENDANCE SHEET
 // ════════════════════════════════════════════════════════════════
-function AttendanceSheet({ slotId, onClose, onSave }: {
-  slotId:string|null; onClose:()=>void; onSave:(id:string,s:Status,note?:string,tag?:string)=>void;
+function AttendanceSheet({ slotId, onClose, onSaved }: {
+  slotId:string|null; onClose:()=>void; onSaved:()=>void;
 }) {
   const [sel,    setSel]    = useState<Status|null>(null);
   const [cTag,   setCTag]   = useState<string|null>(null);
   const [note,   setNote]   = useState("");
-  const [rMode,  setRMode]  = useState<"add"|"replace">("add");
+  const [rDate,  setRDate]  = useState("");
+  const [rStart, setRStart] = useState("");
+  const [rEnd,   setREnd]   = useState("");
+  const [rRoom,  setRRoom]  = useState("");
   const [visible,setVisible]= useState(false);
+  const [slotInfo, setSlotInfo] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (slotId) { setSel(null); setCTag(null); setNote(""); setVisible(false); requestAnimationFrame(() => setVisible(true)); }
+    if (!slotId) return;
+    setSel(null); setCTag(null); setNote(""); setVisible(false);
+    setSlotInfo(null);
+    requestAnimationFrame(() => setVisible(true));
+
+    (async () => {
+      try {
+        const { slot } = await api.get(`/slots/${slotId}`);
+        setSlotInfo(slot);
+        setRDate(new Date().toISOString().slice(0,10));
+        setRStart(slot.startTime);
+        setREnd(slot.endTime);
+        setRRoom(slot.room || "");
+      } catch (e) {
+        console.error(e);
+      }
+    })();
   }, [slotId]);
 
   if (!slotId) return null;
+
   const TAGS = ["Holiday","Prof Absent","Exam","Other"];
   const OPTS: { s:Status; desc:string; icon:React.ReactNode }[] = [
     { s:"present",     desc:"I attended this class",     icon:<Check size={18}/> },
@@ -1002,9 +1118,39 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
     { s:"rescheduled", desc:"Moving to another time",     icon:<RotateCcw size={18}/> },
   ];
 
+  async function handleSave() {
+    if (!sel || !slotId) return;
+    setSaving(true);
+    try {
+      await api.post("/records/mark", {
+        slotId, date: new Date().toISOString(), status: sel,
+        note: note || undefined,
+        tag: sel === "cancelled" && cTag ? cTag.toLowerCase().replace(/\s+/g, "_") : undefined,
+      });
+
+      if (sel === "rescheduled" && slotInfo) {
+        await api.post("/slots/extra", {
+          semesterId: slotInfo.semesterId,
+          subjectId: slotInfo.subjectId,
+          date: rDate,
+          startTime: rStart,
+          endTime: rEnd,
+          room: rRoom || undefined,
+          mode: "replace",
+          replacesSlotId: slotId,
+        });
+      }
+
+      onSaved();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -1015,7 +1161,6 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
           zIndex:50,
         }}
       />
-      {/* Sheet */}
       <div style={{
         position:"fixed", bottom:0, left:"50%",
         width:"100%", maxWidth:390,
@@ -1025,18 +1170,23 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
         transform: visible ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(100%)",
         transition:`transform 0.42s cubic-bezier(0.22,1.3,0.55,1)`,
       }}>
-        {/* Handle */}
         <div style={{ display:"flex", justifyContent:"center", padding:"16px 0 0" }}>
           <div style={{ width:40, height:4, borderRadius:2, background:"rgba(27,21,48,0.1)" }} />
         </div>
 
-        {/* Subject info */}
         <div style={{ padding:"16px 24px 18px", borderBottom:`1px solid rgba(110,79,145,0.09)` }}>
           <div style={{ marginBottom:5 }}><Eyebrow>MARK ATTENDANCE</Eyebrow></div>
-          <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:6 }}>Mark this class</h3>
+          <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:6 }}>
+            {slotInfo?.subject?.name || "Loading..."}
+          </h3>
+          {slotInfo && (
+            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+              <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Today · {slotInfo.startTime}–{slotInfo.endTime}</span>
+              {slotInfo.room && <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slotInfo.room}</span>}
+            </div>
+          )}
         </div>
 
-        {/* Options */}
         <div style={{ padding:"18px 24px 0", maxHeight:"65vh", overflowY:"auto" }}>
           {OPTS.map(({ s, desc, icon }) => {
             const { text, bg, label } = statusMeta(s);
@@ -1074,7 +1224,6 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
             );
           })}
 
-          {/* Cancel quick-tags */}
           {sel==="cancelled" && (
             <div style={{ marginBottom:12, padding:"16px", background:T.aFill, borderRadius:18, animation:"ae0 0.28s ease both" }}>
               <div style={{ marginBottom:10 }}><Eyebrow>REASON (OPTIONAL)</Eyebrow></div>
@@ -1094,31 +1243,20 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
             </div>
           )}
 
-          {/* Reschedule fields */}
           {sel==="rescheduled" && (
             <div style={{ marginBottom:12, padding:"16px", background:T.warnFill, borderRadius:18, animation:"ae0 0.28s ease both" }}>
-              {/* Segmented toggle */}
-              <div style={{ display:"flex", background:"rgba(255,255,255,0.6)", borderRadius:13, padding:3, marginBottom:14 }}>
-                {(["add","replace"] as const).map(m => (
-                  <button key={m} onClick={() => setRMode(m)} style={{
-                    flex:1, padding:"10px", borderRadius:11, border:"none",
-                    background: rMode===m ? T.accent : "transparent",
-                    color: rMode===m ? "#fff" : T.inkM,
-                    fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer",
-                    transition:"all 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-                    boxShadow: rMode===m ? S.acc : "none",
-                  }}>{m==="add" ? "Extra Class" : "Replace Slot"}</button>
-                ))}
+              <div style={{ marginBottom:14 }}>
+                <Eyebrow>MOVING TO</Eyebrow>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <input placeholder="Date" style={fieldStyle} />
-                <input placeholder="Time" style={{ ...fieldStyle, width:80 }} />
-                <input placeholder="Room" style={{ ...fieldStyle, width:70 }} />
+                <input type="date" value={rDate} onChange={e => setRDate(e.target.value)} style={fieldStyle} />
+                <input type="time" value={rStart} onChange={e => setRStart(e.target.value)} style={{ ...fieldStyle, width:80 }} />
+                <input type="time" value={rEnd} onChange={e => setREnd(e.target.value)} style={{ ...fieldStyle, width:80 }} />
               </div>
+              <input placeholder="Room (optional)" value={rRoom} onChange={e => setRRoom(e.target.value)} style={{ ...fieldStyle, width:"100%", marginTop:8, boxSizing:"border-box" }} />
             </div>
           )}
 
-          {/* Note */}
           <input
             placeholder="Add a note (optional)"
             value={note}
@@ -1126,10 +1264,9 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
             style={{ ...fieldStyle, width:"100%", fontStyle: note?"normal":"italic", marginBottom:0 }}
           />
 
-          {/* Save */}
           <button
-            disabled={!sel}
-            onClick={() => { if (sel && slotId) { onSave(slotId,sel,note||undefined,cTag||undefined); onClose(); }}}
+            disabled={!sel || saving}
+            onClick={handleSave}
             style={{
               width:"100%", padding:"17px", borderRadius:20, border:"none",
               background: sel ? T.accent : "rgba(110,79,145,0.12)",
@@ -1139,10 +1276,9 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
               marginTop:14, marginBottom:10,
               boxShadow: sel ? S.acc : "none",
               transition:"all 0.22s ease",
-              transform: sel ? "scale(1)" : "scale(0.99)",
             }}
           >
-            Save Attendance
+            {saving ? "Saving..." : "Save Attendance"}
           </button>
         </div>
       </div>
@@ -1502,16 +1638,104 @@ function SemesterScreen({ onStartNew }: { onStartNew: () => void }) {
   );
 }
 
+function EditTimetableScreen({ onBack }: { onBack: () => void }) {
+  const [semesterId, setSemesterId] = useState<string|null>(null);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; threshold:number}[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newThreshold, setNewThreshold] = useState("75");
+  const [loading, setLoading] = useState(false);
+  const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
+
+  async function load() {
+    const { semesters } = await api.get("/semesters");
+    const active = semesters.find((s:any) => s.isActive) || semesters[0];
+    if (!active) return;
+    setSemesterId(active.id);
+    const { subjects: fetched } = await api.get(`/subjects?semesterId=${active.id}`);
+    setSubjects(fetched);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function addSubject() {
+    if (!newName.trim() || !semesterId) return;
+    setLoading(true);
+    try {
+      const color = PALETTE[subjects.length % PALETTE.length];
+      const { subject } = await api.post("/subjects", {
+        semesterId, name: newName.trim(), color,
+        threshold: parseInt(newThreshold, 10) || 75,
+      });
+      setSubjects(prev => [...prev, subject]);
+      setNewName(""); setNewThreshold("75"); setAdding(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:60 }}>
+      <div style={{ padding:"56px 24px 20px" }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:6, color:T.accent, marginBottom:20, padding:0, fontFamily:F.sans, fontSize:14, fontWeight:500 }}>
+          <ChevronLeft size={17} /> Back
+        </button>
+        <div style={{ marginBottom:8 }}><Eyebrow>SUBJECTS & TIMETABLE</Eyebrow></div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Edit Timetable</h2>
+      </div>
+
+      <div style={{ padding:"0 24px" }}>
+        {semesterId && subjects.map((s, i) => (
+          <SubjectSlotRow key={s.id} subject={s} index={i} semesterId={semesterId} />
+        ))}
+
+        {adding ? (
+          <div style={{ padding:"16px", borderRadius:18, marginBottom:10, background:T.card, boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
+            <input
+              value={newName} onChange={e => setNewName(e.target.value)} placeholder="Subject name"
+              style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+            />
+            <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12 }}>
+              <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Threshold %</span>
+              <input
+                value={newThreshold} onChange={e => setNewThreshold(e.target.value.replace(/\D/g, ""))}
+                style={{ width:60, padding:"8px 10px", borderRadius:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center" }}
+              />
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => setAdding(false)} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              <button onClick={addSubject} disabled={loading} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                {loading ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} style={{
+            width:"100%", padding:"15px", borderRadius:18, marginBottom:8,
+            border:`1.5px dashed rgba(110,79,145,0.3)`, background:"transparent",
+            color:T.accent, fontFamily:F.sans, fontSize:14, fontWeight:500,
+            cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+          }}>
+            <Plus size={15} /> Add Subject
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════
 // SCREEN 8 — SETTINGS
 // ════════════════════════════════════════════════════════════════
-function SettingsScreen({ onSemesters, onOnboarding }: {
-  onSemesters:()=>void; onOnboarding:()=>void;
+function SettingsScreen({ onSemesters, onOnboarding, onEditTimetable }: {
+  onSemesters:()=>void; onOnboarding:()=>void; onEditTimetable:()=>void;
 }) {
   const groups = [
     { title:"TIMETABLE", items:[
-      { I:Edit2,       l:"Edit Subjects",         s:"5 subjects enrolled",        c:"#6E4F91", fn:undefined as (()=>void)|undefined },
-      { I:LayoutGrid,  l:"Edit Timetable",         s:"10 weekly slots",            c:"#8B6FBB", fn:undefined },
+      { I:Edit2,       l:"Edit Subjects",         s:"Manage your courses",        c:"#6E4F91", fn:onEditTimetable as (()=>void)|undefined },
+      { I:LayoutGrid,  l:"Edit Timetable",         s:"Manage weekly slots",        c:"#8B6FBB", fn:onEditTimetable },
       { I:AlertCircle, l:"Attendance Thresholds",  s:"75% default · 80% for EC201",c:"#5A3D78", fn:undefined },
     ]},
     { title:"NOTIFICATIONS", items:[
@@ -1729,7 +1953,11 @@ export default function App() {
             <SettingsScreen
               onSemesters={() => setScreen("semester")}
               onOnboarding={() => setScreen("onboarding")}
+              onEditTimetable={() => setScreen("edit-timetable")}
             />
+          )}
+          {screen==="edit-timetable" && (
+            <EditTimetableScreen onBack={() => setScreen("settings")} />
           )}
         </div>
 
@@ -1742,18 +1970,7 @@ export default function App() {
       <AttendanceSheet
         slotId={markSlot}
         onClose={() => setMarkSlot(null)}
-        onSave={async (id,st,note,tag) => {
-          try {
-            await api.post("/records/mark", {
-              slotId: id,
-              date: new Date().toISOString(),
-              status: st,
-              note,
-              tag: tag ? tag.toLowerCase().replace(/\s+/g, "_") : undefined,
-            });
-          } catch (e) {
-            console.error(e);
-          }
+        onSaved={() => {
           setMarkSlot(null);
           setHomeRefresh(r => r + 1);
         }}

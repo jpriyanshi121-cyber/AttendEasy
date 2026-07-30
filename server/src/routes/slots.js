@@ -59,6 +59,20 @@ router.get("/today", async (req, res) => {
   res.json({ date: today, classes });
 });
 
+// Get one slot's full detail (used by the attendance sheet to know
+// which subject/semester it belongs to before rescheduling).
+router.get("/:id", async (req, res) => {
+  const slot = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { subject: true },
+  });
+  if (!slot) return res.status(404).json({ error: "Slot not found" });
+  const semester = await getOwnedSemester(slot.semesterId, req.userId);
+  if (!semester) return res.status(404).json({ error: "Slot not found" });
+
+  res.json({ slot });
+});
+
 router.post(
   "/",
   [
