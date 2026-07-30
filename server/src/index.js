@@ -45,7 +45,15 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Something went wrong on the server" });
 });
 
+const prisma = require("./db");
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`AttendEasy API running on http://localhost:${PORT}`);
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("Database connection warm and ready.");
+  } catch (e) {
+    console.error("Warning: could not warm up database connection on startup.", e.message);
+  }
 });

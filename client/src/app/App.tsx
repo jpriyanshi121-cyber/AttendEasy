@@ -548,12 +548,51 @@ const miniField: React.CSSProperties = {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 2 — HOME DASHBOARD
 // ════════════════════════════════════════════════════════════════
-function HomeScreen({ onSubject, onMark }: {
+function HomeScreen({ onSubject, onMark, refreshKey }: {
   onSubject:(id:string)=>void;
   onMark:(slotId:string)=>void;
+  refreshKey: number;
 }) {
-  const [quicked, setQuicked] = useState<Record<string,Status>>({});
-  const [fabOpen, setFabOpen] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [overall, setOverall] = useState<{percentage:number}|null>(null);
+  const [subjectCards, setSubjectCards] = useState<{subject:any; stats:any; status:string}[]>([]);
+  const [todayClasses, setTodayClasses] = useState<{slot:any; record:any}[]>([]);
+  const [quickBusy, setQuickBusy] = useState<string|null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [{ user }, { semesters }] = await Promise.all([api.me(), api.get("/semesters")]);
+        setUserName(user.name);
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (!active) return;
+
+        const [overviewRes, todayRes] = await Promise.all([
+          api.get(`/records/stats/overview?semesterId=${active.id}`),
+          api.get(`/slots/today?semesterId=${active.id}`),
+        ]);
+        setOverall(overviewRes.overall);
+        setSubjectCards(overviewRes.subjects);
+        setTodayClasses(todayRes.classes);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [refreshKey]);
+
+  async function quickMark(slotId: string, status: Status) {
+    setQuickBusy(slotId);
+    try {
+      await api.post("/records/mark", { slotId, date: new Date().toISOString(), status });
+      setTodayClasses(prev => prev.map(c => c.slot.id === slotId ? { ...c, record: { ...c.record, status } } : c));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setQuickBusy(null);
+    }
+  }
+
+  const todayLabel = new Date().toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" });
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
@@ -561,15 +600,15 @@ function HomeScreen({ onSubject, onMark }: {
       <div style={{ padding:"56px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
         <div>
           <div className="ae0" style={{ marginBottom:10 }}>
-            <Eyebrow>MONSOON 2026 · TUE 29 JUL</Eyebrow>
+            <Eyebrow>{todayLabel.toUpperCase()}</Eyebrow>
           </div>
           <h1 className="ae1" style={{ fontFamily:F.serif, fontWeight:600, fontSize:34, color:T.inkH, lineHeight:1.05, marginBottom:6 }}>
-            Hey, Arjun.
+            Hey{userName ? `, ${userName.split(" ")[0]}` : ""}.
           </h1>
-          <p className="ae2" style={{ fontSize:14, color:T.inkM }}>2 classes today</p>
+          <p className="ae2" style={{ fontSize:14, color:T.inkM }}>{todayClasses.length} class{todayClasses.length===1?"":"es"} today</p>
         </div>
         <div className="ae1" style={{ paddingTop:2 }}>
-          <Seal pct={OVERALL} size={80} animate={true} />
+          <Seal pct={overall ? Math.round(overall.percentage) : 0} size={80} animate={true} />
         </div>
       </div>
 
@@ -577,43 +616,44 @@ function HomeScreen({ onSubject, onMark }: {
       <div style={{ marginTop:34, paddingLeft:24 }} className="ae3">
         <Eyebrow>YOUR SUBJECTS</Eyebrow>
         <div style={{ display:"flex", gap:12, overflowX:"auto", paddingRight:24, paddingBottom:8, marginTop:14 }}>
-          {SUBJECTS.map((subj, i) => {
-            const st   = STATS[subj.id];
-            const warn = st.pct < subj.threshold;
+          {subjectCards.length === 0 && (
+            <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No subjects yet — add some from onboarding.</p>
+          )}
+          {subjectCards.map(({ subject, stats, status }, i) => {
+            const warn = status !== "green";
             return (
               <button
-                key={subj.id}
-                onClick={() => onSubject(subj.id)}
-                className={`ae${i+1}`}
+                key={subject.id}
+                onClick={() => onSubject(subject.id)}
+                className={`ae${Math.min(i+1,5)}`}
                 style={{
                   flexShrink:0, width:148, height:164, padding:"18px 16px", borderRadius:22, border:"none",
-                  background:`linear-gradient(148deg, ${subj.color} 0%, ${subj.color}AA 100%)`,
-                  boxShadow:`0 8px 24px ${subj.color}50`,
+                  background:`linear-gradient(148deg, ${subject.color} 0%, ${subject.color}AA 100%)`,
+                  boxShadow:`0 8px 24px ${subject.color}50`,
                   display:"flex", flexDirection:"column", justifyContent:"space-between", textAlign:"left",
                   cursor:"pointer", transition:"transform 0.16s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.16s ease",
                   position:"relative", overflow:"hidden",
                 }}
-                onMouseDown={e => { e.currentTarget.style.transform="scale(0.95)"; e.currentTarget.style.boxShadow=`0 4px 12px ${subj.color}40`; }}
-                onMouseUp={e   => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.boxShadow=`0 8px 24px ${subj.color}50`; }}
+                onMouseDown={e => { e.currentTarget.style.transform="scale(0.95)"; e.currentTarget.style.boxShadow=`0 4px 12px ${subject.color}40`; }}
+                onMouseUp={e   => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.boxShadow=`0 8px 24px ${subject.color}50`; }}
               >
-                {/* subtle shimmer top-right */}
                 <div style={{ position:"absolute", top:-20, right:-20, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.12)", pointerEvents:"none" }} />
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div style={{ width:34, height:34, borderRadius:11, background:"rgba(255,255,255,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <Icon name={subj.icon} size={16} color="#fff" />
+                    <Icon name="BookOpen" size={16} color="#fff" />
                   </div>
                   {warn && <AlertCircle size={14} color="rgba(255,220,180,0.95)" />}
                 </div>
                 <div>
                   <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:34, color:"#fff", lineHeight:1, marginBottom:5 }}>
-                    {st.pct}%
+                    {Math.round(stats.percentage)}%
                   </div>
                   <div style={{ fontFamily:F.mono, fontSize:9, color:"rgba(255,255,255,0.7)", letterSpacing:"0.08em", textTransform:"uppercase" }}>
-                    {subj.code}
+                    {subject.name}
                   </div>
                   {warn && (
                     <div style={{ marginTop:8, fontFamily:F.mono, fontSize:9, color:"rgba(255,224,188,1)", background:"rgba(0,0,0,0.24)", padding:"3px 8px", borderRadius:100, display:"inline-block" }}>
-                      Below {subj.threshold}%
+                      Below {subject.threshold}%
                     </div>
                   )}
                 </div>
@@ -627,20 +667,19 @@ function HomeScreen({ onSubject, onMark }: {
       <div style={{ margin:"36px 24px 0" }} className="ae4">
         <Eyebrow>TODAY</Eyebrow>
         <div style={{ position:"relative", marginTop:18 }}>
-          {/* gradient line */}
+          {todayClasses.length === 0 && (
+            <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No classes scheduled today.</p>
+          )}
           <div style={{
             position:"absolute", left:18, top:14, bottom:14, width:2,
             background:`linear-gradient(to bottom, ${T.accent}90 0%, ${T.accent}18 100%)`,
-            borderRadius:2,
+            borderRadius:2, display: todayClasses.length ? "block" : "none",
           }} />
-          {TODAY_SLOTS.map(({ slot, status, marked }, idx) => {
-            const subj       = SUBJECTS.find(s => s.id === slot.subjectId)!;
-            const local      = quicked[slot.id] || status;
-            const isPending  = !marked && !quicked[slot.id];
-            const dotColor   = isPending ? T.aFillDeep : local === "present" ? T.safe : T.danger;
+          {todayClasses.map(({ slot, record }, idx) => {
+            const isPending  = !record;
+            const dotColor   = isPending ? T.aFillDeep : record.status === "present" ? T.safe : T.danger;
             return (
-              <div key={slot.id} style={{ display:"flex", gap:18, marginBottom:16 }} className={`ae${idx+1}`}>
-                {/* dot */}
+              <div key={slot.id} style={{ display:"flex", gap:18, marginBottom:16 }} className={`ae${Math.min(idx+1,5)}`}>
                 <div style={{ width:38, flexShrink:0, display:"flex", justifyContent:"center", paddingTop:18 }}>
                   <div style={{
                     width:10, height:10, borderRadius:"50%", zIndex:1, position:"relative",
@@ -649,7 +688,6 @@ function HomeScreen({ onSubject, onMark }: {
                     boxShadow:`0 0 0 3px ${dotColor}40`,
                   }} />
                 </div>
-                {/* card */}
                 <div style={{
                   flex:1, background:T.card, borderRadius:20, padding:"18px 18px",
                   boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
@@ -658,15 +696,14 @@ function HomeScreen({ onSubject, onMark }: {
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
                     <div>
                       <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH, marginBottom:5 }}>
-                        {subj.name}
+                        {slot.subject.name}
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                        <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>{slot.time}–{slot.endTime}</span>
-                        <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slot.room}</span>
+                        <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>{slot.startTime}–{slot.endTime}</span>
+                        {slot.room && <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slot.room}</span>}
                       </div>
-                      <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkL, marginTop:5 }}>{slot.prof}</div>
                     </div>
-                    {!isPending && local && <Pill status={local} />}
+                    {!isPending && <Pill status={record.status} />}
                   </div>
 
                   {isPending && (
@@ -675,15 +712,14 @@ function HomeScreen({ onSubject, onMark }: {
                         const { text, bg, label } = statusMeta(s);
                         return (
                           <button key={s}
-                            onClick={() => setQuicked(p => ({ ...p, [slot.id]: s }))}
+                            disabled={quickBusy === slot.id}
+                            onClick={() => quickMark(slot.id, s)}
                             style={{
                               padding:"7px 14px", borderRadius:100, border:`1.5px solid ${text}25`,
                               background:bg, color:text,
                               fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer",
                               transition:"transform 0.12s cubic-bezier(0.34,1.56,0.64,1)",
                             }}
-                            onMouseDown={e => (e.currentTarget.style.transform="scale(0.90)")}
-                            onMouseUp={e   => (e.currentTarget.style.transform="scale(1)")}
                           >{label}</button>
                         );
                       })}
@@ -700,21 +736,6 @@ function HomeScreen({ onSubject, onMark }: {
           })}
         </div>
       </div>
-
-      {/* FAB */}
-      <button
-        onClick={() => setFabOpen(f => !f)}
-        style={{
-          position:"fixed", right:24, bottom:94, width:58, height:58, borderRadius:"50%",
-          background:T.accent, border:"none", cursor:"pointer", zIndex:20,
-          boxShadow:S.acc,
-          display:"flex", alignItems:"center", justifyContent:"center",
-          transform: fabOpen ? "rotate(45deg) scale(1.06)" : "rotate(0) scale(1)",
-          transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1)",
-        }}
-      >
-        <Plus size={26} color="#fff" />
-      </button>
     </div>
   );
 }
@@ -941,8 +962,6 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
   }, [slotId]);
 
   if (!slotId) return null;
-  const slot = SLOTS.find(s => s.id===slotId)!;
-  const subj = SUBJECTS.find(s => s.id===slot.subjectId)!;
   const TAGS = ["Holiday","Prof Absent","Exam","Other"];
   const OPTS: { s:Status; desc:string; icon:React.ReactNode }[] = [
     { s:"present",     desc:"I attended this class",     icon:<Check size={18}/> },
@@ -982,11 +1001,7 @@ function AttendanceSheet({ slotId, onClose, onSave }: {
         {/* Subject info */}
         <div style={{ padding:"16px 24px 18px", borderBottom:`1px solid rgba(110,79,145,0.09)` }}>
           <div style={{ marginBottom:5 }}><Eyebrow>MARK ATTENDANCE</Eyebrow></div>
-          <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:6 }}>{subj.name}</h3>
-          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-            <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Today · {slot.time}–{slot.endTime}</span>
-            <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slot.room}</span>
-          </div>
+          <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:6 }}>Mark this class</h3>
         </div>
 
         {/* Options */}
@@ -1543,6 +1558,7 @@ export default function App() {
   const [tab,     setTab]     = useState<TabId>("home");
   const [subjId,  setSubjId]  = useState<string|null>(null);
   const [markSlot,setMarkSlot]= useState<string|null>(null);
+  const [homeRefresh, setHomeRefresh] = useState(0);
 
   const goTab = (t: TabId) => {
     setTab(t);
@@ -1608,6 +1624,7 @@ export default function App() {
           )}
           {screen==="home" && (
             <HomeScreen
+              refreshKey={homeRefresh}
               onSubject={id => { setSubjId(id); setScreen("subject"); }}
               onMark={id => setMarkSlot(id)}
             />
@@ -1641,7 +1658,21 @@ export default function App() {
       <AttendanceSheet
         slotId={markSlot}
         onClose={() => setMarkSlot(null)}
-        onSave={(id,st,note,tag) => setMarkSlot(null)}
+        onSave={async (id,st,note,tag) => {
+          try {
+            await api.post("/records/mark", {
+              slotId: id,
+              date: new Date().toISOString(),
+              status: st,
+              note,
+              tag: tag ? tag.toLowerCase().replace(/\s+/g, "_") : undefined,
+            });
+          } catch (e) {
+            console.error(e);
+          }
+          setMarkSlot(null);
+          setHomeRefresh(r => r + 1);
+        }}
       />
     </>
   );

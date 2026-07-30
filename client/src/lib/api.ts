@@ -12,7 +12,7 @@ function clearToken() {
   localStorage.removeItem("attendeasy_token");
 }
 
-async function request(path: string, options: RequestInit = {}) {
+async function request(path: string, options: RequestInit = {}, retried = false): Promise<any> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -20,10 +20,21 @@ async function request(path: string, options: RequestInit = {}) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  } catch (networkErr) {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    // Database was likely asleep — wait a moment and retry once.
+    if (res.status === 500 && !retried) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return request(path, options, true);
+    }
     throw new Error(data.error || "Something went wrong");
   }
   return data;
