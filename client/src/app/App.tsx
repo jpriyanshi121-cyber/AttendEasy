@@ -744,56 +744,61 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
 // SCREEN 3 — FULL TIMETABLE
 // ════════════════════════════════════════════════════════════════
 function TimetableScreen({ onMark }: { onMark:(slotId:string)=>void }) {
-  const [wk, setWk] = useState(0);
+  const [slots, setSlots] = useState<any[]>([]);
   const HOURS = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00"];
   const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
 
-  // Mon Jul 28 = base for wk=0; today (Tue 29) is index 1
-  const dates = (() => {
-    const mon = new Date(2026,6,28);
-    return Array.from({ length:5 }, (_,i) => {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i + wk*7);
-      return d;
-    });
-  })();
+  useEffect(() => {
+    (async () => {
+      try {
+        const { semesters } = await api.get("/semesters");
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (!active) return;
+        const { slots: fetched } = await api.get(`/slots?semesterId=${active.id}`);
+        setSlots(fetched);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  const today = new Date();
+  const mon = new Date(today);
+  mon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const dates = Array.from({ length:5 }, (_,i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    return d;
+  });
+  const todayIdx = (today.getDay() + 6) % 7;
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, height:"100vh", display:"flex", flexDirection:"column", paddingBottom:80 }}>
       <div style={{ padding:"56px 20px 16px", flexShrink:0 }}>
         <div className="ae0" style={{ marginBottom:8 }}><Eyebrow>WEEK VIEW</Eyebrow></div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Timetable</h2>
-          <div style={{ display:"flex", gap:5 }}>
-            <button onClick={() => setWk(w=>w-1)} style={navBtn}><ChevronLeft size={15} color={T.inkM} /></button>
-            <button onClick={() => setWk(0)} style={{ ...navBtn, background: wk===0 ? T.aFill : T.card, color: wk===0 ? T.accent : T.inkM, padding:"0 11px", width:"auto", fontFamily:F.mono, fontSize:9, letterSpacing:"0.1em" }}>TODAY</button>
-            <button onClick={() => setWk(w=>w+1)} style={navBtn}><ChevronRight size={15} color={T.inkM} /></button>
-          </div>
-        </div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Timetable</h2>
       </div>
 
-      {/* Day header */}
       <div style={{ display:"flex", paddingLeft:46, paddingRight:12, gap:5, marginBottom:10, flexShrink:0 }}>
         {dates.map((d,i) => {
-          const today = wk===0 && i===1;
+          const isToday = i === todayIdx;
           return (
             <div key={i} style={{ flex:1, textAlign:"center" }}>
-              <div style={{ fontFamily:F.mono, fontSize:9, color:today?T.accent:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase" }}>{DAYS[i]}</div>
+              <div style={{ fontFamily:F.mono, fontSize:9, color:isToday?T.accent:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase" }}>{DAYS[i]}</div>
               <div style={{
                 fontFamily:F.serif, fontWeight:600, fontSize:17,
-                color: today?"#fff":T.inkH,
+                color: isToday?"#fff":T.inkH,
                 width:28, height:28, borderRadius:"50%",
-                background: today?T.accent:"transparent",
+                background: isToday?T.accent:"transparent",
                 display:"flex", alignItems:"center", justifyContent:"center",
                 margin:"4px auto 0",
-                boxShadow: today?S.acc:"none",
+                boxShadow: isToday?S.acc:"none",
               }}>{d.getDate()}</div>
             </div>
           );
         })}
       </div>
 
-      {/* Grid */}
       <div style={{ flex:1, overflow:"auto", paddingRight:12 }}>
         {HOURS.map(hr => (
           <div key={hr} style={{ display:"flex", gap:5, marginBottom:6, minHeight:58, alignItems:"stretch" }}>
@@ -801,7 +806,7 @@ function TimetableScreen({ onMark }: { onMark:(slotId:string)=>void }) {
               <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>{hr}</span>
             </div>
             {Array.from({ length:5 }, (_,di) => {
-              const slot = SLOTS.find(s => s.day===di && s.time===hr);
+              const slot = slots.find(s => s.day===di && s.startTime===hr);
               if (!slot) return (
                 <div key={di} style={{
                   flex:1, borderRadius:11, minHeight:58,
@@ -809,20 +814,16 @@ function TimetableScreen({ onMark }: { onMark:(slotId:string)=>void }) {
                   border:"1px solid rgba(110,79,145,0.05)",
                 }} />
               );
-              const subj = SUBJECTS.find(s => s.id===slot.subjectId)!;
               return (
                 <button key={di} onClick={() => onMark(slot.id)} style={{
                   flex:1, borderRadius:11, border:"none", cursor:"pointer",
                   background:T.aFill, padding:"8px 7px",
                   display:"flex", flexDirection:"column", alignItems:"flex-start", gap:4,
-                  borderLeft:`3px solid ${subj.color}`,
+                  borderLeft:`3px solid ${slot.subject.color}`,
                   transition:"transform 0.12s ease, box-shadow 0.12s ease", outline:"none",
-                }}
-                  onMouseDown={e => { e.currentTarget.style.transform="scale(0.95)"; e.currentTarget.style.boxShadow=S.sm; }}
-                  onMouseUp={e   => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.boxShadow="none"; }}
-                >
-                  <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:11, color:T.inkH, lineHeight:1.3 }}>{subj.name}</span>
-                  <span style={{ fontFamily:F.mono, fontSize:9, color:subj.color, letterSpacing:"0.04em" }}>{slot.room}</span>
+                }}>
+                  <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:11, color:T.inkH, lineHeight:1.3 }}>{slot.subject.name}</span>
+                  {slot.room && <span style={{ fontFamily:F.mono, fontSize:9, color:slot.subject.color, letterSpacing:"0.04em" }}>{slot.room}</span>}
                 </button>
               );
             })}
@@ -845,13 +846,45 @@ const navBtn: React.CSSProperties = {
 function SubjectDetailScreen({ subjectId, onBack, onMark }: {
   subjectId:string; onBack:()=>void; onMark:(slotId:string)=>void;
 }) {
-  const subj     = SUBJECTS.find(s => s.id===subjectId)!;
-  const stats    = STATS[subjectId];
-  const { canMiss, need } = calcBunk(stats, subj.threshold);
-  const isGood   = canMiss > 0;
-  const bunkVal  = useCountUp(isGood ? canMiss : need, 680);
-  const history  = HISTORY.filter(r => r.subjectId===subjectId).slice(0,8);
-  const slots    = SLOTS.filter(s => s.subjectId===subjectId);
+  const [data, setData] = useState<{subject:any; stats:any}|null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [slots, setSlots] = useState<any[]>([]);
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [statsRes, recordsRes, semRes] = await Promise.all([
+          api.get(`/records/stats/subject/${subjectId}`),
+          api.get(`/records?subjectId=${subjectId}`),
+          api.get("/semesters"),
+        ]);
+        setData(statsRes);
+        setHistory(recordsRes.records);
+
+        const active = semRes.semesters.find((s:any) => s.isActive) || semRes.semesters[0];
+        if (active) {
+          const { slots: allSlots } = await api.get(`/slots?semesterId=${active.id}`);
+          setSlots(allSlots.filter((s:any) => s.subjectId === subjectId));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [subjectId]);
+
+  const isGood  = data ? data.stats.canMissMore > 0 : false;
+  const bunkVal = useCountUp(data ? (isGood ? data.stats.canMissMore : data.stats.needToAttend) : 0, 680);
+
+  if (!data) {
+    return (
+      <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", padding:"56px 24px" }}>
+        <p style={{ color:T.inkM }}>Loading...</p>
+      </div>
+    );
+  }
+
+  const { subject, stats } = data;
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:108 }}>
@@ -862,28 +895,27 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
         </button>
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
           <div style={{ flex:1, paddingRight:16 }}>
-            <div style={{ marginBottom:10 }}><Eyebrow>{subj.code}</Eyebrow></div>
-            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:30, color:T.inkH, lineHeight:1.15, marginBottom:8 }}>{subj.name}</h2>
-            <p style={{ fontSize:13, color:T.inkM, marginBottom:12 }}>{slots[0]?.prof}</p>
+            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:30, color:T.inkH, lineHeight:1.15, marginBottom:8 }}>{subject.name}</h2>
+            {slots[0]?.prof && <p style={{ fontSize:13, color:T.inkM, marginBottom:12 }}>{slots[0].prof}</p>}
             <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
               {slots.map(sl => (
                 <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
-                  {["Mon","Tue","Wed","Thu","Fri"][sl.day]} {sl.time}
+                  {DAYS[sl.day]} {sl.startTime}
                 </span>
               ))}
             </div>
           </div>
-          <Seal pct={stats.pct} size={84} animate={true} label={`${subj.threshold}% min`} />
+          <Seal pct={Math.round(stats.percentage)} size={84} animate={true} label={`${subject.threshold}% min`} />
         </div>
       </div>
 
       {/* Stats row */}
       <div style={{ display:"flex", gap:8, padding:"24px 24px 0" }}>
         {[
-          { label:"Total",     v:stats.total,     c:T.inkH },
-          { label:"Attended",  v:stats.attended,  c:T.safe },
-          { label:"Missed",    v:stats.absent,    c:T.danger },
-          { label:"Cancelled", v:stats.cancelled, c:T.inkM },
+          { label:"Total",     v:stats.held,     c:T.inkH },
+          { label:"Attended",  v:stats.attended, c:T.safe },
+          { label:"Missed",    v:stats.missed,   c:T.danger },
+          { label:"Cancelled", v:stats.cancelled,c:T.inkM },
         ].map(item => (
           <div key={item.label} style={{
             flex:1, background:T.card, borderRadius:17, padding:"14px 8px",
@@ -900,18 +932,18 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
         <div style={{ marginBottom:14 }}><Eyebrow>{isGood ? "SAFE TO SKIP" : "RECOVERY PLAN"}</Eyebrow></div>
         <div style={{ display:"flex", alignItems:"flex-end", gap:10, marginBottom:12 }}>
           <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:76, color: isGood?T.safe:T.danger, lineHeight:1 }}>{bunkVal}</span>
-          <span style={{ fontFamily:F.serif, fontSize:18, color:T.inkM, paddingBottom:12 }}>class{(isGood?canMiss:need)!==1?"es":""}</span>
+          <span style={{ fontFamily:F.serif, fontSize:18, color:T.inkM, paddingBottom:12 }}>class{(isGood?stats.canMissMore:stats.needToAttend)!==1?"es":""}</span>
         </div>
         <p style={{ fontSize:14, color:T.inkM, lineHeight:1.6 }}>
           {isGood
-            ? `You can miss ${canMiss} more class${canMiss!==1?"es":""} and still hold above ${subj.threshold}%.`
-            : `Attend the next ${need} class${need!==1?"es":""} in a row to recover to ${subj.threshold}%.`
+            ? `You can miss ${stats.canMissMore} more class${stats.canMissMore!==1?"es":""} and still hold above ${subject.threshold}%.`
+            : `Attend the next ${stats.needToAttend} class${stats.needToAttend!==1?"es":""} in a row to recover to ${subject.threshold}%.`
           }
         </p>
         {!isGood && (
           <div style={{ marginTop:14, padding:"11px 15px", borderRadius:13, background:T.dangerFill, display:"flex", alignItems:"center", gap:10 }}>
             <AlertCircle size={15} color={T.danger} />
-            <span style={{ fontSize:12, color:T.danger, fontWeight:600 }}>Currently at {stats.pct}% — {subj.threshold - stats.pct}pp below threshold</span>
+            <span style={{ fontSize:12, color:T.danger, fontWeight:600 }}>Currently at {Math.round(stats.percentage)}% — {Math.round(subject.threshold - stats.percentage)}pp below threshold</span>
           </div>
         )}
       </div>
@@ -919,27 +951,27 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
       {/* History */}
       <div style={{ padding:"0 24px" }}>
         <div style={{ marginBottom:14 }}><Eyebrow>ATTENDANCE HISTORY</Eyebrow></div>
-        {history.map((rec, i) => {
-          const sl   = SLOTS.find(s => s.id===rec.slotId);
-          return (
-            <div key={i} className={`ae${Math.min(i+1,5)}`} style={{
-              display:"flex", alignItems:"center", gap:14, padding:"14px 16px",
-              background:T.card, borderRadius:17, marginBottom:8,
-              boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
-            }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontFamily:F.serif, fontSize:15, color:T.inkH, fontWeight:500, marginBottom:4 }}>{fmtDate(rec.date)}</div>
-                <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                  {sl && <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{sl.time}</span>}
-                  {sl && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6 }}>{sl.room}</span>}
-                  {rec.tag && <span style={{ fontFamily:F.mono, fontSize:9, color:T.warn, background:T.warnFill, padding:"1px 7px", borderRadius:6 }}>{rec.tag}</span>}
-                </div>
-                {rec.note && <p style={{ fontSize:12, color:T.inkM, fontStyle:"italic", marginTop:5, lineHeight:1.45 }}>{rec.note}</p>}
+        {history.length === 0 && <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No records yet.</p>}
+        {history.map((rec, i) => (
+          <div key={rec.id} className={`ae${Math.min(i+1,5)}`} style={{
+            display:"flex", alignItems:"center", gap:14, padding:"14px 16px",
+            background:T.card, borderRadius:17, marginBottom:8,
+            boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
+          }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:F.serif, fontSize:15, color:T.inkH, fontWeight:500, marginBottom:4 }}>
+                {new Date(rec.date).toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" })}
               </div>
-              <Pill status={rec.status} />
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot?.startTime}</span>
+                {rec.slot?.room && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6 }}>{rec.slot.room}</span>}
+                {rec.tag && <span style={{ fontFamily:F.mono, fontSize:9, color:T.warn, background:T.warnFill, padding:"1px 7px", borderRadius:6 }}>{rec.tag}</span>}
+              </div>
+              {rec.note && <p style={{ fontSize:12, color:T.inkM, fontStyle:"italic", marginTop:5, lineHeight:1.45 }}>{rec.note}</p>}
             </div>
-          );
-        })}
+            <Pill status={rec.status} />
+          </div>
+        ))}
       </div>
     </div>
   );
