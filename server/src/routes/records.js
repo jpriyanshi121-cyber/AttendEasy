@@ -146,4 +146,24 @@ router.get("/calendar", async (req, res) => {
   res.json({ days });
 });
 
+// All attendance records for one specific date (used when a calendar
+// day is tapped, to show that day's classes in detail).
+router.get("/day", async (req, res) => {
+  const semesterId = req.query.semesterId;
+  const dateParam = req.query.date;
+  if (!semesterId || !dateParam) {
+    return res.status(400).json({ error: "semesterId and date are required" });
+  }
+
+  const semester = await getOwnedSemester(semesterId, req.userId);
+  if (!semester) return res.status(404).json({ error: "Semester not found" });
+
+  const date = startOfDay(dateParam);
+  const records = await prisma.attendanceRecord.findMany({
+    where: { semesterId, date },
+    include: { slot: { include: { subject: true } } },
+  });
+  res.json({ records });
+});
+
 module.exports = router;

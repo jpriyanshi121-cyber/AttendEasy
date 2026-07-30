@@ -1160,39 +1160,58 @@ const fieldStyle: React.CSSProperties = {
 // SCREEN 6 — CALENDAR / HISTORY
 // ════════════════════════════════════════════════════════════════
 function CalendarScreen() {
-  const [expanded, setExpanded] = useState<number|null>(null);
+  const [semesterId, setSemesterId] = useState<string|null>(null);
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
+  const [days, setDays] = useState<{date:string; color:string; classCount:number; present:number; absent:number}[]>([]);
+  const [expanded, setExpanded] = useState<string|null>(null);
+  const [expRecs, setExpRecs] = useState<any[]>([]);
 
-  // July 2026: July 1 = Wed → Mon-start offset = 2
-  type DaySt = "all-present"|"has-absent"|"all-cancelled"|"no-class"|"today"|"future";
+  useEffect(() => {
+    (async () => {
+      const { semesters } = await api.get("/semesters");
+      const active = semesters.find((s:any) => s.isActive) || semesters[0];
+      if (active) setSemesterId(active.id);
+    })();
+  }, []);
 
-  const dayMap: Record<number,DaySt> = {};
-  for (let d=1; d<=31; d++) {
-    if (d > 29)  { dayMap[d] = "future";   continue; }
-    const dow = new Date(2026,6,d).getDay(); // 0=Sun
-    if (dow===0 || dow===6) { dayMap[d] = "no-class"; continue; }
-    const di   = dow - 1; // Mon=0
-    if (!SLOTS.some(s=>s.day===di)) { dayMap[d] = "no-class"; continue; }
-    if (d===29) { dayMap[d] = "today";     continue; }
-    const ds   = `2026-07-${String(d).padStart(2,"0")}`;
-    const recs = HISTORY.filter(r=>r.date===ds);
-    if (recs.length===0)                         { dayMap[d] = "no-class"; continue; }
-    if (recs.every(r=>r.status==="cancelled"))    { dayMap[d] = "all-cancelled"; continue; }
-    if (recs.some(r=>r.status==="absent"))        { dayMap[d] = "has-absent"; continue; }
-    dayMap[d] = "all-present";
+  useEffect(() => {
+    if (!semesterId) return;
+    (async () => {
+      const { days: fetched } = await api.get(`/records/calendar?semesterId=${semesterId}&year=${year}&month=${month}`);
+      setDays(fetched);
+    })();
+  }, [semesterId, year, month]);
+
+  async function openDay(dateStr: string) {
+    if (expanded === dateStr) { setExpanded(null); return; }
+    setExpanded(dateStr);
+    if (!semesterId) return;
+    const { records } = await api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`);
+    setExpRecs(records);
   }
 
-  function cs(st:DaySt): { bg:string; fg:string } {
-    if (st==="all-present")   return { bg:T.safeFill,   fg:T.safe };
-    if (st==="has-absent")    return { bg:T.dangerFill, fg:T.danger };
-    if (st==="all-cancelled") return { bg:T.cancelFill, fg:T.inkM };
-    if (st==="today")         return { bg:T.aFill,      fg:T.accent };
-    if (st==="future")        return { bg:"transparent", fg:"rgba(27,21,48,0.2)" };
-    return                           { bg:"transparent", fg:T.inkL };
+  function prevMonth() {
+    if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1);
+    setExpanded(null);
+  }
+  function nextMonth() {
+    if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1);
+    setExpanded(null);
   }
 
-  const expRecs = expanded
-    ? HISTORY.filter(r => r.date===`2026-07-${String(expanded).padStart(2,"0")}`)
-    : [];
+  const dayMap = new Map(days.map(d => [d.date, d]));
+  const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7; // Mon=0
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
+
+  function cs(color: string) {
+    if (color === "green") return { bg:T.safeFill,   fg:T.safe };
+    if (color === "red")   return { bg:T.dangerFill, fg:T.danger };
+    if (color === "grey")  return { bg:T.cancelFill, fg:T.inkM };
+    return { bg:"transparent", fg:T.inkL };
+  }
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
@@ -1200,16 +1219,15 @@ function CalendarScreen() {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div>
             <div className="ae0" style={{ marginBottom:8 }}><Eyebrow>ATTENDANCE HISTORY</Eyebrow></div>
-            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>July 2026</h2>
+            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>{monthLabel}</h2>
           </div>
           <div style={{ display:"flex", gap:4 }}>
-            <button style={navBtn}><ChevronLeft size={14} color={T.inkM} /></button>
-            <button style={navBtn}><ChevronRight size={14} color={T.inkM} /></button>
+            <button onClick={prevMonth} style={navBtn}><ChevronLeft size={14} color={T.inkM} /></button>
+            <button onClick={nextMonth} style={navBtn}><ChevronRight size={14} color={T.inkM} /></button>
           </div>
         </div>
       </div>
 
-      {/* Legend */}
       <div style={{ display:"flex", gap:18, padding:"0 24px", marginBottom:20 }}>
         {[
           { bg:T.safeFill,   fg:T.safe,   l:"All present" },
@@ -1224,78 +1242,66 @@ function CalendarScreen() {
       </div>
 
       <div style={{ padding:"0 24px" }}>
-        {/* Day labels */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:6 }}>
           {["M","T","W","T","F","S","S"].map((d,i) => (
             <div key={i} style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, textAlign:"center", paddingBottom:4 }}>{d}</div>
           ))}
         </div>
 
-        {/* Cells — diagonal wave via index-based delay */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5 }}>
-          {Array.from({ length:2 }, (_,i) => <div key={`e${i}`} style={{ height:46 }} />)}
-          {Array.from({ length:31 }, (_,i) => {
+          {Array.from({ length:firstWeekday }, (_,i) => <div key={`e${i}`} style={{ height:46 }} />)}
+          {Array.from({ length:daysInMonth }, (_,i) => {
             const day = i + 1;
-            const st  = dayMap[day] ?? "no-class";
-            const { bg, fg } = cs(st);
-            const isT = day===29;
-            const isE = expanded===day;
-            // diagonal wave: row = Math.floor((i+2)/7), col = (i+2)%7, delay = (row+col)*30ms
-            const r = Math.floor((i+2)/7), c = (i+2)%7;
-            const delay = `${(r+c)*28}ms`;
+            const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+            const entry = dayMap.get(dateStr);
+            const isToday = dateStr === todayStr;
+            const { bg, fg } = entry ? cs(entry.color) : cs("none");
+            const isE = expanded === dateStr;
             return (
               <button key={day}
-                onClick={() => setExpanded(isE ? null : day)}
+                onClick={() => openDay(dateStr)}
                 style={{
-                  height:46, borderRadius:12, border: isT ? `2px solid ${T.accent}` : "none",
+                  height:46, borderRadius:12, border: isToday ? `2px solid ${T.accent}` : "none",
                   background: bg || "rgba(110,79,145,0.028)",
                   display:"flex", alignItems:"center", justifyContent:"center",
                   cursor:"pointer", outline:"none",
                   transform: isE ? "scale(1.1)" : "scale(1)",
                   boxShadow: isE ? S.md : "none",
                   transition:"transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease",
-                  animationDelay: delay,
                 }}
-                className="ae-cal"
               >
-                <span style={{ fontFamily:F.serif, fontWeight:isT?600:400, fontSize:15, color:fg }}>{day}</span>
+                <span style={{ fontFamily:F.serif, fontWeight:isToday?600:400, fontSize:15, color:fg }}>{day}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Expanded accordion */}
         {expanded && (
           <div style={{
             marginTop:16, background:T.card, borderRadius:24, padding:"18px 16px",
             boxShadow:S.lg, border:`1px solid rgba(110,79,145,0.1)`,
-            animation:"ae-scale-in 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
           }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-              <Eyebrow>JULY {expanded}</Eyebrow>
+              <Eyebrow>{new Date(expanded + "T12:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"long" }).toUpperCase()}</Eyebrow>
               <button onClick={()=>setExpanded(null)} style={{ background:"none", border:"none", cursor:"pointer", color:T.inkM }}><X size={16} /></button>
             </div>
             {expRecs.length===0 ? (
               <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No records for this day.</p>
-            ) : expRecs.map((rec,i) => {
-              const sl   = SLOTS.find(s=>s.id===rec.slotId);
-              const subj = SUBJECTS.find(s=>s.id===rec.subjectId);
-              return (
-                <div key={i} style={{
-                  display:"flex", alignItems:"center", gap:12, marginBottom:10,
-                  paddingBottom:10, borderBottom: i<expRecs.length-1 ? `1px solid rgba(110,79,145,0.07)` : "none",
-                }}>
-                  <div style={{ width:34, height:34, borderRadius:10, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                    <Icon name={subj?.icon||"BookOpen"} size={15} color={subj?.color||T.accent} />
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:14, color:T.inkH, marginBottom:2 }}>{subj?.name}</div>
-                    <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{sl?.time} · {sl?.room}</div>
-                  </div>
-                  <Pill status={rec.status} />
+            ) : expRecs.map((rec,i) => (
+              <div key={rec.id} style={{
+                display:"flex", alignItems:"center", gap:12, marginBottom:10,
+                paddingBottom:10, borderBottom: i<expRecs.length-1 ? `1px solid rgba(110,79,145,0.07)` : "none",
+              }}>
+                <div style={{ width:34, height:34, borderRadius:10, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Icon name="BookOpen" size={15} color={rec.slot?.subject?.color||T.accent} />
                 </div>
-              );
-            })}
+                <div style={{ flex:1 }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:14, color:T.inkH, marginBottom:2 }}>{rec.slot?.subject?.name}</div>
+                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot?.startTime} · {rec.slot?.room}</div>
+                </div>
+                <Pill status={rec.status} />
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1306,15 +1312,52 @@ function CalendarScreen() {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 7 — SEMESTER MANAGEMENT
 // ════════════════════════════════════════════════════════════════
-function SemesterScreen() {
+function SemesterScreen({ onStartNew }: { onStartNew: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [expand,  setExpand]  = useState<number|null>(null);
+  const [current, setCurrent] = useState<{semester:any; overall:any; subjectCount:number}|null>(null);
+  const [archived, setArchived] = useState<any[]>([]);
+  const [expandStats, setExpandStats] = useState<Record<string, any>>({});
+  const [starting, setStarting] = useState(false);
 
-  const archived = [
-    { name:"Winter 2025–26", dates:"Nov 2025 – Apr 2026", pct:82, subjects:6, total:112, attended:92 },
-    { name:"Monsoon 2025",   dates:"Jul – Oct 2025",      pct:78, subjects:5, total:90,  attended:70 },
-    { name:"Winter 2024–25", dates:"Nov 2024 – Apr 2025", pct:91, subjects:5, total:88,  attended:80 },
-  ];
+  async function loadAll() {
+    const { semesters } = await api.get("/semesters");
+    const active = semesters.find((s:any) => s.isActive);
+    const archivedList = semesters.filter((s:any) => !s.isActive);
+    setArchived(archivedList);
+
+    if (active) {
+      const [{ overall }, { subjects }] = await Promise.all([
+        api.get(`/records/stats/overview?semesterId=${active.id}`),
+        api.get(`/subjects?semesterId=${active.id}`),
+      ]);
+      setCurrent({ semester: active, overall, subjectCount: subjects.length });
+    }
+  }
+
+  useEffect(() => { loadAll(); }, []);
+
+  async function toggleExpand(sem: any, i: number) {
+    if (expand === i) { setExpand(null); return; }
+    setExpand(i);
+    if (!expandStats[sem.id]) {
+      const { overall } = await api.get(`/records/stats/overview?semesterId=${sem.id}`);
+      setExpandStats(prev => ({ ...prev, [sem.id]: overall }));
+    }
+  }
+
+  async function confirmStartNew() {
+    setStarting(true);
+    try {
+      await api.post("/semesters/start-new", {});
+      setConfirm(false);
+      onStartNew();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setStarting(false);
+    }
+  }
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
@@ -1323,104 +1366,111 @@ function SemesterScreen() {
         <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Semesters</h2>
       </div>
 
-      {/* Current semester */}
-      <div style={{ margin:"0 24px 28px" }}>
-        <div style={{
-          background:`linear-gradient(150deg, ${T.accent} 0%, #8B6FBB 100%)`,
-          borderRadius:28, padding:"28px 24px",
-          boxShadow:`0 12px 40px rgba(110,79,145,0.44), 0 4px 12px rgba(110,79,145,0.22)`,
-          position:"relative", overflow:"hidden",
-        }}>
-          {/* decorative orb */}
-          <div style={{ position:"absolute", top:-24, right:-24, width:100, height:100, borderRadius:"50%", background:"rgba(255,255,255,0.1)", pointerEvents:"none" }} />
-          <div style={{ position:"absolute", bottom:-20, left:-12, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.06)", pointerEvents:"none" }} />
+      {current && (
+        <div style={{ margin:"0 24px 28px" }}>
+          <div style={{
+            background:`linear-gradient(150deg, ${T.accent} 0%, #8B6FBB 100%)`,
+            borderRadius:28, padding:"28px 24px",
+            boxShadow:`0 12px 40px rgba(110,79,145,0.44), 0 4px 12px rgba(110,79,145,0.22)`,
+            position:"relative", overflow:"hidden",
+          }}>
+            <div style={{ position:"absolute", top:-24, right:-24, width:100, height:100, borderRadius:"50%", background:"rgba(255,255,255,0.1)", pointerEvents:"none" }} />
+            <div style={{ position:"absolute", bottom:-20, left:-12, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.06)", pointerEvents:"none" }} />
 
-          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", position:"relative" }}>
-            <div>
-              <Eyebrow><span style={{ color:"rgba(255,255,255,0.62)", fontFamily:F.mono }}>CURRENT</span></Eyebrow>
-              <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:28, color:"#fff", marginTop:8, marginBottom:5 }}>Monsoon 2026</h3>
-              <p style={{ fontFamily:F.mono, fontSize:11, color:"rgba(255,255,255,0.62)", marginBottom:0 }}>Jul – Nov 2026</p>
-            </div>
-            <Seal pct={OVERALL} size={68} animate label="" />
-          </div>
-
-          <div style={{ display:"flex", gap:8, marginTop:22 }}>
-            {[{l:"Subjects",v:SUBJECTS.length},{l:"Attended",v:59},{l:"Total",v:75}].map(item => (
-              <div key={item.l} style={{ flex:1, background:"rgba(255,255,255,0.16)", borderRadius:15, padding:"12px 8px", textAlign:"center" }}>
-                <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:22, color:"#fff" }}>{item.v}</div>
-                <div style={{ fontFamily:F.mono, fontSize:8, color:"rgba(255,255,255,0.62)", textTransform:"uppercase", letterSpacing:"0.1em", marginTop:3 }}>{item.l}</div>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", position:"relative" }}>
+              <div>
+                <Eyebrow><span style={{ color:"rgba(255,255,255,0.62)", fontFamily:F.mono }}>CURRENT</span></Eyebrow>
+                <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:28, color:"#fff", marginTop:8, marginBottom:5 }}>{current.semester.name}</h3>
               </div>
-            ))}
+              <Seal pct={Math.round(current.overall.percentage)} size={68} animate label="" />
+            </div>
+
+            <div style={{ display:"flex", gap:8, marginTop:22 }}>
+              {[{l:"Subjects",v:current.subjectCount},{l:"Attended",v:current.overall.attended},{l:"Total",v:current.overall.held}].map(item => (
+                <div key={item.l} style={{ flex:1, background:"rgba(255,255,255,0.16)", borderRadius:15, padding:"12px 8px", textAlign:"center" }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:22, color:"#fff" }}>{item.v}</div>
+                  <div style={{ fontFamily:F.mono, fontSize:8, color:"rgba(255,255,255,0.62)", textTransform:"uppercase", letterSpacing:"0.1em", marginTop:3 }}>{item.l}</div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setConfirm(true)} style={{
+              marginTop:20, width:"100%", padding:"14px", borderRadius:16, border:"none",
+              background:"rgba(255,255,255,0.2)", color:"#fff",
+              fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+            }}>
+              <Archive size={16} /> Archive & Start New Semester
+            </button>
           </div>
-
-          <button onClick={() => setConfirm(true)} style={{
-            marginTop:20, width:"100%", padding:"14px", borderRadius:16, border:"none",
-            background:"rgba(255,255,255,0.2)", color:"#fff",
-            fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-            transition:"background 0.15s",
-          }}
-            onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.28)")}
-            onMouseLeave={e=>(e.currentTarget.style.background="rgba(255,255,255,0.2)")}
-          >
-            <Archive size={16} /> Archive & Start New Semester
-          </button>
         </div>
-      </div>
+      )}
 
-      {/* Archived semesters */}
       <div style={{ padding:"0 24px" }}>
         <div style={{ marginBottom:14 }}><Eyebrow>ARCHIVED SEMESTERS</Eyebrow></div>
-        {archived.map((sem,i) => (
-          <div key={i} className={`ae${i+1}`}>
-            <button onClick={() => setExpand(expand===i?null:i)} style={{
-              width:"100%", display:"flex", alignItems:"center", gap:14, padding:"16px 18px",
-              background:T.card, borderRadius:expand===i?"18px 18px 0 0":18, border:"none",
-              boxShadow:S.sm, cursor:"pointer", textAlign:"left",
-              marginBottom: expand===i ? 0 : 10,
-              borderBottom: expand===i ? `1px solid rgba(110,79,145,0.08)` : "none",
-            }}>
-              <div style={{ width:46, height:46, borderRadius:14, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <Archive size={19} color={T.accent} />
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{sem.name}</div>
-                <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{sem.dates}</div>
-              </div>
-              <div style={{ textAlign:"right", flexShrink:0 }}>
-                <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:sem.pct>=75?T.safe:T.danger }}>{sem.pct}%</div>
-                <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, letterSpacing:"0.09em" }}>OVERALL</div>
-              </div>
-              <div style={{ transform: expand===i ? "rotate(180deg)":"rotate(0)", transition:"transform 0.2s ease", marginLeft:4 }}>
-                <ChevronDown size={15} color={T.inkM} />
-              </div>
-            </button>
-
-            {expand===i && (
-              <div style={{
-                background:T.card, borderRadius:"0 0 18px 18px",
-                padding:"16px 18px 18px", marginBottom:10,
-                boxShadow:`${S.sm}, 0 6px 0 0 rgba(110,79,145,0.02)`,
-                animation:"ae0 0.28s ease both",
+        {archived.length === 0 && <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No archived semesters yet.</p>}
+        {archived.map((sem,i) => {
+          const stats = expandStats[sem.id];
+          return (
+            <div key={sem.id}>
+              <button onClick={() => toggleExpand(sem, i)} style={{
+                width:"100%", display:"flex", alignItems:"center", gap:14, padding:"16px 18px",
+                background:T.card, borderRadius:expand===i?"18px 18px 0 0":18, border:"none",
+                boxShadow:S.sm, cursor:"pointer", textAlign:"left",
+                marginBottom: expand===i ? 0 : 10,
+                borderBottom: expand===i ? `1px solid rgba(110,79,145,0.08)` : "none",
               }}>
-                <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-                  {[{l:"Subjects",v:sem.subjects},{l:"Attended",v:sem.attended},{l:"Total",v:sem.total}].map(item=>(
-                    <div key={item.l} style={{ flex:1, background:T.bg, borderRadius:13, padding:"10px 8px", textAlign:"center" }}>
-                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH }}>{item.v}</div>
-                      <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.09em", marginTop:2 }}>{item.l}</div>
-                    </div>
-                  ))}
+                <div style={{ width:46, height:46, borderRadius:14, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Archive size={19} color={T.accent} />
                 </div>
-                <div style={{ padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Read-only · Archived</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{sem.name}</div>
+                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>
+                    {new Date(sem.startDate).toLocaleDateString("en-IN", { month:"short", year:"numeric" })}
+                    {sem.endDate ? ` – ${new Date(sem.endDate).toLocaleDateString("en-IN", { month:"short", year:"numeric" })}` : ""}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+                {stats && (
+                  <div style={{ textAlign:"right", flexShrink:0 }}>
+                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:stats.percentage>=75?T.safe:T.danger }}>{Math.round(stats.percentage)}%</div>
+                    <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, letterSpacing:"0.09em" }}>OVERALL</div>
+                  </div>
+                )}
+                <div style={{ transform: expand===i ? "rotate(180deg)":"rotate(0)", transition:"transform 0.2s ease", marginLeft:4 }}>
+                  <ChevronDown size={15} color={T.inkM} />
+                </div>
+              </button>
+
+              {expand===i && (
+                <div style={{
+                  background:T.card, borderRadius:"0 0 18px 18px",
+                  padding:"16px 18px 18px", marginBottom:10,
+                  boxShadow:S.sm,
+                }}>
+                  {stats ? (
+                    <>
+                      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                        {[{l:"Attended",v:stats.attended},{l:"Total",v:stats.held}].map(item=>(
+                          <div key={item.l} style={{ flex:1, background:T.bg, borderRadius:13, padding:"10px 8px", textAlign:"center" }}>
+                            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH }}>{item.v}</div>
+                            <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.09em", marginTop:2 }}>{item.l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Read-only · Archived</span>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ fontSize:13, color:T.inkM }}>Loading...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Confirm modal */}
       {confirm && (
         <>
           <div className="ae-backdrop" onClick={()=>setConfirm(false)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
@@ -1435,14 +1485,14 @@ function SemesterScreen() {
             </div>
             <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:10 }}>Archive this semester?</h3>
             <p style={{ fontSize:14, color:T.inkM, lineHeight:1.68, marginBottom:26 }}>
-              Monsoon 2026 will be archived. All attendance records will be preserved in read-only mode.
+              {current?.semester.name} will be archived. All attendance records will be preserved in read-only mode.
             </p>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={()=>setConfirm(false)} style={{ flex:1, padding:"15px", borderRadius:15, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer" }}>
                 Cancel
               </button>
-              <button onClick={()=>setConfirm(false)} style={{ flex:1, padding:"15px", borderRadius:15, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", boxShadow:S.acc }}>
-                Archive
+              <button onClick={confirmStartNew} disabled={starting} style={{ flex:1, padding:"15px", borderRadius:15, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", boxShadow:S.acc }}>
+                {starting ? "Archiving..." : "Archive"}
               </button>
             </div>
           </div>
@@ -1672,7 +1722,9 @@ export default function App() {
             />
           )}
           {screen==="calendar"  && <CalendarScreen />}
-          {screen==="semester"  && <SemesterScreen />}
+          {screen==="semester"  && (
+            <SemesterScreen onStartNew={() => { setScreen("onboarding"); setTab("home"); }} />
+          )}
           {screen==="settings"  && (
             <SettingsScreen
               onSemesters={() => setScreen("semester")}
