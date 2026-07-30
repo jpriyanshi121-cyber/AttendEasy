@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import { api, getToken } from "../lib/api";
+import confetti from "canvas-confetti";
+import { motion, AnimatePresence } from "motion/react";
 
 // ════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
@@ -56,6 +58,15 @@ interface Subject  { id: string; name: string; code: string; color: string; icon
 interface Slot     { id: string; subjectId: string; day: number; time: string; endTime: string; room: string; prof: string; }
 interface Record_  { date: string; slotId: string; subjectId: string; status: Status; note?: string; tag?: string; }
 interface Stats    { total: number; attended: number; absent: number; cancelled: number; pct: number; }
+
+function fireConfetti() {
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: { y: 0.6 },
+    colors: ["#6E4F91", "#2F7A5C", "#9B7FCC", "#FFD700"],
+  });
+}
 
 // ════════════════════════════════════════════════════════════════
 // DATA
@@ -584,8 +595,22 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
   async function quickMark(slotId: string, status: Status) {
     setQuickBusy(slotId);
     try {
+      const cls = todayClasses.find(c => c.slot.id === slotId);
+      const subjectId = cls?.slot.subjectId;
+      let before: any = null;
+      if (subjectId && status === "present") {
+        before = await api.get(`/records/stats/subject/${subjectId}`);
+      }
+
       await api.post("/records/mark", { slotId, date: new Date().toISOString(), status });
       setTodayClasses(prev => prev.map(c => c.slot.id === slotId ? { ...c, record: { ...c.record, status } } : c));
+
+      if (before && status === "present") {
+        const after = await api.get(`/records/stats/subject/${subjectId}`);
+        if (before.stats.percentage < after.subject.threshold && after.stats.percentage >= after.subject.threshold) {
+          fireConfetti();
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -1122,6 +1147,11 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
     if (!sel || !slotId) return;
     setSaving(true);
     try {
+      let before: any = null;
+      if (sel === "present" && slotInfo) {
+        before = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
+      }
+
       await api.post("/records/mark", {
         slotId, date: new Date().toISOString(), status: sel,
         note: note || undefined,
@@ -1139,6 +1169,13 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
           mode: "replace",
           replacesSlotId: slotId,
         });
+      }
+
+      if (before && slotInfo) {
+        const after = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
+        if (before.stats.percentage < after.subject.threshold && after.stats.percentage >= after.subject.threshold) {
+          fireConfetti();
+        }
       }
 
       onSaved();
@@ -1949,7 +1986,15 @@ export default function App() {
         minHeight:"100dvh", background:T.bg, position:"relative",
         fontFamily:F.sans, overflow:"hidden",
       }}>
-        <div key={screen} style={{ height:"100dvh", overflowY:"auto" }}>
+        <AnimatePresence mode="wait">
+        <motion.div
+          key={screen}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          style={{ height:"100dvh", overflowY:"auto" }}
+        >
           {screen==="onboarding" && (
             <OnboardingScreen onDone={() => { setScreen("home"); setTab("home"); }} />
           )}
@@ -1984,7 +2029,8 @@ export default function App() {
           {screen==="edit-timetable" && (
             <EditTimetableScreen onBack={() => setScreen("settings")} />
           )}
-        </div>
+        </motion.div>
+        </AnimatePresence>
 
         {screen !== "onboarding" && (
           <TabBar active={tab} onChange={goTab} />
