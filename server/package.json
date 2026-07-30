@@ -20,6 +20,7 @@
     "express-rate-limit": "^7.4.0",
     "express-validator": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^9.0.3",
     "pdfkit": "^0.15.0"
   },
   "devDependencies": {

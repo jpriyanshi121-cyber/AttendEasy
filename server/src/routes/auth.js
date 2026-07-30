@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { sendResetEmail } = require("../lib/mailer");
 
 const router = express.Router();
 
@@ -89,5 +90,58 @@ router.get("/me", requireAuth, async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({ user });
 });
+
+router.post(
+  "/forgot-password",
+  [body("email").isEmail().normalizeEmail()],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always respond the same way whether or not the email exists,
+    // so this can't be used to check which emails are registered.
+    if (user) {
+      const resetToken = jwt.sign({ userId: user.id, purpose: "reset" }, process.env.JWT_SECRET, { expiresIn: "15m" });
+      const resetLink = `${process.env.FRONTEND_URL}/?reset=${resetToken}`;
+      try {
+        await sendResetEmail(user.email, resetLink);
+      } catch (e) {
+        console.error("Failed to send reset email:", e.message);
+      }
+    }
+
+    res.json({ message: "If that email is registered, a reset link has been sent." });
+  }
+);
+
+router.post(
+  "/reset-password",
+  [
+    body("token").notEmpty(),
+    body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    let payload;
+    try {
+      payload = jwt.verify(req.body.token, process.env.JWT_SECRET);
+    } catch (e) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired." });
+    }
+    if (payload.purpose !== "reset") {
+      return res.status(400).json({ error: "This reset link is invalid." });
+    }
+
+    const passwordHash = await bcrypt.hash(req.body.password, 12);
+    await prisma.user.update({ where: { id: payload.userId }, data: { passwordHash } });
+
+    res.json({ message: "Password updated. You can now log in." });
+  }
+);
 
 module.exports = router;

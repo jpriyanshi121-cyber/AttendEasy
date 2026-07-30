@@ -6,6 +6,7 @@ import {
   Sparkles, Star,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
+import ResetPasswordScreen from "./ResetPasswordScreen";
 import { api, getToken } from "../lib/api";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
@@ -1934,6 +1935,16 @@ export default function App() {
     setScreen(m[t]);
     setSubjId(null);
   };
+
+  const resetToken = new URLSearchParams(window.location.search).get("reset");
+  if (resetToken) {
+    return (
+      <ResetPasswordScreen
+        token={resetToken}
+        onDone={() => { window.location.href = window.location.pathname; }}
+      />
+    );
+  }
 
   if (!authed) {
     return <AuthScreen onSuccess={() => setAuthed(true)} />;
