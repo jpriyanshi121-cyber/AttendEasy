@@ -49,6 +49,7 @@ export const api = {
   updateName: (name: string) => request("/auth/me", { method: "PATCH", body: JSON.stringify({ name }) }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request("/auth/change-password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
+  unsubscribePush: (endpoint: string) => request("/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
   forgotPassword: (email: string) => request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
   resetPassword: (token: string, password: string) => request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) }),
   get: (path: string) => request(path),

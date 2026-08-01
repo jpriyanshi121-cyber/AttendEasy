@@ -8,6 +8,7 @@ import {
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
 import { api, getToken, clearToken } from "../lib/api";
+import { subscribeToPush } from "../lib/push";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -269,6 +270,25 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 function Divider() {
   return <div style={{ height:1, background:"rgba(110,79,145,0.07)", margin:"0 0" }} />;
+}
+
+function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      style={{
+        width:44, height:26, borderRadius:100, border:"none", cursor:"pointer",
+        background: checked ? T.accent : "rgba(110,79,145,0.2)",
+        position:"relative", transition:"background 0.2s ease", flexShrink:0, padding:0,
+      }}
+    >
+      <div style={{
+        position:"absolute", top:3, left: checked ? 21 : 3,
+        width:20, height:20, borderRadius:"50%", background:"#fff",
+        boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+      }} />
+    </button>
+  );
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2217,6 +2237,48 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
       }
     })();
   }, []);
+
+  const [remindersEnabled, setRemindersEnabled] = useState(false);
+  const [lowAlertsEnabled, setLowAlertsEnabled] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const prefs = await api.get("/push/preferences");
+        setRemindersEnabled(prefs.remindersEnabled);
+        setLowAlertsEnabled(prefs.lowAttendanceAlertsEnabled);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  async function toggleReminders(value: boolean) {
+    try {
+      if (value) {
+        const ok = await subscribeToPush();
+        if (!ok) { alert("Please allow notifications in your browser to enable this."); return; }
+      }
+      await api.patch("/push/preferences", { remindersEnabled: value });
+      setRemindersEnabled(value);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function toggleLowAlerts(value: boolean) {
+    try {
+      if (value) {
+        const ok = await subscribeToPush();
+        if (!ok) { alert("Please allow notifications in your browser to enable this."); return; }
+      }
+      await api.patch("/push/preferences", { lowAttendanceAlertsEnabled: value });
+      setLowAlertsEnabled(value);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function downloadReport() {
     try {
       const { semesters } = await api.get("/semesters");
@@ -2299,6 +2361,26 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
         </div>
         <Seal pct={profilePct} size={50} label="" />
       </button>
+      
+      <div style={{ padding:"0 24px", marginBottom:22 }}>
+        <div style={{ marginBottom:10 }}><Eyebrow>NOTIFICATIONS</Eyebrow></div>
+        <div style={{ background:T.card, borderRadius:19, boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
+          <div style={{ padding:"15px 18px", display:"flex", alignItems:"center", gap:14, borderBottom:`1px solid rgba(110,79,145,0.06)` }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, color:T.inkH, fontWeight:500, marginBottom:2 }}>Class Reminders</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>15 min before class</div>
+            </div>
+            <Switch checked={remindersEnabled} onChange={toggleReminders} />
+          </div>
+          <div style={{ padding:"15px 18px", display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, color:T.inkH, fontWeight:500, marginBottom:2 }}>Low Attendance Alerts</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Daily check at 8 AM</div>
+            </div>
+            <Switch checked={lowAlertsEnabled} onChange={toggleLowAlerts} />
+          </div>
+        </div>
+      </div>
 
       {groups.map(grp => (
         <div key={grp.title} style={{ padding:"0 24px", marginBottom:22 }}>
