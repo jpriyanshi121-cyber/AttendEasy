@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
-import { api, getToken } from "../lib/api";
+import { api, getToken, clearToken } from "../lib/api";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -274,8 +274,8 @@ function Divider() {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 1 — ONBOARDING
 // ════════════════════════════════════════════════════════════════
-function OnboardingScreen({ onDone }: { onDone:()=>void }) {
-  const [step,  setStep]  = useState<0|1>(0);
+function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: boolean }) {
+  const [step,  setStep]  = useState<0|1>(skipIntro ? 1 : 0);
   const [name,  setName]  = useState("");
   const [pulse, setPulse] = useState(false);
 
@@ -495,6 +495,9 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   index: number;
   semesterId: string;
 }) {
+  const [threshold, setThreshold] = useState(subject.threshold);
+  const [editingThreshold, setEditingThreshold] = useState(false);
+  const [thresholdInput, setThresholdInput] = useState(String(subject.threshold));
   const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null}[]>([]);
   const [adding, setAdding] = useState(false);
   const [day, setDay] = useState("0");
@@ -530,6 +533,18 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     }
   }
 
+  async function saveThreshold() {
+    const val = parseInt(thresholdInput, 10);
+    if (!val || val < 1 || val > 100) return;
+    try {
+      await api.patch(`/subjects/${subject.id}`, { threshold: val });
+      setThreshold(val);
+      setEditingThreshold(false);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   return (
     <div className={`ae${Math.min(index+1,5)}`} style={{
       padding:"15px 16px", borderRadius:18, marginBottom:10, background:T.card,
@@ -541,9 +556,25 @@ function SubjectSlotRow({ subject, index, semesterId }: {
         </div>
         <div style={{ flex:1 }}>
           <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{subject.name}</div>
-          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em" }}>
-            {subject.threshold}% threshold · {slots.length} slot{slots.length===1?"":"s"}/wk
-          </div>
+          {editingThreshold ? (
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <input
+                value={thresholdInput}
+                onChange={e => setThresholdInput(e.target.value.replace(/\D/g, ""))}
+                style={{ width:44, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
+              />
+              <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>%</span>
+              <button onClick={saveThreshold} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
+              <button onClick={() => { setEditingThreshold(false); setThresholdInput(String(threshold)); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+            </div>
+          ) : (
+            <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:6 }}>
+              {threshold}% threshold · {slots.length} slot{slots.length===1?"":"s"}/wk
+              <button onClick={() => setEditingThreshold(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, padding:0, display:"flex" }}>
+                <Edit2 size={11} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1979,8 +2010,8 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 8 — SETTINGS
 // ════════════════════════════════════════════════════════════════
-function SettingsScreen({ onSemesters, onOnboarding, onEditTimetable }: {
-  onSemesters:()=>void; onOnboarding:()=>void; onEditTimetable:()=>void;
+function SettingsScreen({ onSemesters, onEditTimetable, onLogout }: {
+  onSemesters:()=>void; onEditTimetable:()=>void; onLogout:()=>void;
 }) {
   async function downloadReport() {
     try {
@@ -2007,20 +2038,37 @@ function SettingsScreen({ onSemesters, onOnboarding, onEditTimetable }: {
       console.error(e);
     }
   }
+
+  const [thresholdSummary, setThresholdSummary] = useState("Loading...");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { semesters } = await api.get("/semesters");
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (!active) { setThresholdSummary("No subjects yet"); return; }
+        const { subjects } = await api.get(`/subjects?semesterId=${active.id}`);
+        if (subjects.length === 0) { setThresholdSummary("No subjects yet"); return; }
+        const thresholds = subjects.map((s:any) => s.threshold);
+        const min = Math.min(...thresholds), max = Math.max(...thresholds);
+        setThresholdSummary(min === max ? `${min}% across ${subjects.length} subjects` : `${min}%–${max}% across ${subjects.length} subjects`);
+      } catch (e) {
+        setThresholdSummary("Tap to view");
+      }
+    })();
+  }, []);
+
   const groups = [
-    { title:"TIMETABLE", items:[
-      { I:Edit2,       l:"Edit Subjects",         s:"Manage your courses",        c:"#6E4F91", fn:onEditTimetable as (()=>void)|undefined },
-      { I:LayoutGrid,  l:"Edit Timetable",         s:"Manage weekly slots",        c:"#8B6FBB", fn:onEditTimetable },
-      { I:AlertCircle, l:"Attendance Thresholds",  s:"75% default · 80% for EC201",c:"#5A3D78", fn:undefined },
-    ]},
-    { title:"NOTIFICATIONS", items:[
-      { I:Bell, l:"Class Reminders",       s:"15 min before class",        c:"#7A5AA0", fn:undefined },
-      { I:Bell, l:"Low Attendance Alerts", s:"Below threshold",            c:"#9B7FCC", fn:undefined },
+    { title:"SUBJECTS & TIMETABLE", items:[
+      { I:Edit2,       l:"Subjects & Timetable",   s:"Add subjects, weekly slots & thresholds", c:"#6E4F91", fn:onEditTimetable as (()=>void)|undefined },
+      { I:AlertCircle, l:"Attendance Thresholds",  s:thresholdSummary,             c:"#5A3D78", fn:onEditTimetable },
     ]},
     { title:"DATA & EXPORT", items:[
-      { I:Archive,  l:"Manage Semesters",   s:"3 archived",                c:"#6E4F91", fn:onSemesters },
+      { I:Archive,  l:"Manage Semesters",   s:"View, archive & start new",  c:"#6E4F91", fn:onSemesters },
       { I:Download, l:"Export PDF Report",  s:"Full attendance report",    c:"#8B6FBB", fn:downloadReport },
-      { I:FileText, l:"Start New Semester", s:"Archive current & reset",   c:"#5A3D78", fn:onOnboarding },
+    ]},
+    { title:"ACCOUNT", items:[
+      { I:FileText, l:"Log Out",   s:"Sign out of this device",   c:"#B03A45", fn:onLogout },
     ]},
   ];
 
@@ -2137,6 +2185,7 @@ export default function App() {
   const [subjId,  setSubjId]  = useState<string|null>(null);
   const [markSlot,setMarkSlot]= useState<string|null>(null);
   const [homeRefresh, setHomeRefresh] = useState(0);
+  const [skipOnboardIntro, setSkipOnboardIntro] = useState(false);
   const [checkingOnboard, setCheckingOnboard] = useState(true);
 
   // Runs once whenever the user becomes authenticated (fresh login,
@@ -2275,7 +2324,10 @@ export default function App() {
           style={{ height:"100dvh", overflowY:"auto" }}
         >
           {screen==="onboarding" && (
-            <OnboardingScreen onDone={() => { setScreen("home"); setTab("home"); }} />
+            <OnboardingScreen
+              skipIntro={skipOnboardIntro}
+              onDone={() => { setSkipOnboardIntro(false); setScreen("home"); setTab("home"); }}
+            />
           )}
           {screen==="home" && (
             <HomeScreen
@@ -2296,13 +2348,13 @@ export default function App() {
           )}
           {screen==="calendar"  && <CalendarScreen />}
           {screen==="semester"  && (
-            <SemesterScreen onStartNew={() => { setScreen("onboarding"); setTab("home"); }} />
+            <SemesterScreen onStartNew={() => { setSkipOnboardIntro(true); setScreen("onboarding"); setTab("home"); }} />
           )}
           {screen==="settings"  && (
             <SettingsScreen
               onSemesters={() => setScreen("semester")}
-              onOnboarding={() => setScreen("onboarding")}
               onEditTimetable={() => setScreen("edit-timetable")}
+              onLogout={() => { clearToken(); window.location.href = "/"; }}
             />
           )}
           {screen==="edit-timetable" && (
