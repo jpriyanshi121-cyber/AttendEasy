@@ -9,6 +9,8 @@ const semesterRoutes = require("./routes/semesters");
 const subjectRoutes = require("./routes/subjects");
 const slotRoutes = require("./routes/slots");
 const recordRoutes = require("./routes/records");
+const pushRoutes = require("./routes/push");
+const { startScheduler } = require("./lib/scheduler");
 
 const app = express();
 
@@ -32,6 +34,7 @@ app.use("/api/semesters", semesterRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/records", recordRoutes);
+app.use("/api/push", pushRoutes);
 
 // TODO (next step): /api/reports (PDF export) once the frontend is wired up.
 
@@ -53,6 +56,8 @@ app.listen(PORT, async () => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     console.log("Database connection warm and ready.");
+    startScheduler();
+    console.log("Notification scheduler started.");
   } catch (e) {
     console.error("Warning: could not warm up database connection on startup.", e.message);
   }
