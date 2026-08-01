@@ -1183,7 +1183,9 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 3 — FULL TIMETABLE
 // ════════════════════════════════════════════════════════════════
-function TimetableScreen({ onMark, isLandscape }: { onMark:(slotId:string)=>void; isLandscape:boolean }) {
+function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
+  onMark:(slotId:string)=>void; isLandscape:boolean; onBack:()=>void; onEditTimetable:()=>void;
+}) {
   const [slots, setSlots] = useState<any[]>([]);
   const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
   const HOUR_START = 9, HOUR_END = 17;
@@ -1267,13 +1269,28 @@ function TimetableScreen({ onMark, isLandscape }: { onMark:(slotId:string)=>void
           position:"absolute", top:-40, right:-50, width:160, height:160, borderRadius:"50%",
           background:"radial-gradient(circle, rgba(139,111,187,0.16), transparent 70%)", pointerEvents:"none",
         }} />
+        <button onClick={onBack} style={{
+          width:28, height:28, borderRadius:9, border:"none", cursor:"pointer",
+          background:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center", justifyContent:"center",
+          marginBottom:16, position:"relative", zIndex:1,
+        }}>
+          <ChevronLeft size={16} color={T.inkM} />
+        </button>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9, position:"relative", zIndex:1 }}>
           <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
           <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Week View</span>
         </div>
-        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, marginBottom:20, position:"relative", zIndex:1 }}>
-          Timetable
-        </h2>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, marginBottom:20, position:"relative", zIndex:1 }}>
+          <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            Timetable
+          </h2>
+          <button onClick={onEditTimetable} title="Edit timetable" style={{
+            width:26, height:26, minWidth:26, borderRadius:8, border:"none", cursor:"pointer", flexShrink:0,
+            background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
+          }}>
+            <PenLine size={12} color={T.accent} strokeWidth={2} />
+          </button>
+        </div>
 
         {legend.length > 0 && (
           <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:8, position:"relative", zIndex:1 }}>
@@ -1360,16 +1377,8 @@ function TimetableScreen({ onMark, isLandscape }: { onMark:(slotId:string)=>void
                       overflow:"hidden", textAlign:"left",
                     }}>
                       <span style={{
-                        position:"absolute", top:5, right:5,
-                        width:15, height:15, borderRadius:5,
-                        background:"rgba(255,255,255,0.55)",
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                      }}>
-                        <PenLine size={8} color={slot.subject.color} strokeWidth={2.2} />
-                      </span>
-                      <span style={{
                         fontFamily:F.serif, fontWeight:600, fontSize:11, color:slot.subject.color, lineHeight:1.15,
-                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", paddingRight:14,
+                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
                       }}>
                         {slot.subject.name}
                       </span>
@@ -2831,7 +2840,12 @@ export default function App() {
             />
           )}
           {screen==="timetable" && (
-            <TimetableScreen onMark={id => setMarkSlot(id)} isLandscape={isLandscape} />
+            <TimetableScreen
+              onMark={id => setMarkSlot(id)}
+              isLandscape={isLandscape}
+              onBack={() => goTab("home")}
+              onEditTimetable={() => setScreen("edit-timetable")}
+            />
           )}
           {screen==="subject" && subjId && (
             <SubjectDetailScreen
