@@ -1,9 +1,12 @@
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { T, F, S } from "./App";
 import { api, setToken } from "../lib/api";
+import { ArrowRight, Mail, ShieldCheck, Clock, GraduationCap } from "lucide-react";
+
+type Mode = "login" | "signup" | "forgot";
 
 export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
+  const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,19 +15,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
   const [forgotSent, setForgotSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const fieldStyle: CSSProperties = {
-    width: "100%", padding: "13px 14px", borderRadius: 12,
-    border: "1px solid rgba(110,79,145,0.15)", marginBottom: 12,
-    fontSize: 14, outline: "none", boxSizing: "border-box",
-  };
-
-  const buttonStyle: CSSProperties = {
-    width: "100%", padding: "14px 0", borderRadius: 14,
-    background: T.accent, color: "#fff", border: "none",
-    fontWeight: 600, fontSize: 15, cursor: "pointer",
-    boxShadow: S.acc, marginTop: 8,
-  };
+  const [focused, setFocused] = useState<string | null>(null);
 
   const submit = async () => {
     setError(null);
@@ -62,74 +53,242 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  return (
-    <div style={{
-      minHeight: "100dvh", background: T.bg, display: "flex",
-      flexDirection: "column", justifyContent: "center", padding: 24,
-      fontFamily: F.sans, maxWidth: 390, margin: "0 auto", boxSizing: "border-box",
-    }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 28, boxShadow: S.md }}>
-        <h1 style={{ fontFamily: F.serif, fontSize: 28, color: T.inkH, marginBottom: 4 }}>
-          AttendEasy
-        </h1>
+  const strength = (() => {
+    if (!password) return 0;
+    let s = 0;
+    if (password.length >= 6) s = 1;
+    if (password.length >= 8 && /\d/.test(password)) s = 2;
+    if (password.length >= 8 && /\d/.test(password) && /[^A-Za-z0-9]/.test(password)) s = 3;
+    return s;
+  })();
+  const strengthColors = [T.aFill, T.danger, T.warn, T.safe];
 
+  // ── shared style helpers ──────────────────────────────────────
+  const wrapStyle: CSSProperties = {
+    minHeight: "100dvh", background: T.bg, display: "flex",
+    flexDirection: "column", justifyContent: "center", padding: 24,
+    fontFamily: F.sans, maxWidth: 390, margin: "0 auto", boxSizing: "border-box",
+  };
+
+  const cardStyle: CSSProperties = {
+    background: "linear-gradient(180deg, #FEFDFF 0%, #FBF8FE 55%, #F6F1FB 100%)",
+    borderRadius: 32, padding: "36px 28px 32px", boxShadow: S.lg,
+  };
+
+  const label = (text: string) => (
+    <label style={{
+      display: "block", fontFamily: F.mono, fontSize: 10, letterSpacing: "0.1em",
+      textTransform: "uppercase", color: T.inkM, marginBottom: 8, paddingLeft: 3, fontWeight: 500,
+    }}>
+      {text}
+    </label>
+  );
+
+  const inputStyle = (name: string): CSSProperties => ({
+    width: "100%", padding: "15px 16px", borderRadius: 15,
+    border: focused === name ? `1px solid ${T.accent}` : "1px solid rgba(110,79,145,0.14)",
+    background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+    fontFamily: F.sans, fontSize: 15, color: T.inkH, outline: "none",
+    boxShadow: focused === name ? "0 0 0 4px rgba(110,79,145,0.13)" : "0 1px 2px rgba(27,21,48,0.03)",
+    boxSizing: "border-box", transition: "border-color .15s, box-shadow .15s",
+  });
+
+  const buttonStyle: CSSProperties = {
+    width: "100%", padding: "16px 0", borderRadius: 16, border: "none", cursor: "pointer",
+    background: "linear-gradient(155deg, #8E6BB8 0%, #6E4F91 46%, #4A3266 100%)",
+    color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 15.5,
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+    boxShadow: S.acc, marginTop: 6,
+  };
+
+  const eyebrow = (text: string) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 14 }}>
+      <span style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: T.accent, fontWeight: 500 }}>{text}</span>
+      <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#C9A24B" }} />
+    </div>
+  );
+
+  const seal = () => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, margin: "8px auto 14px" }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: 16,
+        background: "linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: S.acc,
+      }}>
+        <GraduationCap size={26} color="#fff" />
+      </div>
+      <span style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 22, color: T.inkH, letterSpacing: "-0.01em" }}>AttendEasy</span>
+    </div>
+  );
+
+  // Heading: main text in Fraunces (no italic), the emphasized word gets
+  // the accent purple colour instead of the odd italic treatment.
+  const heading = (pre: string, accentWord: string, size = 30) => (
+    <h1 style={{
+      fontFamily: F.serif, fontWeight: 500, fontSize: size, color: T.inkH,
+      textAlign: "center", letterSpacing: "-0.015em", margin: "0 0 8px", lineHeight: 1.15,
+    }}>
+      {pre} <span style={{ color: T.accent }}>{accentWord}</span>
+    </h1>
+  );
+
+  const sub = (text: string) => (
+    <p style={{
+      textAlign: "center", color: T.inkM, fontSize: 14, margin: "0 0 30px",
+      lineHeight: 1.55, maxWidth: 270, marginLeft: "auto", marginRight: "auto",
+    }}>
+      {text}
+    </p>
+  );
+
+  const chip = (text: string, icon: ReactNode) => (
+    <div style={{ display: "flex", justifyContent: "center", margin: "20px 0 6px" }}>
+      <div style={{
+        display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 20,
+        background: `linear-gradient(180deg, ${T.aFill}, #F4EEFA)`, border: "1px solid rgba(110,79,145,0.1)",
+        fontFamily: F.mono, fontSize: 10, color: T.accent, fontWeight: 500,
+      }}>
+        {icon}{text}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={wrapStyle}>
+      <div style={cardStyle}>
         {mode === "forgot" ? (
           forgotSent ? (
-            <>
-              <p style={{ color: T.inkM, fontSize: 14, margin: "16px 0 20px", lineHeight: 1.6 }}>
-                If that email is registered, we've sent a password reset link. Check your inbox (and spam folder).
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                width: 64, height: 64, margin: "0 auto 20px", borderRadius: 20,
+                background: `linear-gradient(160deg,#F5EEFB,${T.aFillDeep})`, display: "flex",
+                alignItems: "center", justifyContent: "center",
+                boxShadow: "inset 0 2px 4px rgba(255,255,255,0.7), 0 10px 24px rgba(110,79,145,0.18)",
+              }}>
+                <Mail size={26} color={T.accent} strokeWidth={1.6} />
+              </div>
+              {heading("Check your", "inbox", 24)}
+              <p style={{ color: T.inkM, fontSize: 14, margin: "0 0 20px", lineHeight: 1.6 }}>
+                If <b style={{ color: T.inkB }}>{forgotEmail}</b> is registered, a reset link is on its way. Spam folder bhi check kar lena.
               </p>
-              <button onClick={() => { setMode("login"); setForgotSent(false); setForgotEmail(""); }} style={buttonStyle}>
-                Back to login
+              {chip("Link expires in 15 min", <Clock size={12} />)}
+              <button onClick={() => { setMode("login"); setForgotSent(false); setForgotEmail(""); }} style={{ ...buttonStyle, marginTop: 24 }}>
+                Back to login <ArrowRight size={16} />
               </button>
-            </>
+              <p onClick={submitForgot} style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: T.accent, fontWeight: 600, cursor: "pointer" }}>
+                Resend email
+              </p>
+            </div>
           ) : (
             <>
-              <p style={{ color: T.inkM, fontSize: 14, marginBottom: 20 }}>Enter your email to get a reset link.</p>
-              <input placeholder="Email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} style={fieldStyle} />
+              {eyebrow("Reset access")}
+              {heading("Forgot your", "password?", 28)}
+              {sub("Enter your registered email and we'll send you a reset link.")}
+              {label("Email")}
+              <input
+                placeholder="you@college.edu" value={forgotEmail}
+                onFocus={() => setFocused("forgotEmail")} onBlur={() => setFocused(null)}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                style={{ ...inputStyle("forgotEmail"), marginBottom: 20 }}
+              />
               {error && <p style={{ color: T.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
               <button onClick={submitForgot} disabled={loading} style={buttonStyle}>
                 {loading ? "Sending..." : "Send reset link"}
+                {!loading && <ArrowRight size={16} />}
               </button>
-              <p style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: T.accent, fontWeight: 600, cursor: "pointer" }}
-                 onClick={() => { setMode("login"); setError(null); }}>
+              <p
+                style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: T.accent, fontWeight: 600, cursor: "pointer" }}
+                onClick={() => { setMode("login"); setError(null); }}
+              >
                 Back to login
               </p>
             </>
           )
         ) : (
           <>
-            <p style={{ color: T.inkM, fontSize: 14, marginBottom: 24 }}>
-              {mode === "login" ? "Welcome back" : "Create your account"}
-            </p>
+            {mode === "login" && seal()}
+            {eyebrow(mode === "login" ? "Welcome back" : "New semester")}
+            {mode === "login" ? heading("Welcome", "back", 30) : heading("Create your", "account", 30)}
+            {sub(mode === "login"
+              ? "Sign in to see today's lecture line-up and where you stand."
+              : "Set up your timetable once — track every lecture all semester.")}
 
             {mode === "signup" && (
-              <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} style={fieldStyle} />
+              <div style={{ marginBottom: 16 }}>
+                {label("Username")}
+                <input
+                  placeholder="e.g. priyanshi_23" value={username}
+                  onFocus={() => setFocused("username")} onBlur={() => setFocused(null)}
+                  onChange={(e) => setUsername(e.target.value)} style={inputStyle("username")}
+                />
+              </div>
             )}
-            <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={fieldStyle} />
-            <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} />
+
+            <div style={{ marginBottom: 16 }}>
+              {label("Email")}
+              <input
+                placeholder="you@college.edu" value={email}
+                onFocus={() => setFocused("email")} onBlur={() => setFocused(null)}
+                onChange={(e) => setEmail(e.target.value)} style={inputStyle("email")}
+              />
+            </div>
+
+            <div style={{ marginBottom: mode === "signup" ? 16 : 8 }}>
+              {label("Password")}
+              <input
+                placeholder="••••••••" type="password" value={password}
+                onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
+                onChange={(e) => setPassword(e.target.value)} style={inputStyle("password")}
+              />
+              {mode === "signup" && (
+                <div style={{ display: "flex", gap: 5, marginTop: 10, paddingLeft: 3 }}>
+                  {[1, 2, 3].map((i) => (
+                    <i key={i} style={{
+                      flex: 1, height: 3.5, borderRadius: 3, display: "block",
+                      background: i <= strength ? strengthColors[strength] : T.aFill,
+                    }} />
+                  ))}
+                </div>
+              )}
+            </div>
+
             {mode === "signup" && (
-              <input placeholder="Confirm Password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} />
+              <div style={{ marginBottom: 24 }}>
+                {label("Confirm password")}
+                <input
+                  placeholder="••••••••" type="password" value={confirmPassword}
+                  onFocus={() => setFocused("confirmPassword")} onBlur={() => setFocused(null)}
+                  onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle("confirmPassword")}
+                />
+              </div>
             )}
 
             {mode === "login" && (
-              <p style={{ textAlign: "right", fontSize: 12, color: T.accent, marginTop: -6, marginBottom: 14, cursor: "pointer", fontWeight: 500 }}
-                 onClick={() => { setMode("forgot"); setError(null); }}>
-                Forgot password?
-              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", margin: "2px 3px 24px 0" }}>
+                <span
+                  onClick={() => { setMode("forgot"); setError(null); }}
+                  style={{ fontFamily: F.sans, fontSize: 13, color: T.accent, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Forgot password?
+                </span>
+              </div>
             )}
 
             {error && <p style={{ color: T.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
             <button onClick={submit} disabled={loading} style={buttonStyle}>
-              {loading ? "Please wait..." : mode === "login" ? "Log in" : "Sign up"}
+              {loading ? "Please wait..." : mode === "login" ? "Log in" : "Create account"}
+              {!loading && <ArrowRight size={16} />}
             </button>
 
-            <p style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: T.inkM }}>
+            {mode === "login" && chip("Your data stays on device", <ShieldCheck size={12} />)}
+
+            <p style={{ textAlign: "center", marginTop: mode === "login" ? 8 : 22, fontSize: 13.5, color: T.inkM }}>
               {mode === "login" ? "New here?" : "Already have an account?"}{" "}
               <span
                 onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(null); }}
-                style={{ color: T.accent, fontWeight: 600, cursor: "pointer" }}
+                style={{ color: T.accent, fontWeight: 700, cursor: "pointer" }}
               >
                 {mode === "login" ? "Sign up" : "Log in"}
               </span>

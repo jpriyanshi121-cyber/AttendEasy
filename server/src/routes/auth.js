@@ -17,7 +17,7 @@ router.post(
   [
     body("email").isEmail().normalizeEmail(),
     body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
-    body("name").trim().isLength({ min: 1 }).withMessage("Name is required"),
+    body("name").optional().trim(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -26,6 +26,7 @@ router.post(
     }
 
     const { email, password, name } = req.body;
+    const finalName = name && name.trim() ? name.trim() : email.split("@")[0];
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -34,7 +35,7 @@ router.post(
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { email, passwordHash, name },
+      data: { email, passwordHash, name: finalName },
     });
 
     // Every new user starts with one active semester so the app has
@@ -90,6 +91,24 @@ router.get("/me", requireAuth, async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({ user });
 });
+
+router.patch(
+  "/me",
+  requireAuth,
+  [body("name").trim().isLength({ min: 1 }).withMessage("Name cannot be empty")],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { name: req.body.name },
+      select: { id: true, email: true, name: true },
+    });
+    res.json({ user });
+  }
+);
+
 
 router.post(
   "/forgot-password",

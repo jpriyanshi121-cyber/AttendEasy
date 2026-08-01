@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
@@ -185,30 +185,48 @@ function Icon({ name, size=18, color=T.accent }: { name:string; size?:number; co
   return <BookOpen {...p} />;
 }
 
-/* The signature radial-gradient seal — the single most important brand element */
+/* The signature seal — an SVG progress ring showing overall % */
 function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
   pct:number; size?:number; animate?:boolean; label?:string;
 }) {
   const display = useCountUp(pct, 720, animate);
-  const hue = pct >= 75 ? T.safe : pct >= 60 ? T.warn : T.danger;
+  const gradId = useId().replace(/:/g, "");
+  const stroke = Math.max(3.5, size * 0.06);
+  const r = size / 2 - stroke * 1.4;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(Math.max(display, 0), 100) / 100);
   return (
     <div style={{
-      width:size, height:size, borderRadius:"50%", flexShrink:0,
-      background:"radial-gradient(circle at 38% 33%, #ffffff 0%, #f0e9fb 55%, #ddd0ef 100%)",
-      boxShadow:`0 8px 28px rgba(110,79,145,0.26), 0 2px 6px rgba(110,79,145,0.14), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(110,79,145,0.08)`,
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      position:"relative", overflow:"hidden",
+      width:size, height:size, borderRadius:"50%", flexShrink:0, position:"relative",
+      background:"#FFFFFF",
+      boxShadow:`0 10px 26px rgba(110,79,145,0.2), 0 2px 8px rgba(27,21,48,0.06)`,
+      display:"flex", alignItems:"center", justifyContent:"center",
     }}>
-      {/* subtle inner rim */}
-      <div style={{ position:"absolute", inset:3, borderRadius:"50%", border:"1px solid rgba(110,79,145,0.1)", pointerEvents:"none" }} />
-      <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:size*0.295, color:INK(pct), lineHeight:1, zIndex:1 }}>
-        {display}%
-      </span>
-      {label && (
-        <span style={{ fontFamily:F.mono, fontSize:size*0.09, color:T.inkM, letterSpacing:"0.13em", textTransform:"uppercase", marginTop:3, zIndex:1 }}>
-          {label}
-        </span>
-      )}
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position:"absolute", inset:0 }}>
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#9B7FCC" />
+            <stop offset="100%" stopColor="#5A3D78" />
+          </linearGradient>
+        </defs>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F0EAF7" strokeWidth={stroke} />
+        <circle
+          cx={size/2} cy={size/2} r={r} fill="none" stroke={`url(#${gradId})`} strokeWidth={stroke}
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{ transition: animate ? "stroke-dashoffset 0.9s cubic-bezier(0.22,1,0.36,1)" : "none" }}
+        />
+      </svg>
+      <div style={{ position:"relative", zIndex:1, textAlign:"center" }}>
+        <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:size*0.25, color:T.inkH, lineHeight:1, letterSpacing:"-0.01em" }}>
+          {display}%
+        </div>
+        {label && (
+          <div style={{ fontFamily:F.mono, fontSize:size*0.078, letterSpacing:"0.09em", color:T.accent, marginTop:3, textTransform:"uppercase", fontWeight:600 }}>
+            {label}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -227,8 +245,13 @@ function Pill({ status }: { status:Status }) {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.17em", textTransform:"uppercase", marginBottom:0 }}>
+    <p style={{
+      display:"flex", alignItems:"center", gap:7,
+      fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.17em",
+      textTransform:"uppercase", marginBottom:0,
+    }}>
       {children}
+      <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
     </p>
   );
 }
@@ -467,6 +490,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [room, setRoom] = useState("");
+  const [prof, setProf] = useState("");
   const [loading, setLoading] = useState(false);
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
@@ -482,11 +506,12 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     try {
       const { slot } = await api.post("/slots", {
         semesterId, subjectId: subject.id,
-        day: parseInt(day, 10), startTime, endTime, room: room || undefined,
+        day: parseInt(day, 10), startTime, endTime, room: room || undefined, prof: prof || undefined,
       });
       setSlots(prev => [...prev, slot]);
       setAdding(false);
       setRoom("");
+      setProf("");
     } catch (e) {
       console.error(e);
     } finally {
@@ -530,7 +555,10 @@ function SubjectSlotRow({ subject, index, semesterId }: {
             <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...miniField, width:90 }} />
             <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...miniField, width:90 }} />
           </div>
-          <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...miniField, width:"100%", marginBottom:8, boxSizing:"border-box" }} />
+          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+            <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...miniField, flex:1, boxSizing:"border-box" }} />
+            <input placeholder="Professor (optional)" value={prof} onChange={e => setProf(e.target.value)} style={{ ...miniField, flex:1, boxSizing:"border-box" }} />
+          </div>
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={() => setAdding(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>Cancel</button>
             <button onClick={addSlot} disabled={loading} style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
@@ -567,6 +595,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
 }) {
   const [fabOpen, setFabOpen] = useState(false);
   const [userName, setUserName] = useState("");
+  const [semesterName, setSemesterName] = useState("");
   const [overall, setOverall] = useState<{percentage:number}|null>(null);
   const [subjectCards, setSubjectCards] = useState<{subject:any; stats:any; status:string}[]>([]);
   const [todayClasses, setTodayClasses] = useState<{slot:any; record:any}[]>([]);
@@ -579,6 +608,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
         setUserName(user.name);
         const active = semesters.find((s:any) => s.isActive) || semesters[0];
         if (!active) return;
+        setSemesterName(active.name || "");
 
         const [overviewRes, todayRes] = await Promise.all([
           api.get(`/records/stats/overview?semesterId=${active.id}`),
@@ -620,22 +650,44 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
   }
 
   const todayLabel = new Date().toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" });
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = userName ? userName.split(" ")[0] : "";
+  const nextClass = todayClasses.find(c => !c.record);
+
+  function fmtTime12(t: string) {
+    const [h, m] = t.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2,"0")} ${period}`;
+  }
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       {/* ── Header ── */}
       <div style={{ padding:"56px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
         <div>
-          <div className="ae0" style={{ marginBottom:10 }}>
-            <Eyebrow>{todayLabel.toUpperCase()}</Eyebrow>
+          <div className="ae0" style={{ display:"flex", alignItems:"center", gap:7, marginBottom:11 }}>
+            <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+            <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>
+              {semesterName ? `${semesterName} · ${todayLabel}` : todayLabel}
+            </span>
           </div>
-          <h1 className="ae1" style={{ fontFamily:F.serif, fontWeight:600, fontSize:34, color:T.inkH, lineHeight:1.05, marginBottom:6 }}>
-            Hey{userName ? `, ${userName.split(" ")[0]}` : ""}.
+          <h1 className="ae1" style={{ fontFamily:F.serif, fontWeight:500, fontSize:29, letterSpacing:"-0.01em", color:T.inkH, lineHeight:1.12, marginBottom:7 }}>
+            {greeting},{firstName && <><br />{firstName}</>}
           </h1>
-          <p className="ae2" style={{ fontSize:14, color:T.inkM }}>{todayClasses.length} class{todayClasses.length===1?"":"es"} today</p>
+          <div className="ae2" style={{ display:"flex", alignItems:"center", gap:7, fontSize:13.5, color:T.inkM }}>
+            <span>{todayClasses.length} class{todayClasses.length===1?"":"es"} today</span>
+            {nextClass && (
+              <>
+                <span style={{ width:3, height:3, borderRadius:"50%", background:T.inkL, flexShrink:0 }} />
+                <span>next at <b style={{ color:T.accent, fontWeight:600 }}>{fmtTime12(nextClass.slot.startTime)}</b></span>
+              </>
+            )}
+          </div>
         </div>
         <div className="ae1" style={{ paddingTop:2 }}>
-          <Seal pct={overall ? Math.round(overall.percentage) : 0} size={80} animate={true} />
+          <Seal pct={overall ? Math.round(overall.percentage) : 0} size={84} animate={true} />
         </div>
       </div>
 
@@ -654,28 +706,31 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                 onClick={() => onSubject(subject.id)}
                 className={`ae${Math.min(i+1,5)}`}
                 style={{
-                  flexShrink:0, width:148, height:164, padding:"18px 16px", borderRadius:22, border:"none",
-                  background:`linear-gradient(148deg, ${subject.color} 0%, ${subject.color}AA 100%)`,
-                  boxShadow:`0 8px 24px ${subject.color}50`,
+                  flexShrink:0, width:136, height:154, padding:16, borderRadius:22, border:"none",
+                  background:`linear-gradient(155deg, ${subject.color} 0%, ${subject.color}CC 65%, ${subject.color}88 100%)`,
+                  boxShadow:`0 10px 26px -6px ${subject.color}73`,
                   display:"flex", flexDirection:"column", justifyContent:"space-between", textAlign:"left",
                   cursor:"pointer", transition:"transform 0.16s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.16s ease",
                   position:"relative", overflow:"hidden",
                 }}
-                onMouseDown={e => { e.currentTarget.style.transform="scale(0.95)"; e.currentTarget.style.boxShadow=`0 4px 12px ${subject.color}40`; }}
-                onMouseUp={e   => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.boxShadow=`0 8px 24px ${subject.color}50`; }}
+                onMouseDown={e => { e.currentTarget.style.transform="scale(0.95)"; }}
+                onMouseUp={e   => { e.currentTarget.style.transform="scale(1)"; }}
               >
-                <div style={{ position:"absolute", top:-20, right:-20, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.12)", pointerEvents:"none" }} />
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <div style={{ width:34, height:34, borderRadius:11, background:"rgba(255,255,255,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <Icon name="BookOpen" size={16} color="#fff" />
+                <div style={{ position:"absolute", top:-20, right:-20, width:76, height:76, borderRadius:"50%", background:"rgba(255,255,255,0.13)", pointerEvents:"none" }} />
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", zIndex:1 }}>
+                  <div style={{ width:31, height:31, borderRadius:10, background:"rgba(255,255,255,0.2)", border:"1px solid rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <Icon name="BookOpen" size={15} color="#fff" />
                   </div>
                   {warn && <AlertCircle size={14} color="rgba(255,220,180,0.95)" />}
                 </div>
                 <div>
-                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:34, color:"#fff", lineHeight:1, marginBottom:5 }}>
-                    {Math.round(stats.percentage)}%
+                  <div style={{ display:"flex", alignItems:"baseline", gap:2, position:"relative", zIndex:1 }}>
+                    <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:25, color:"#fff", lineHeight:1 }}>
+                      {Math.round(stats.percentage)}
+                    </span>
+                    <span style={{ fontSize:12, color:"rgba(255,255,255,0.75)", fontWeight:600 }}>%</span>
                   </div>
-                  <div style={{ fontFamily:F.mono, fontSize:9, color:"rgba(255,255,255,0.7)", letterSpacing:"0.08em", textTransform:"uppercase" }}>
+                  <div style={{ fontFamily:F.mono, fontSize:9, color:"rgba(255,255,255,0.68)", letterSpacing:"0.08em", textTransform:"uppercase", marginTop:5, position:"relative", zIndex:1 }}>
                     {subject.name}
                   </div>
                   {warn && (
@@ -687,75 +742,130 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
               </button>
             );
           })}
+          {subjectCards.length > 1 && (
+            <div aria-hidden="true" style={{
+              flexShrink:0, width:56, height:154, borderRadius:22,
+              background:"linear-gradient(155deg,#5A3D78,#3A2650 65%,#2A1C3A)",
+              boxShadow:"0 10px 26px -6px rgba(58,38,80,0.4)",
+            }} />
+          )}
         </div>
       </div>
 
       {/* ── Today timeline ── */}
-      <div style={{ margin:"36px 24px 0" }} className="ae4">
+      <div style={{ margin:"34px 24px 0" }} className="ae4">
         <Eyebrow>TODAY</Eyebrow>
-        <div style={{ position:"relative", marginTop:18 }}>
+        <div style={{ position:"relative", marginTop:16 }}>
           {todayClasses.length === 0 && (
             <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No classes scheduled today.</p>
           )}
-          <div style={{
-            position:"absolute", left:18, top:14, bottom:14, width:2,
-            background:`linear-gradient(to bottom, ${T.accent}90 0%, ${T.accent}18 100%)`,
-            borderRadius:2, display: todayClasses.length ? "block" : "none",
-          }} />
           {todayClasses.map(({ slot, record }, idx) => {
-            const isPending  = !record;
-            const dotColor   = isPending ? T.aFillDeep : record.status === "present" ? T.safe : T.danger;
+            const isPending = !record;
+            const dotColor  = isPending ? T.aFillDeep : record.status === "present" ? T.safe : T.danger;
+            const isLast    = idx === todayClasses.length - 1;
             return (
-              <div key={slot.id} style={{ display:"flex", gap:18, marginBottom:16 }} className={`ae${Math.min(idx+1,5)}`}>
-                <div style={{ width:38, flexShrink:0, display:"flex", justifyContent:"center", paddingTop:18 }}>
+              <div key={slot.id} style={{ display:"flex", gap:10, marginBottom:10, alignItems:"stretch" }} className={`ae${Math.min(idx+1,5)}`}>
+                {/* rail */}
+                <div style={{ width:20, flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", position:"relative", paddingTop:20 }}>
                   <div style={{
-                    width:10, height:10, borderRadius:"50%", zIndex:1, position:"relative",
-                    background: dotColor,
-                    border:`2px solid ${T.bg}`,
-                    boxShadow:`0 0 0 3px ${dotColor}40`,
+                    width:8, height:8, borderRadius:"50%", position:"relative", zIndex:1,
+                    border:`2px solid ${T.bg}`, background:dotColor,
+                    boxShadow:`0 0 0 3px ${dotColor}30`,
+                    animation: isPending ? `ae-dot-breathe 2.2s ease-in-out ${idx * 0.3}s infinite` : "none",
                   }} />
+                  {!isLast && (
+                    <div style={{
+                      position:"absolute", top:28, bottom:-10, width:1.5,
+                      background:"linear-gradient(to bottom, rgba(110,79,145,0.32), rgba(110,79,145,0.05))",
+                      transformOrigin:"top", animation:"ae-line-grow 0.8s cubic-bezier(0.22,1,0.36,1) both",
+                    }} />
+                  )}
                 </div>
+
+                {/* card */}
                 <div style={{
-                  flex:1, background:T.card, borderRadius:20, padding:"18px 18px",
-                  boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
-                  borderLeft: isPending ? `3px solid ${T.aFillDeep}` : `3px solid ${dotColor}`,
+                  flex:1, background:"#FFFFFF", borderRadius:16, padding:"13px 15px",
+                  boxShadow:"0 2px 10px rgba(27,21,48,0.06), 0 1px 3px rgba(27,21,48,0.03)",
+                  border:"1px solid rgba(110,79,145,0.07)",
+                  borderLeft: `3px solid ${isPending ? T.aFillDeep : dotColor}`,
+                  display:"flex", flexDirection:"column", justifyContent:"center",
                 }}>
-                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
                     <div>
-                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH, marginBottom:5 }}>
+                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH, marginBottom:3 }}>
                         {slot.subject.name}
                       </div>
-                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                        <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>{slot.startTime}–{slot.endTime}</span>
-                        {slot.room && <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slot.room}</span>}
+                      <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                        <span>{slot.startTime}–{slot.endTime}</span>
+                        {slot.room && (
+                          <>
+                            <span style={{ width:2.5, height:2.5, borderRadius:"50%", background:T.inkL, flexShrink:0 }} />
+                            <span style={{ color:T.accent, fontWeight:500 }}>{slot.room}</span>
+                          </>
+                        )}
+                        {slot.prof && (
+                          <span style={{ color:T.inkL, marginLeft:2 }}>{slot.prof}</span>
+                        )}
                       </div>
                     </div>
-                    {!isPending && <Pill status={record.status} />}
+                    <button
+                      onClick={() => onMark(slot.id)}
+                      title="Add note"
+                      aria-label="Add note"
+                      style={{
+                        width:26, height:26, borderRadius:8, flexShrink:0,
+                        border:"none", background:T.aFill,
+                        color:T.accent, cursor:"pointer",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}
+                    >
+                      <PenLine size={12.5} strokeWidth={2} />
+                    </button>
                   </div>
 
-                  {isPending && (
-                    <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-                      {(["present","absent","cancelled"] as Status[]).map(s => {
+                  {isPending ? (
+                    <div style={{ display:"flex", gap:7, marginTop:10 }}>
+                      {(["present","absent"] as Status[]).map(s => {
                         const { text, bg, label } = statusMeta(s);
                         return (
                           <button key={s}
                             disabled={quickBusy === slot.id}
                             onClick={() => quickMark(slot.id, s)}
                             style={{
-                              padding:"7px 14px", borderRadius:100, border:`1.5px solid ${text}25`,
-                              background:bg, color:text,
-                              fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer",
-                              transition:"transform 0.12s cubic-bezier(0.34,1.56,0.64,1)",
+                              flex:1, padding:"7px 6px", borderRadius:10,
+                              border:`1.5px solid ${text}2e`, background:bg, color:text,
+                              fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
+                              display:"flex", alignItems:"center", justifyContent:"center", gap:4,
                             }}
-                          >{label}</button>
+                          >
+                            {s==="present"
+                              ? <Check size={12} strokeWidth={3} />
+                              : <X size={12} strokeWidth={3} />}
+                            {label}
+                          </button>
                         );
                       })}
-                      <button onClick={() => onMark(slot.id)} style={{
-                        padding:"7px 13px", borderRadius:100,
-                        border:`1.5px solid rgba(110,79,145,0.22)`, background:"transparent",
-                        color:T.accent, fontFamily:F.sans, fontSize:12, fontWeight:500, cursor:"pointer",
-                      }}>+ Note</button>
+                      <button
+                        disabled={quickBusy === slot.id}
+                        onClick={() => quickMark(slot.id, "cancelled")}
+                        style={{
+                          flex:1, padding:"7px 6px", borderRadius:10,
+                          border:`1.5px solid rgba(138,129,148,0.12)`, background:T.cancelFill, color:T.inkM,
+                          fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
+                        }}
+                      >Cancelled</button>
                     </div>
+                  ) : (
+                    <span style={{
+                      marginTop:8, alignSelf:"flex-start",
+                      display:"inline-flex", alignItems:"center", gap:5,
+                      padding:"5px 12px", borderRadius:100,
+                      fontFamily:F.sans, fontWeight:700, fontSize:11,
+                      background: statusMeta(record.status).bg, color: statusMeta(record.status).text,
+                    }}>
+                      {record.status === "present" && <Check size={10} strokeWidth={3} />}
+                      {statusMeta(record.status).label}
+                    </span>
                   )}
                 </div>
               </div>
@@ -768,7 +878,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
       <button
         onClick={() => setFabOpen(true)}
         style={{
-          position:"fixed", right:24, bottom:94, width:58, height:58, borderRadius:"50%",
+          position:"fixed", right:24, bottom:104, width:58, height:58, borderRadius:"50%",
           background:T.accent, border:"none", cursor:"pointer", zIndex:20,
           boxShadow:S.acc,
           display:"flex", alignItems:"center", justifyContent:"center",
@@ -798,6 +908,7 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [room, setRoom] = useState("");
+  const [prof, setProf] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string|null>(null);
 
@@ -811,7 +922,7 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
       await api.post("/slots/extra", {
         semesterId: active.id,
         subjectId, date, startTime, endTime,
-        room: room || undefined,
+        room: room || undefined, prof: prof || undefined,
         mode: "add",
       });
       onSaved();
@@ -845,7 +956,10 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
               <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
             </div>
-            <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:14, boxSizing:"border-box" }} />
+            <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+              <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...fieldStyle, flex:1, boxSizing:"border-box" }} />
+              <input placeholder="Professor (optional)" value={prof} onChange={e => setProf(e.target.value)} style={{ ...fieldStyle, flex:1, boxSizing:"border-box" }} />
+            </div>
             {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={onClose} style={{ flex:1, padding:"12px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
@@ -1885,30 +1999,26 @@ function TabBar({ active, onChange }: { active:TabId; onChange:(t:TabId)=>void }
   ];
   return (
     <div style={{
-      position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-      width:"100%", maxWidth:390,
-      background:"rgba(252,251,254,0.94)",
-      backdropFilter:"blur(20px) saturate(180%)",
-      borderTop:`1px solid rgba(110,79,145,0.09)`,
-      display:"flex", zIndex:40, padding:"10px 0 30px",
+      position:"fixed", bottom:22, left:"50%", transform:"translateX(-50%)",
+      width:"calc(100% - 48px)", maxWidth:342,
+      background:"rgba(255,255,255,0.86)",
+      backdropFilter:"blur(22px) saturate(180%)",
+      border:"1px solid rgba(255,255,255,0.7)",
+      borderRadius:26,
+      boxShadow:"0 16px 40px rgba(94,63,138,0.18), 0 4px 14px rgba(94,63,138,0.1)",
+      display:"flex", zIndex:40, padding:"8px",
     }}>
       {TABS.map(({ id,I,label }) => {
         const on = active===id;
         return (
           <button key={id} onClick={() => onChange(id)} style={{
-            flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
-            border:"none", background:"transparent", cursor:"pointer", padding:"6px 0",
-            transition:"opacity 0.15s",
+            flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2,
+            border:"none", background: on ? T.aFill : "transparent", borderRadius:18,
+            cursor:"pointer", padding:"9px 0 8px",
+            transition:"background 0.2s ease",
           }}>
-            <div style={{
-              width:44, height:32, borderRadius:14,
-              background: on ? T.aFill : "transparent",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              transition:"background 0.2s ease",
-            }}>
-              <I size={21} color={on?T.accent:T.inkM} strokeWidth={on?2:1.7} />
-            </div>
-            <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:on?600:400, color:on?T.accent:T.inkM, letterSpacing:"0.01em" }}>
+            <I size={19} color={on?T.accent:T.inkM} strokeWidth={on?2.1:1.6} />
+            <span style={{ fontFamily:F.sans, fontSize:9.5, fontWeight:on?600:400, color:on?T.accent:T.inkM, letterSpacing:"0.01em" }}>
               {label}
             </span>
           </button>
@@ -1928,6 +2038,36 @@ export default function App() {
   const [subjId,  setSubjId]  = useState<string|null>(null);
   const [markSlot,setMarkSlot]= useState<string|null>(null);
   const [homeRefresh, setHomeRefresh] = useState(0);
+  const [checkingOnboard, setCheckingOnboard] = useState(true);
+
+  // Runs once whenever the user becomes authenticated (fresh login,
+  // signup, or an existing token found on page load). If they already
+  // have a semester set up, skip straight to Home instead of showing
+  // onboarding again.
+  useEffect(() => {
+    if (!authed) { setCheckingOnboard(false); return; }
+    let cancelled = false;
+    setCheckingOnboard(true);
+    api.get("/semesters")
+      .then((data) => {
+        if (cancelled) return;
+        if (data.semesters && data.semesters.length > 0) {
+          setScreen("home");
+          setTab("home");
+        } else {
+          setScreen("onboarding");
+        }
+      })
+      .catch(() => {
+        // If the check fails, don't trap the user on onboarding forever —
+        // fall back to onboarding, they can navigate from there.
+        if (!cancelled) setScreen("onboarding");
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingOnboard(false);
+      });
+    return () => { cancelled = true; };
+  }, [authed]);
 
   const goTab = (t: TabId) => {
     setTab(t);
@@ -1948,6 +2088,27 @@ export default function App() {
 
   if (!authed) {
     return <AuthScreen onSuccess={() => setAuthed(true)} />;
+  }
+
+  if (checkingOnboard) {
+    return (
+      <div style={{
+        minHeight: "100dvh", background: T.bg, display: "flex",
+        alignItems: "center", justifyContent: "center", fontFamily: F.sans,
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 14,
+          background: "linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: S.acc, animation: "ae-pulse 1.1s ease-in-out infinite",
+        }}>
+          <GraduationCap size={22} color="#fff" />
+        </div>
+        <style>{`
+          @keyframes ae-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.6; transform:scale(0.94); } }
+        `}</style>
+      </div>
+    );
   }
   
   return (
@@ -1972,6 +2133,14 @@ export default function App() {
         @keyframes ae-backdrop-in {
           from { opacity:0; }
           to   { opacity:1; }
+        }
+        @keyframes ae-line-grow {
+          from { transform:scaleY(0); }
+          to   { transform:scaleY(1); }
+        }
+        @keyframes ae-dot-breathe {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(110,79,145,0.32); }
+          50%      { box-shadow: 0 0 0 6px rgba(110,79,145,0.14); }
         }
 
         .ae0  { animation:ae-up 0.44s ease-out both; }
