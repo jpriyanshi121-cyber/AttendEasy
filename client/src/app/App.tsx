@@ -3,7 +3,7 @@ import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star, Clock,
+  Sparkles, Star, Clock, Smartphone,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -52,7 +52,7 @@ export const S = {
 // TYPES
 // ════════════════════════════════════════════════════════════════
 type Status   = "present" | "absent" | "cancelled" | "rescheduled";
-type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings" | "edit-timetable";
+type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings" | "edit-timetable" | "profile";
 type TabId    = "home" | "timetable" | "calendar" | "settings";
 
 interface Subject  { id: string; name: string; code: string; color: string; icon: string; threshold: number; }
@@ -1163,10 +1163,14 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 3 — FULL TIMETABLE
 // ════════════════════════════════════════════════════════════════
-function TimetableScreen({ onMark }: { onMark:(slotId:string)=>void }) {
+function TimetableScreen({ onMark, isLandscape }: { onMark:(slotId:string)=>void; isLandscape:boolean }) {
   const [slots, setSlots] = useState<any[]>([]);
-  const HOURS = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00"];
   const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
+  const HOUR_START = 9, HOUR_END = 17;
+  const hourWidth = 68, rowHeight = 58;
+  const hoursArr = Array.from({ length: HOUR_END-HOUR_START+1 }, (_,i) => HOUR_START+i);
+  const gridWidth = (HOUR_END-HOUR_START) * hourWidth;
+  const hair = "#EFEAF6";
 
   useEffect(() => {
     (async () => {
@@ -1192,63 +1196,173 @@ function TimetableScreen({ onMark }: { onMark:(slotId:string)=>void }) {
   });
   const todayIdx = (today.getDay() + 6) % 7;
 
+  function timeToMin(t:string) { const [h,m] = t.split(":").map(Number); return h*60+m; }
+  function leftFor(t:string)   { return Math.max(0, (timeToMin(t) - HOUR_START*60) * (hourWidth/60)); }
+  function widthFor(s:string,e:string) { return Math.max(46, (timeToMin(e)-timeToMin(s)) * (hourWidth/60)); }
+
+  const legendMap = new Map<string,{name:string; color:string}>();
+  slots.forEach(s => { if (!legendMap.has(s.subjectId)) legendMap.set(s.subjectId, { name:s.subject.name, color:s.subject.color }); });
+  const legend = Array.from(legendMap.values());
+
+  if (!isLandscape) {
+    return (
+      <div style={{
+        fontFamily:F.sans, background:T.bg, height:"100vh", display:"flex",
+        flexDirection:"column", alignItems:"center", justifyContent:"center",
+        padding:"40px", textAlign:"center", paddingBottom:96,
+      }}>
+        <div style={{
+          width:64, height:64, borderRadius:20, background:T.aFill,
+          display:"flex", alignItems:"center", justifyContent:"center", marginBottom:18,
+          animation:"ae-rotate-hint 1.8s ease-in-out infinite",
+        }}>
+          <Smartphone size={30} color={T.accent} strokeWidth={1.6} />
+        </div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH, marginBottom:8 }}>
+          Rotate your phone
+        </h2>
+        <p style={{ fontSize:13.5, color:T.inkM, maxWidth:240, lineHeight:1.5 }}>
+          The full week timetable looks best in landscape — turn your device sideways to view it.
+        </p>
+        <style>{`
+          @keyframes ae-rotate-hint {
+            0%, 100% { transform:rotate(0deg); }
+            50%      { transform:rotate(90deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, height:"100vh", display:"flex", flexDirection:"column", paddingBottom:80 }}>
-      <div style={{ padding:"56px 20px 16px", flexShrink:0 }}>
-        <div className="ae0" style={{ marginBottom:8 }}><Eyebrow>WEEK VIEW</Eyebrow></div>
-        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Timetable</h2>
+    <div style={{ fontFamily:F.sans, background:T.bg, height:"100vh", display:"flex", overflow:"hidden", maxWidth:900, margin:"0 auto" }}>
+      {/* ── Sidebar ── */}
+      <div style={{
+        width:150, flexShrink:0, padding:"26px 20px",
+        background:"linear-gradient(165deg,#F7F2FC,#FCFBFE 60%)",
+        borderRight:`1px solid ${hair}`,
+        display:"flex", flexDirection:"column", position:"relative", overflow:"hidden",
+      }}>
+        <div style={{
+          position:"absolute", top:-40, right:-50, width:160, height:160, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(139,111,187,0.16), transparent 70%)", pointerEvents:"none",
+        }} />
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9, position:"relative", zIndex:1 }}>
+          <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+          <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Week View</span>
+        </div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, marginBottom:20, position:"relative", zIndex:1 }}>
+          Timetable
+        </h2>
+
+        {legend.length > 0 && (
+          <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:8, position:"relative", zIndex:1 }}>
+            {legend.map(s => (
+              <div key={s.name} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:11, background:"rgba(255,255,255,0.7)" }}>
+                <span style={{ width:8, height:8, borderRadius:"50%", background:s.color, boxShadow:`0 0 0 3px ${s.color}38`, flexShrink:0 }} />
+                <span style={{ fontFamily:F.sans, fontSize:10, color:T.inkB, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {s.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{ display:"flex", paddingLeft:46, paddingRight:12, gap:5, marginBottom:10, flexShrink:0 }}>
-        {dates.map((d,i) => {
-          const isToday = i === todayIdx;
-          return (
-            <div key={i} style={{ flex:1, textAlign:"center" }}>
-              <div style={{ fontFamily:F.mono, fontSize:9, color:isToday?T.accent:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase" }}>{DAYS[i]}</div>
-              <div style={{
-                fontFamily:F.serif, fontWeight:600, fontSize:17,
-                color: isToday?"#fff":T.inkH,
-                width:28, height:28, borderRadius:"50%",
-                background: isToday?T.accent:"transparent",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                margin:"4px auto 0",
-                boxShadow: isToday?S.acc:"none",
-              }}>{d.getDate()}</div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ── Main: time-axis grid ── */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"24px 24px 20px 22px", overflow:"auto" }}>
+        {/* time header (X-axis) */}
+        <div style={{ display:"flex", marginBottom:4, flexShrink:0 }}>
+          <div style={{ width:46, flexShrink:0 }} />
+          <div style={{ position:"relative", height:16, width:gridWidth, flexShrink:0 }}>
+            {hoursArr.map(h => (
+              <span key={h} style={{
+                position:"absolute", left:(h-HOUR_START)*hourWidth, transform:"translateX(-50%)",
+                fontFamily:F.mono, fontSize:8.5, color:T.inkL, fontWeight:500,
+              }}>{h}</span>
+            ))}
+          </div>
+        </div>
 
-      <div style={{ flex:1, overflow:"auto", paddingRight:12 }}>
-        {HOURS.map(hr => (
-          <div key={hr} style={{ display:"flex", gap:5, marginBottom:6, minHeight:58, alignItems:"stretch" }}>
-            <div style={{ width:40, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:8 }}>
-              <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>{hr}</span>
-            </div>
-            {Array.from({ length:5 }, (_,di) => {
-              const slot = slots.find(s => s.day===di && s.startTime===hr);
-              if (!slot) return (
-                <div key={di} style={{
-                  flex:1, borderRadius:11, minHeight:58,
-                  background:"rgba(110,79,145,0.025)",
-                  border:"1px solid rgba(110,79,145,0.05)",
-                }} />
-              );
+        {/* body: day labels + rows */}
+        <div style={{ flex:1, display:"flex" }}>
+          {/* day labels */}
+          <div style={{ width:46, flexShrink:0, display:"flex", flexDirection:"column" }}>
+            {dates.map((d,i) => {
+              const isToday = i === todayIdx;
               return (
-                <button key={di} onClick={() => onMark(slot.id)} style={{
-                  flex:1, borderRadius:11, border:"none", cursor:"pointer",
-                  background:T.aFill, padding:"8px 7px",
-                  display:"flex", flexDirection:"column", alignItems:"flex-start", gap:4,
-                  borderLeft:`3px solid ${slot.subject.color}`,
-                  transition:"transform 0.12s ease, box-shadow 0.12s ease", outline:"none",
-                }}>
-                  <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:11, color:T.inkH, lineHeight:1.3 }}>{slot.subject.name}</span>
-                  {slot.room && <span style={{ fontFamily:F.mono, fontSize:9, color:slot.subject.color, letterSpacing:"0.04em" }}>{slot.room}</span>}
-                </button>
+                <div key={i} style={{ height:rowHeight, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+                  <span style={{ fontFamily:F.mono, fontSize:8.5, letterSpacing:"0.08em", color:isToday?T.accent:T.inkL, fontWeight:500 }}>
+                    {DAYS[i].toUpperCase()}
+                  </span>
+                  {isToday ? (
+                    <span style={{
+                      fontFamily:F.serif, fontWeight:600, fontSize:11, color:"#fff", background:T.accent,
+                      width:20, height:20, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                      marginTop:2, boxShadow:S.acc,
+                    }}>{d.getDate()}</span>
+                  ) : (
+                    <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:14, color:T.inkH, marginTop:1 }}>{d.getDate()}</span>
+                  )}
+                </div>
               );
             })}
           </div>
-        ))}
+
+          {/* fixed-width time-axis grid, exact reference pixel sizing */}
+          <div style={{ width:gridWidth, flexShrink:0, position:"relative" }}>
+            {/* vertical hour gridlines spanning all rows */}
+            <div style={{ position:"absolute", inset:0, height:dates.length*rowHeight, pointerEvents:"none" }}>
+              {hoursArr.map(h => (
+                <div key={h} style={{ position:"absolute", top:0, bottom:0, left:(h-HOUR_START)*hourWidth, width:1, background:hair }} />
+              ))}
+            </div>
+
+            {dates.map((d,di) => {
+              const isToday = di === todayIdx;
+              const daySlots = slots.filter(s => s.day === di);
+              return (
+                <div key={di} style={{
+                  position:"relative", height:rowHeight,
+                  borderTop:`1px solid ${hair}`,
+                  borderBottom: di===dates.length-1 ? `1px solid ${hair}` : "none",
+                  background: isToday ? "rgba(239,231,246,0.35)" : "transparent",
+                }}>
+                  {daySlots.map(slot => (
+                    <button key={slot.id} onClick={() => onMark(slot.id)} style={{
+                      position:"absolute", top:4, bottom:4,
+                      left:leftFor(slot.startTime), width:widthFor(slot.startTime, slot.endTime),
+                      borderRadius:11, padding:"6px 9px", border:"none", cursor:"pointer",
+                      background:`${slot.subject.color}1A`,
+                      borderLeft:`3px solid ${slot.subject.color}`,
+                      boxShadow:`0 6px 16px -4px ${slot.subject.color}6B, 0 1px 2px rgba(27,21,48,0.04)`,
+                      display:"flex", flexDirection:"column", justifyContent:"center",
+                      overflow:"hidden", textAlign:"left",
+                    }}>
+                      <span style={{
+                        position:"absolute", top:5, right:5,
+                        width:15, height:15, borderRadius:5,
+                        background:"rgba(255,255,255,0.55)",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}>
+                        <PenLine size={8} color={slot.subject.color} strokeWidth={2.2} />
+                      </span>
+                      <span style={{
+                        fontFamily:F.serif, fontWeight:600, fontSize:11, color:slot.subject.color, lineHeight:1.15,
+                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", paddingRight:14,
+                      }}>
+                        {slot.subject.name}
+                      </span>
+                      <span style={{ fontFamily:F.mono, fontSize:7, color:T.inkM, marginTop:2, letterSpacing:"0.02em", fontWeight:500, whiteSpace:"nowrap" }}>
+                        {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2079,9 +2193,30 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 8 — SETTINGS
 // ════════════════════════════════════════════════════════════════
-function SettingsScreen({ onSemesters, onEditTimetable, onLogout }: {
-  onSemesters:()=>void; onEditTimetable:()=>void; onLogout:()=>void;
+function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
+  onSemesters:()=>void; onEditTimetable:()=>void; onLogout:()=>void; onProfile:()=>void;
 }) {
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profilePct, setProfilePct] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { user } = await api.me();
+        setProfileName(user.name);
+        setProfileEmail(user.email);
+        const { semesters } = await api.get("/semesters");
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (active) {
+          const { overall } = await api.get(`/records/stats/overview?semesterId=${active.id}`);
+          setProfilePct(Math.round(overall.percentage));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
   async function downloadReport() {
     try {
       const { semesters } = await api.get("/semesters");
@@ -2149,21 +2284,21 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout }: {
       </div>
 
       {/* Profile card */}
-      <div style={{ margin:"0 24px 26px", background:T.card, borderRadius:22, padding:"18px 20px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.08)`, display:"flex", alignItems:"center", gap:16 }}>
+      <button onClick={onProfile} style={{ textAlign:"left", cursor:"pointer", margin:"0 24px 26px", background:T.card, borderRadius:22, padding:"18px 20px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.08)`, display:"flex", alignItems:"center", gap:16, boxSizing:"border-box", width:"calc(100% - 48px)" }}>
         <div style={{
           width:56, height:56, borderRadius:"50%",
           background:"linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
           display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
           boxShadow:S.acc,
         }}>
-          <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:"#fff" }}>A</span>
+          <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:"#fff" }}>{profileName ? profileName[0].toUpperCase() : "?"}</span>
         </div>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:T.inkH, marginBottom:3 }}>Arjun Sharma</div>
-          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.09em" }}>B.Tech Computer Science · Sem 5</div>
+          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:T.inkH, marginBottom:3 }}>{profileName || "..."}</div>
+          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.09em" }}>{profileEmail}</div>
         </div>
-        <Seal pct={OVERALL} size={50} label="" />
-      </div>
+        <Seal pct={profilePct} size={50} label="" />
+      </button>
 
       {groups.map(grp => (
         <div key={grp.title} style={{ padding:"0 24px", marginBottom:22 }}>
@@ -2197,6 +2332,202 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout }: {
 
       <div style={{ padding:"0 24px 8px", textAlign:"center" }}>
         <p style={{ fontFamily:F.mono, fontSize:10, color:T.inkL, letterSpacing:"0.1em" }}>ATTENDEASY v2.0 · MONSOON 2026</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfileScreen({ onBack }: { onBack: () => void }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [overallPct, setOverallPct] = useState(0);
+  const [semesterName, setSemesterName] = useState("");
+  const [subjectCount, setSubjectCount] = useState(0);
+  const [totalClasses, setTotalClasses] = useState(0);
+
+  const [changingPw, setChangingPw] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwError, setPwError] = useState<string|null>(null);
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { user } = await api.me();
+        setName(user.name);
+        setEmail(user.email);
+        setNameInput(user.name);
+        setCreatedAt(user.createdAt);
+
+        const { semesters } = await api.get("/semesters");
+        const active = semesters.find((s:any) => s.isActive) || semesters[0];
+        if (active) {
+          setSemesterName(active.name);
+          const [{ overall }, { subjects }] = await Promise.all([
+            api.get(`/records/stats/overview?semesterId=${active.id}`),
+            api.get(`/subjects?semesterId=${active.id}`),
+          ]);
+          setOverallPct(Math.round(overall.percentage));
+          setSubjectCount(subjects.length);
+          setTotalClasses(overall.held);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  async function saveName() {
+    if (!nameInput.trim()) return;
+    setSaving(true);
+    try {
+      await api.updateName(nameInput.trim());
+      setName(nameInput.trim());
+      setEditing(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitChangePassword() {
+    setPwError(null);
+    if (!currentPw) { setPwError("Enter your current password."); return; }
+    if (newPw.length < 8) { setPwError("New password must be at least 8 characters."); return; }
+    if (newPw !== confirmPw) { setPwError("New passwords do not match."); return; }
+    setPwSaving(true);
+    try {
+      await api.changePassword(currentPw, newPw);
+      setPwSuccess(true);
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    } catch (e: any) {
+      setPwError(e.message);
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  const memberSince = createdAt ? new Date(createdAt).toLocaleDateString("en-IN", { month:"long", year:"numeric" }) : "";
+
+  return (
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:60 }}>
+      <div style={{ padding:"56px 24px 20px" }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:6, color:T.accent, marginBottom:20, padding:0, fontFamily:F.sans, fontSize:14, fontWeight:500 }}>
+          <ChevronLeft size={17} /> Back
+        </button>
+        <div style={{ marginBottom:8 }}><Eyebrow>YOUR ACCOUNT</Eyebrow></div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Profile</h2>
+      </div>
+
+      <div style={{ padding:"0 24px" }}>
+        {/* Profile card */}
+        <div style={{ background:T.card, borderRadius:22, padding:"24px 20px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.08)`, display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
+          <div style={{
+            width:64, height:64, borderRadius:"50%",
+            background:"linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
+            display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+            boxShadow:S.acc,
+          }}>
+            <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:"#fff" }}>{name ? name[0].toUpperCase() : "?"}</span>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH, marginBottom:3 }}>{name || "..."}</div>
+            <div style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>{email}</div>
+            {memberSince && <div style={{ fontFamily:F.mono, fontSize:9, color:T.inkL, marginTop:3 }}>Member since {memberSince}</div>}
+          </div>
+          <Seal pct={overallPct} size={50} label="" />
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+          {[
+            { label:"Semester", v: semesterName || "—" },
+            { label:"Subjects", v: subjectCount },
+            { label:"Classes Held", v: totalClasses },
+          ].map(item => (
+            <div key={item.label} style={{
+              flex:1, background:T.card, borderRadius:15, padding:"12px 8px",
+              textAlign:"center", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
+            }}>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.v}</div>
+              <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:3 }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Display name edit */}
+        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`, marginBottom:16 }}>
+          <div style={{ marginBottom:10 }}><Eyebrow>DISPLAY NAME</Eyebrow></div>
+          {editing ? (
+            <>
+              <input
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                style={{
+                  width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10,
+                  border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
+                  fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box",
+                }}
+              />
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => { setEditing(false); setNameInput(name); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+                <button onClick={saveName} disabled={saving} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontSize:15, color:T.inkH }}>{name}</span>
+              <button onClick={() => setEditing(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
+                <Edit2 size={13} /> Edit
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Change password */}
+        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: changingPw ? 12 : 0 }}>
+            <Eyebrow>PASSWORD</Eyebrow>
+            {!changingPw && (
+              <button onClick={() => { setChangingPw(true); setPwSuccess(false); }} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
+                <Edit2 size={13} /> Change
+              </button>
+            )}
+          </div>
+          {changingPw && (
+            pwSuccess ? (
+              <>
+                <p style={{ fontSize:13, color:T.safe, marginBottom:12 }}>Password updated successfully.</p>
+                <button onClick={() => { setChangingPw(false); setPwSuccess(false); }} style={{ width:"100%", padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Done</button>
+              </>
+            ) : (
+              <>
+                <input type="password" placeholder="Current password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:8, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
+                <input type="password" placeholder="New password" value={newPw} onChange={e => setNewPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:8, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
+                <input type="password" placeholder="Confirm new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
+                {pwError && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{pwError}</p>}
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => { setChangingPw(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(null); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+                  <button onClick={submitChangePassword} disabled={pwSaving} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                    {pwSaving ? "Saving..." : "Update"}
+                  </button>
+                </div>
+              </>
+            )
+          )}
+        </div>
+
+        <p style={{ fontSize:11, color:T.inkL, marginTop:14, textAlign:"center" }}>Email can't be changed right now.</p>
       </div>
     </div>
   );
@@ -2256,6 +2587,18 @@ export default function App() {
   const [homeRefresh, setHomeRefresh] = useState(0);
   const [skipOnboardIntro, setSkipOnboardIntro] = useState(false);
   const [checkingOnboard, setCheckingOnboard] = useState(true);
+  const [isLandscape, setIsLandscape] = useState(
+    typeof window !== "undefined" ? window.matchMedia("(orientation: landscape)").matches : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape)");
+    const handler = () => setIsLandscape(mq.matches);
+    handler();
+    mq.addEventListener("change", handler);
+    window.addEventListener("resize", handler);
+    return () => { mq.removeEventListener("change", handler); window.removeEventListener("resize", handler); };
+  }, []);
 
   // Runs once whenever the user becomes authenticated (fresh login,
   // signup, or an existing token found on page load). If they already
@@ -2379,7 +2722,7 @@ export default function App() {
       `}</style>
 
       <div style={{
-        width:"100%", maxWidth:390, margin:"0 auto",
+        width:"100%", maxWidth: (screen==="timetable" && isLandscape) ? "none" : 390, margin:"0 auto",
         minHeight:"100dvh", background:T.bg, position:"relative",
         fontFamily:F.sans, overflow:"hidden",
       }}>
@@ -2406,7 +2749,7 @@ export default function App() {
             />
           )}
           {screen==="timetable" && (
-            <TimetableScreen onMark={id => setMarkSlot(id)} />
+            <TimetableScreen onMark={id => setMarkSlot(id)} isLandscape={isLandscape} />
           )}
           {screen==="subject" && subjId && (
             <SubjectDetailScreen
@@ -2424,15 +2767,19 @@ export default function App() {
               onSemesters={() => setScreen("semester")}
               onEditTimetable={() => setScreen("edit-timetable")}
               onLogout={() => { clearToken(); window.location.href = "/"; }}
+              onProfile={() => setScreen("profile")}
             />
           )}
           {screen==="edit-timetable" && (
             <EditTimetableScreen onBack={() => setScreen("settings")} />
           )}
+          {screen==="profile" && (
+            <ProfileScreen onBack={() => setScreen("settings")} />
+          )}
         </motion.div>
         </AnimatePresence>
 
-        {screen !== "onboarding" && (
+        {screen !== "onboarding" && !(screen==="timetable" && isLandscape) && (
           <TabBar active={tab} onChange={goTab} />
         )}
       </div>

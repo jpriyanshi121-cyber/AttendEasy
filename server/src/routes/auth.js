@@ -93,6 +93,30 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 router.patch(
+  "/change-password",
+  requireAuth,
+  [
+    body("currentPassword").notEmpty(),
+    body("newPassword").isLength({ min: 8 }).withMessage("New password must be at least 8 characters"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const valid = await bcrypt.compare(req.body.currentPassword, user.passwordHash);
+    if (!valid) return res.status(401).json({ error: "Current password is incorrect" });
+
+    const passwordHash = await bcrypt.hash(req.body.newPassword, 12);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+
+    res.json({ message: "Password updated" });
+  }
+);
+
+router.patch(
   "/me",
   requireAuth,
   [body("name").trim().isLength({ min: 1 }).withMessage("Name cannot be empty")],

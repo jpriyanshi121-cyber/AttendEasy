@@ -47,6 +47,8 @@ export const api = {
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => request("/auth/me"),
   updateName: (name: string) => request("/auth/me", { method: "PATCH", body: JSON.stringify({ name }) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request("/auth/change-password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
   forgotPassword: (email: string) => request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
   resetPassword: (token: string, password: string) => request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) }),
   get: (path: string) => request(path),
