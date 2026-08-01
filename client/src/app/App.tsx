@@ -3,7 +3,7 @@ import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star,
+  Sparkles, Star, Clock,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -191,15 +191,15 @@ function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
 }) {
   const display = useCountUp(pct, 720, animate);
   const gradId = useId().replace(/:/g, "");
-  const stroke = Math.max(3.5, size * 0.06);
-  const r = size / 2 - stroke * 1.4;
+  const stroke = size * (5/84);
+  const r = size/2 - stroke*1.2;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(Math.max(display, 0), 100) / 100);
   return (
     <div style={{
       width:size, height:size, borderRadius:"50%", flexShrink:0, position:"relative",
       background:"#FFFFFF",
-      boxShadow:`0 10px 26px rgba(110,79,145,0.2), 0 2px 8px rgba(27,21,48,0.06)`,
+      boxShadow:"0 10px 26px rgba(110,79,145,0.2), 0 2px 8px rgba(27,21,48,0.06), inset 0 1px 0 #fff",
       display:"flex", alignItems:"center", justifyContent:"center",
     }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position:"absolute", inset:0 }}>
@@ -232,6 +232,17 @@ function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
 }
 
 function INK(pct: number) { return pct >= 75 ? T.safe : pct >= 60 ? T.warn : T.danger; }
+
+function shadeHex(hex: string, factor: number) {
+  const c = hex.replace("#", "");
+  const num = parseInt(c, 16);
+  let r = (num >> 16) & 0xff, g = (num >> 8) & 0xff, b = num & 0xff;
+  if (factor < 0) { r *= 1+factor; g *= 1+factor; b *= 1+factor; }
+  else            { r += (255-r)*factor; g += (255-g)*factor; b += (255-b)*factor; }
+  const clamp = (v:number) => Math.max(0, Math.min(255, Math.round(v)));
+  r=clamp(r); g=clamp(g); b=clamp(b);
+  return `#${((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1)}`;
+}
 
 function Pill({ status }: { status:Status }) {
   const { text, bg, label } = statusMeta(status);
@@ -663,9 +674,9 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
   }
 
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:180 }}>
       {/* ── Header ── */}
-      <div style={{ padding:"56px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+      <div style={{ padding:"52px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
         <div>
           <div className="ae0" style={{ display:"flex", alignItems:"center", gap:7, marginBottom:11 }}>
             <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
@@ -700,6 +711,8 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
           )}
           {subjectCards.map(({ subject, stats, status }, i) => {
             const warn = status !== "green";
+            const mid  = shadeHex(subject.color, -0.22);
+            const dark = shadeHex(subject.color, -0.48);
             return (
               <button
                 key={subject.id}
@@ -707,8 +720,8 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                 className={`ae${Math.min(i+1,5)}`}
                 style={{
                   flexShrink:0, width:136, height:154, padding:16, borderRadius:22, border:"none",
-                  background:`linear-gradient(155deg, ${subject.color} 0%, ${subject.color}CC 65%, ${subject.color}88 100%)`,
-                  boxShadow:`0 10px 26px -6px ${subject.color}73`,
+                  background:`linear-gradient(155deg, ${subject.color} 0%, ${mid} 65%, ${dark} 100%)`,
+                  boxShadow:`0 10px 26px -6px ${mid}73`,
                   display:"flex", flexDirection:"column", justifyContent:"space-between", textAlign:"left",
                   cursor:"pointer", transition:"transform 0.16s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.16s ease",
                   position:"relative", overflow:"hidden",
@@ -785,7 +798,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                 {/* card */}
                 <div style={{
                   flex:1, background:"#FFFFFF", borderRadius:16, padding:"13px 15px",
-                  boxShadow:"0 2px 10px rgba(27,21,48,0.06), 0 1px 3px rgba(27,21,48,0.03)",
+                  boxShadow:"0 2px 10px rgba(27,21,48,0.06), 0 1px 3px rgba(27,21,48,0.03), inset 0 1px 0 #fff",
                   border:"1px solid rgba(110,79,145,0.07)",
                   borderLeft: `3px solid ${isPending ? T.aFillDeep : dotColor}`,
                   display:"flex", flexDirection:"column", justifyContent:"center",
@@ -804,7 +817,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                           </>
                         )}
                         {slot.prof && (
-                          <span style={{ color:T.inkL, marginLeft:2 }}>{slot.prof}</span>
+                          <span style={{ fontSize:9, color:T.inkL, marginLeft:6 }}>{slot.prof}</span>
                         )}
                       </div>
                     </div>
@@ -857,7 +870,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                     </div>
                   ) : (
                     <span style={{
-                      marginTop:8, alignSelf:"flex-start",
+                      marginTop:2, alignSelf:"flex-start",
                       display:"inline-flex", alignItems:"center", gap:5,
                       padding:"5px 12px", borderRadius:100,
                       fontFamily:F.sans, fontWeight:700, fontSize:11,
@@ -878,13 +891,14 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
       <button
         onClick={() => setFabOpen(true)}
         style={{
-          position:"fixed", right:24, bottom:104, width:58, height:58, borderRadius:"50%",
-          background:T.accent, border:"none", cursor:"pointer", zIndex:20,
-          boxShadow:S.acc,
+          position:"fixed", right:24, bottom:96, width:58, height:58, borderRadius:"50%",
+          background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+          border:"none", cursor:"pointer", zIndex:20,
+          boxShadow:"0 16px 30px rgba(94,63,138,0.45), inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -3px 6px rgba(0,0,0,0.15)",
           display:"flex", alignItems:"center", justifyContent:"center",
         }}
       >
-        <Plus size={26} color="#fff" />
+        <Plus size={22} color="#fff" strokeWidth={2.5} />
       </button>
 
       {fabOpen && (
@@ -933,38 +947,122 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
     }
   }
 
+  const label = (text: string) => (
+    <label style={{
+      display:"block", fontFamily:F.mono, fontSize:10, letterSpacing:"0.1em",
+      textTransform:"uppercase", color:T.inkM, marginBottom:8, fontWeight:500,
+    }}>{text}</label>
+  );
+
+  const shellStyle: React.CSSProperties = {
+    width:"100%", padding:"14px 44px 14px 16px", borderRadius:16,
+    border:"1px solid rgba(110,79,145,0.1)", background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+    fontFamily:F.sans, fontSize:15, color:T.inkH, outline:"none",
+    boxSizing:"border-box", appearance:"none", WebkitAppearance:"none",
+  };
+
+  const dateLabel = new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
+
   return (
     <>
+      <style>{`
+        .ecm-native { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+        .ecm-sheet { scrollbar-width:none; -ms-overflow-style:none; }
+        .ecm-sheet::-webkit-scrollbar { display:none; }
+      `}</style>
       <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.44)", backdropFilter:"blur(5px)", zIndex:60 }} />
-      <div style={{
+      <div className="ecm-sheet" style={{
         position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
-        width:"calc(100% - 48px)", maxWidth:340,
-        background:T.card, borderRadius:24, padding:"24px 22px",
-        boxShadow:S.lg, zIndex:61,
+        width:"calc(100% - 40px)", maxWidth:360, maxHeight:"92vh", overflowY:"auto",
+        background:"linear-gradient(180deg, #FEFDFF 0%, #FBF8FE 55%, #F6F1FB 100%)",
+        borderRadius:28, padding:"14px 24px 24px", boxShadow:S.lg, zIndex:61,
       }}>
-        <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH, marginBottom:16 }}>Add Extra Class</h3>
+        <div style={{ width:36, height:4, borderRadius:2, background:T.aFillDeep, margin:"0 auto 18px" }} />
+
+        <div style={{
+          display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:100,
+          background:T.aFill, fontFamily:F.mono, fontSize:10.5, color:T.accent, fontWeight:600,
+          letterSpacing:"0.02em", marginBottom:16,
+        }}>
+          <Plus size={12} strokeWidth={2.5} /> One-time class
+        </div>
+
+        <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:26, color:T.inkH, marginBottom:6, letterSpacing:"-0.01em" }}>
+          Add extra class
+        </h3>
+        <p style={{ fontSize:14, color:T.inkM, marginBottom:22, lineHeight:1.4 }}>
+          For a makeup lecture or rescheduled session.
+        </p>
 
         {subjects.length === 0 ? (
           <p style={{ fontSize:13, color:T.inkM }}>Add a subject first before scheduling an extra class.</p>
         ) : (
           <>
-            <select value={subjectId} onChange={e => setSubjectId(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:10, boxSizing:"border-box" }}>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, width:"100%", marginBottom:10, boxSizing:"border-box" }} />
-            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...fieldStyle, flex:1 }} />
+            <div style={{ marginBottom:16 }}>
+              {label("Subject")}
+              <div style={{ position:"relative" }}>
+                <select value={subjectId} onChange={e => setSubjectId(e.target.value)} style={shellStyle}>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <ChevronDown size={17} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+              </div>
             </div>
-            <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-              <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...fieldStyle, flex:1, boxSizing:"border-box" }} />
-              <input placeholder="Professor (optional)" value={prof} onChange={e => setProf(e.target.value)} style={{ ...fieldStyle, flex:1, boxSizing:"border-box" }} />
+
+            <div style={{ marginBottom:16 }}>
+              {label("Date")}
+              <div style={{ position:"relative" }}>
+                <div style={{ ...shellStyle, display:"flex", alignItems:"center" }}>{dateLabel}</div>
+                <CalendarDays size={17} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="ecm-native" />
+              </div>
             </div>
-            {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={onClose} style={{ flex:1, padding:"12px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ flex:1, padding:"12px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
-                {saving ? "Saving..." : "Save"}
+
+            <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+              <div style={{ flex:1 }}>
+                {label("Starts")}
+                <div style={{ position:"relative" }}>
+                  <div style={{ ...shellStyle }}>{startTime}</div>
+                  <Clock size={16} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="ecm-native" />
+                </div>
+              </div>
+              <div style={{ flex:1 }}>
+                {label("Ends")}
+                <div style={{ position:"relative" }}>
+                  <div style={{ ...shellStyle }}>{endTime}</div>
+                  <Clock size={16} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="ecm-native" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:10, marginBottom:22 }}>
+              <div style={{ flex:1 }}>
+                {label("Room (optional)")}
+                <input placeholder="e.g. C-204" value={room} onChange={e => setRoom(e.target.value)}
+                  style={{ ...shellStyle, padding:"14px 16px" }} />
+              </div>
+              <div style={{ flex:1 }}>
+                {label("Professor (optional)")}
+                <input placeholder="e.g. Prof. Iyer" value={prof} onChange={e => setProf(e.target.value)}
+                  style={{ ...shellStyle, padding:"14px 16px" }} />
+              </div>
+            </div>
+
+            {error && <p style={{ color:T.danger, fontSize:12, marginBottom:14 }}>{error}</p>}
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onClose} style={{
+                flex:1, padding:"15px", borderRadius:16, border:"1px solid rgba(110,79,145,0.14)",
+                background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)", color:T.inkM, fontFamily:F.sans, fontSize:14.5, fontWeight:600, cursor:"pointer",
+              }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{
+                flex:1.4, padding:"15px", borderRadius:16, border:"none",
+                background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+                color:"#fff", fontFamily:F.sans, fontSize:14.5, fontWeight:700, cursor:"pointer",
+                boxShadow:"0 10px 24px rgba(94,63,138,0.35)",
+              }}>
+                {saving ? "Saving..." : "Save class"}
               </button>
             </div>
           </>
@@ -1999,26 +2097,27 @@ function TabBar({ active, onChange }: { active:TabId; onChange:(t:TabId)=>void }
   ];
   return (
     <div style={{
-      position:"fixed", bottom:22, left:"50%", transform:"translateX(-50%)",
-      width:"calc(100% - 48px)", maxWidth:342,
-      background:"rgba(255,255,255,0.86)",
-      backdropFilter:"blur(22px) saturate(180%)",
-      border:"1px solid rgba(255,255,255,0.7)",
-      borderRadius:26,
-      boxShadow:"0 16px 40px rgba(94,63,138,0.18), 0 4px 14px rgba(94,63,138,0.1)",
-      display:"flex", zIndex:40, padding:"8px",
+      position:"fixed", left:14, right:14, bottom:14,
+      background:"#FFFFFF", borderRadius:24,
+      boxShadow:"0 12px 30px rgba(27,21,48,0.14), 0 2px 8px rgba(27,21,48,0.06)",
+      display:"flex", zIndex:40, padding:"12px 8px",
     }}>
       {TABS.map(({ id,I,label }) => {
         const on = active===id;
         return (
           <button key={id} onClick={() => onChange(id)} style={{
-            flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2,
-            border:"none", background: on ? T.aFill : "transparent", borderRadius:18,
-            cursor:"pointer", padding:"9px 0 8px",
-            transition:"background 0.2s ease",
+            flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4,
+            border:"none", background:"transparent", cursor:"pointer", padding:0,
           }}>
-            <I size={19} color={on?T.accent:T.inkM} strokeWidth={on?2.1:1.6} />
-            <span style={{ fontFamily:F.sans, fontSize:9.5, fontWeight:on?600:400, color:on?T.accent:T.inkM, letterSpacing:"0.01em" }}>
+            <div style={{
+              width:34, height:26, borderRadius:9,
+              background: on ? T.aFill : "transparent",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              transition:"background 0.2s ease",
+            }}>
+              <I size={16} color={on?T.accent:T.inkL} strokeWidth={2} />
+            </div>
+            <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:600, color:on?T.accent:T.inkL }}>
               {label}
             </span>
           </button>
