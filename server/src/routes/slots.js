@@ -82,6 +82,7 @@ router.post(
     body("startTime").matches(/^\d{2}:\d{2}$/),
     body("endTime").matches(/^\d{2}:\d{2}$/),
     body("room").optional().isString(),
+    body("type").optional().isIn(["lecture", "tutorial", "practical"]),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -97,6 +98,7 @@ router.post(
       data: {
         semesterId: semester.id,
         subjectId: subject.id,
+        type: req.body.type || "lecture",
         day: req.body.day,
         startTime: req.body.startTime,
         endTime: req.body.endTime,
@@ -119,6 +121,7 @@ router.post(
     body("mode").isIn(["add", "replace"]),
     body("replacesSlotId").optional().isString(),
     body("room").optional().isString(),
+    body("type").optional().isIn(["lecture", "tutorial", "practical"]),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -141,6 +144,7 @@ router.post(
       data: {
         semesterId: semester.id,
         subjectId: subject.id,
+        type: req.body.type || "lecture",
         day,
         startTime: req.body.startTime,
         endTime: req.body.endTime,

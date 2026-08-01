@@ -280,11 +280,13 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
   const [pulse, setPulse] = useState(false);
 
   const [semesterId, setSemesterId] = useState<string|null>(null);
-  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; threshold:number}[]>([]);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newThreshold, setNewThreshold] = useState("75");
+  const [newThresholdLecture, setNewThresholdLecture] = useState("75");
+  const [newThresholdTutorial, setNewThresholdTutorial] = useState("75");
+  const [newThresholdPractical, setNewThresholdPractical] = useState("75");
   const [error, setError] = useState<string|null>(null);
 
   const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
@@ -321,11 +323,15 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
         semesterId,
         name: newName.trim(),
         color,
-        threshold: parseInt(newThreshold, 10) || 75,
+        thresholdLecture: parseInt(newThresholdLecture, 10) || 75,
+        thresholdTutorial: parseInt(newThresholdTutorial, 10) || 75,
+        thresholdPractical: parseInt(newThresholdPractical, 10) || 75,
       });
       setSubjects(prev => [...prev, subject]);
       setNewName("");
-      setNewThreshold("75");
+      setNewThresholdLecture("75");
+      setNewThresholdTutorial("75");
+      setNewThresholdPractical("75");
       setAdding(false);
     } catch (e: any) {
       setError(e.message);
@@ -424,17 +430,25 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
                     fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box",
                   }}
                 />
-                <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12 }}>
-                  <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Threshold %</span>
-                  <input
-                    value={newThreshold}
-                    onChange={e => setNewThreshold(e.target.value.replace(/\D/g, ""))}
-                    style={{
-                      width:60, padding:"8px 10px", borderRadius:10,
-                      border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
-                      fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center",
-                    }}
-                  />
+                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                  {[
+                    { label:"Lecture %", value:newThresholdLecture, set:setNewThresholdLecture },
+                    { label:"Tutorial %", value:newThresholdTutorial, set:setNewThresholdTutorial },
+                    { label:"Practical %", value:newThresholdPractical, set:setNewThresholdPractical },
+                  ].map(row => (
+                    <div key={row.label} style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM, width:80 }}>{row.label}</span>
+                      <input
+                        value={row.value}
+                        onChange={e => row.set(e.target.value.replace(/\D/g, ""))}
+                        style={{
+                          width:60, padding:"8px 10px", borderRadius:10,
+                          border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
+                          fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center",
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
                 {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
                 <div style={{ display:"flex", gap:8 }}>
@@ -491,15 +505,24 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
 }
 
 function SubjectSlotRow({ subject, index, semesterId }: {
-  subject: {id:string; name:string; color:string; threshold:number};
+  subject: {id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
   index: number;
   semesterId: string;
 }) {
-  const [threshold, setThreshold] = useState(subject.threshold);
+  const [thresholds, setThresholds] = useState({
+    lecture: subject.thresholdLecture,
+    tutorial: subject.thresholdTutorial,
+    practical: subject.thresholdPractical,
+  });
   const [editingThreshold, setEditingThreshold] = useState(false);
-  const [thresholdInput, setThresholdInput] = useState(String(subject.threshold));
-  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null}[]>([]);
+  const [thresholdInputs, setThresholdInputs] = useState({
+    lecture: String(subject.thresholdLecture),
+    tutorial: String(subject.thresholdTutorial),
+    practical: String(subject.thresholdPractical),
+  });
+  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null; type?:string}[]>([]);
   const [adding, setAdding] = useState(false);
+  const [classType, setClassType] = useState<"lecture"|"tutorial"|"practical">("lecture");
   const [day, setDay] = useState("0");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
@@ -520,6 +543,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     try {
       const { slot } = await api.post("/slots", {
         semesterId, subjectId: subject.id,
+        type: classType,
         day: parseInt(day, 10), startTime, endTime, room: room || undefined, prof: prof || undefined,
       });
       setSlots(prev => [...prev, slot]);
@@ -533,12 +557,13 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     }
   }
 
-  async function saveThreshold() {
-    const val = parseInt(thresholdInput, 10);
-    if (!val || val < 1 || val > 100) return;
+  async function saveThresholds() {
+    const l = parseInt(thresholdInputs.lecture, 10) || 75;
+    const t = parseInt(thresholdInputs.tutorial, 10) || 75;
+    const p = parseInt(thresholdInputs.practical, 10) || 75;
     try {
-      await api.patch(`/subjects/${subject.id}`, { threshold: val });
-      setThreshold(val);
+      await api.patch(`/subjects/${subject.id}`, { thresholdLecture: l, thresholdTutorial: t, thresholdPractical: p });
+      setThresholds({ lecture: l, tutorial: t, practical: p });
       setEditingThreshold(false);
     } catch (e) {
       console.error(e);
@@ -557,19 +582,26 @@ function SubjectSlotRow({ subject, index, semesterId }: {
         <div style={{ flex:1 }}>
           <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{subject.name}</div>
           {editingThreshold ? (
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <input
-                value={thresholdInput}
-                onChange={e => setThresholdInput(e.target.value.replace(/\D/g, ""))}
-                style={{ width:44, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
-              />
-              <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>%</span>
-              <button onClick={saveThreshold} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
-              <button onClick={() => { setEditingThreshold(false); setThresholdInput(String(threshold)); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+            <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:4 }}>
+              {(["lecture","tutorial","practical"] as const).map(t => (
+                <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
+                  <input
+                    value={thresholdInputs[t]}
+                    onChange={e => setThresholdInputs(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
+                    style={{ width:40, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
+                  />
+                  <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
+                </div>
+              ))}
+              <div style={{ display:"flex", gap:10, marginTop:2 }}>
+                <button onClick={saveThresholds} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
+                <button onClick={() => setEditingThreshold(false)} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+              </div>
             </div>
           ) : (
-            <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:6 }}>
-              {threshold}% threshold · {slots.length} slot{slots.length===1?"":"s"}/wk
+            <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+              L {thresholds.lecture}% · T {thresholds.tutorial}% · P {thresholds.practical}% · {slots.length} slot{slots.length===1?"":"s"}/wk
               <button onClick={() => setEditingThreshold(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, padding:0, display:"flex" }}>
                 <Edit2 size={11} />
               </button>
@@ -582,7 +614,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
         <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
           {slots.map(sl => (
             <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
-              {DAYS[sl.day]} {sl.startTime}
+              {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
             </span>
           ))}
         </div>
@@ -591,11 +623,18 @@ function SubjectSlotRow({ subject, index, semesterId }: {
       {adding ? (
         <div style={{ marginTop:12 }}>
           <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+            <select value={classType} onChange={e => setClassType(e.target.value as any)} style={{ ...miniField, flex:1 }}>
+              <option value="lecture">Lecture</option>
+              <option value="tutorial">Tutorial</option>
+              <option value="practical">Practical</option>
+            </select>
             <select value={day} onChange={e => setDay(e.target.value)} style={{ ...miniField, flex:1 }}>
               {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
             </select>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...miniField, width:90 }} />
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...miniField, width:90 }} />
+          </div>
+          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...miniField, flex:1 }} />
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...miniField, flex:1 }} />
           </div>
           <div style={{ display:"flex", gap:6, marginBottom:8 }}>
             <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...miniField, flex:1, boxSizing:"border-box" }} />
@@ -670,17 +709,21 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
     try {
       const cls = todayClasses.find(c => c.slot.id === slotId);
       const subjectId = cls?.slot.subjectId;
-      let before: any = null;
+      const slotType = cls?.slot.type || "lecture";
+      let beforeStats: any = null;
       if (subjectId && status === "present") {
-        before = await api.get(`/records/stats/subject/${subjectId}`);
+        const { breakdown } = await api.get(`/records/stats/subject/${subjectId}`);
+        beforeStats = breakdown[slotType];
       }
 
       await api.post("/records/mark", { slotId, date: new Date().toISOString(), status });
       setTodayClasses(prev => prev.map(c => c.slot.id === slotId ? { ...c, record: { ...c.record, status } } : c));
 
-      if (before && status === "present") {
-        const after = await api.get(`/records/stats/subject/${subjectId}`);
-        if (before.stats.percentage < after.subject.threshold && after.stats.percentage >= after.subject.threshold) {
+      if (beforeStats && subjectId) {
+        const { subject: subj, breakdown } = await api.get(`/records/stats/subject/${subjectId}`);
+        const afterStats = breakdown[slotType];
+        const threshold = slotType === "tutorial" ? subj.thresholdTutorial : slotType === "practical" ? subj.thresholdPractical : subj.thresholdLecture;
+        if (afterStats && beforeStats.percentage < threshold && afterStats.percentage >= threshold) {
           fireConfetti();
         }
       }
@@ -954,6 +997,7 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
   const [endTime, setEndTime] = useState("10:00");
   const [room, setRoom] = useState("");
   const [prof, setProf] = useState("");
+  const [classType, setClassType] = useState<"lecture"|"tutorial"|"practical">("lecture");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string|null>(null);
 
@@ -968,6 +1012,7 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
         semesterId: active.id,
         subjectId, date, startTime, endTime,
         room: room || undefined, prof: prof || undefined,
+        type: classType,
         mode: "add",
       });
       onSaved();
@@ -1034,6 +1079,18 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
               <div style={{ position:"relative" }}>
                 <select value={subjectId} onChange={e => setSubjectId(e.target.value)} style={shellStyle}>
                   {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <ChevronDown size={17} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              {label("Type")}
+              <div style={{ position:"relative" }}>
+                <select value={classType} onChange={e => setClassType(e.target.value as any)} style={shellStyle}>
+                  <option value="lecture">Lecture</option>
+                  <option value="tutorial">Tutorial</option>
+                  <option value="practical">Practical</option>
                 </select>
                 <ChevronDown size={17} color={T.inkM} style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
               </div>
@@ -1209,7 +1266,7 @@ const navBtn: React.CSSProperties = {
 function SubjectDetailScreen({ subjectId, onBack, onMark }: {
   subjectId:string; onBack:()=>void; onMark:(slotId:string)=>void;
 }) {
-  const [data, setData] = useState<{subject:any; stats:any}|null>(null);
+  const [data, setData] = useState<{subject:any; overall:any; breakdown:Record<string,any>}|null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -1236,9 +1293,6 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
     })();
   }, [subjectId]);
 
-  const isGood  = data ? data.stats.canMissMore > 0 : false;
-  const bunkVal = useCountUp(data ? (isGood ? data.stats.canMissMore : data.stats.needToAttend) : 0, 680);
-
   if (!data) {
     return (
       <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", padding:"56px 24px" }}>
@@ -1247,7 +1301,8 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
     );
   }
 
-  const { subject, stats } = data;
+  const { subject, overall, breakdown } = data;
+  const typeLabels: Record<string,string> = { lecture:"Lecture", tutorial:"Tutorial", practical:"Practical" };
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:108 }}>
@@ -1263,22 +1318,22 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
             <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
               {slots.map(sl => (
                 <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
-                  {DAYS[sl.day]} {sl.startTime}
+                  {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
                 </span>
               ))}
             </div>
           </div>
-          <Seal pct={Math.round(stats.percentage)} size={84} animate={true} label={`${subject.threshold}% min`} />
+          <Seal pct={Math.round(overall.percentage)} size={84} animate={true} label="OVERALL" />
         </div>
       </div>
 
       {/* Stats row */}
       <div style={{ display:"flex", gap:8, padding:"24px 24px 0" }}>
         {[
-          { label:"Total",     v:stats.held,     c:T.inkH },
-          { label:"Attended",  v:stats.attended, c:T.safe },
-          { label:"Missed",    v:stats.missed,   c:T.danger },
-          { label:"Cancelled", v:stats.cancelled,c:T.inkM },
+          { label:"Total",     v:overall.held,     c:T.inkH },
+          { label:"Attended",  v:overall.attended, c:T.safe },
+          { label:"Missed",    v:overall.missed,   c:T.danger },
+          { label:"Cancelled", v:overall.cancelled,c:T.inkM },
         ].map(item => (
           <div key={item.label} style={{
             flex:1, background:T.card, borderRadius:17, padding:"14px 8px",
@@ -1290,29 +1345,38 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
         ))}
       </div>
 
-      {/* Bunk calculator */}
-      <div style={{ margin:"20px 24px", background:T.card, borderRadius:24, padding:"24px 22px", boxShadow:S.md, border:`1px solid rgba(110,79,145,0.08)` }}>
-        <div style={{ marginBottom:14 }}><Eyebrow>{isGood ? "SAFE TO SKIP" : "RECOVERY PLAN"}</Eyebrow></div>
-        <div style={{ display:"flex", alignItems:"flex-end", gap:10, marginBottom:12 }}>
-          <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:76, color: isGood?T.safe:T.danger, lineHeight:1 }}>{bunkVal}</span>
-          <span style={{ fontFamily:F.serif, fontSize:18, color:T.inkM, paddingBottom:12 }}>class{(isGood?stats.canMissMore:stats.needToAttend)!==1?"es":""}</span>
-        </div>
-        <p style={{ fontSize:14, color:T.inkM, lineHeight:1.6 }}>
-          {isGood
-            ? `You can miss ${stats.canMissMore} more class${stats.canMissMore!==1?"es":""} and still hold above ${subject.threshold}%.`
-            : `Attend the next ${stats.needToAttend} class${stats.needToAttend!==1?"es":""} in a row to recover to ${subject.threshold}%.`
-          }
-        </p>
-        {!isGood && (
-          <div style={{ marginTop:14, padding:"11px 15px", borderRadius:13, background:T.dangerFill, display:"flex", alignItems:"center", gap:10 }}>
-            <AlertCircle size={15} color={T.danger} />
-            <span style={{ fontSize:12, color:T.danger, fontWeight:600 }}>Currently at {Math.round(stats.percentage)}% — {Math.round(subject.threshold - stats.percentage)}pp below threshold</span>
+      {/* Per-type bunk calculators */}
+      {Object.entries(breakdown).map(([type, stats]: [string, any]) => {
+        const isGood = stats.canMissMore > 0;
+        const displayVal = isGood ? stats.canMissMore : stats.needToAttend;
+        return (
+          <div key={type} style={{ margin:"20px 24px 0", background:T.card, borderRadius:24, padding:"22px 20px", boxShadow:S.md, border:`1px solid rgba(110,79,145,0.08)` }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+              <Eyebrow>{typeLabels[type]?.toUpperCase()} · {isGood ? "SAFE TO SKIP" : "RECOVERY PLAN"}</Eyebrow>
+              <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
+            </div>
+            <div style={{ display:"flex", alignItems:"flex-end", gap:10, marginBottom:10 }}>
+              <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:56, color: isGood?T.safe:T.danger, lineHeight:1 }}>{displayVal}</span>
+              <span style={{ fontFamily:F.serif, fontSize:15, color:T.inkM, paddingBottom:8 }}>class{displayVal!==1?"es":""}</span>
+            </div>
+            <p style={{ fontSize:13, color:T.inkM, lineHeight:1.6 }}>
+              {isGood
+                ? `You can miss ${stats.canMissMore} more ${typeLabels[type].toLowerCase()} class${stats.canMissMore!==1?"es":""} and still hold above ${stats.threshold}%.`
+                : `Attend the next ${stats.needToAttend} ${typeLabels[type].toLowerCase()} class${stats.needToAttend!==1?"es":""} in a row to recover to ${stats.threshold}%.`
+              }
+            </p>
+            {!isGood && (
+              <div style={{ marginTop:12, padding:"10px 14px", borderRadius:12, background:T.dangerFill, display:"flex", alignItems:"center", gap:10 }}>
+                <AlertCircle size={14} color={T.danger} />
+                <span style={{ fontSize:11, color:T.danger, fontWeight:600 }}>Currently at {Math.round(stats.percentage)}% — {Math.round(stats.threshold - stats.percentage)}pp below threshold</span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })}
 
       {/* History */}
-      <div style={{ padding:"0 24px" }}>
+      <div style={{ padding:"24px 24px 0" }}>
         <div style={{ marginBottom:14 }}><Eyebrow>ATTENDANCE HISTORY</Eyebrow></div>
         {history.length === 0 && <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No records yet.</p>}
         {history.map((rec, i) => (
@@ -1327,6 +1391,7 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                 <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot?.startTime}</span>
+                {rec.slot?.type && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6, textTransform:"capitalize" }}>{rec.slot.type}</span>}
                 {rec.slot?.room && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6 }}>{rec.slot.room}</span>}
                 {rec.tag && <span style={{ fontFamily:F.mono, fontSize:9, color:T.warn, background:T.warnFill, padding:"1px 7px", borderRadius:6 }}>{rec.tag}</span>}
               </div>
@@ -1391,9 +1456,11 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
     if (!sel || !slotId) return;
     setSaving(true);
     try {
-      let before: any = null;
+      const slotType = slotInfo?.type || "lecture";
+      let beforeStats: any = null;
       if (sel === "present" && slotInfo) {
-        before = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
+        const { breakdown } = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
+        beforeStats = breakdown[slotType];
       }
 
       await api.post("/records/mark", {
@@ -1415,9 +1482,11 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
         });
       }
 
-      if (before && slotInfo) {
-        const after = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
-        if (before.stats.percentage < after.subject.threshold && after.stats.percentage >= after.subject.threshold) {
+      if (beforeStats && slotInfo) {
+        const { subject: subj, breakdown } = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
+        const afterStats = breakdown[slotType];
+        const threshold = slotType === "tutorial" ? subj.thresholdTutorial : slotType === "practical" ? subj.thresholdPractical : subj.thresholdLecture;
+        if (afterStats && beforeStats.percentage < threshold && afterStats.percentage >= threshold) {
           fireConfetti();
         }
       }
@@ -1921,7 +1990,7 @@ function SemesterScreen({ onStartNew }: { onStartNew: () => void }) {
 
 function EditTimetableScreen({ onBack }: { onBack: () => void }) {
   const [semesterId, setSemesterId] = useState<string|null>(null);
-  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; threshold:number}[]>([]);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newThreshold, setNewThreshold] = useState("75");

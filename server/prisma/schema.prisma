@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -36,18 +37,20 @@ model Semester {
 }
 
 model Subject {
-  id         String     @id @default(uuid())
-  semesterId String
-  semester   Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  name       String
-  code       String?
-  color      String     @default("#6366f1")
-  icon       String?
-  threshold  Int        @default(75)
-  archived   Boolean    @default(false)
-  createdAt  DateTime   @default(now())
-  slots      Slot[]
-  records    AttendanceRecord[]
+  id                 String     @id @default(uuid())
+  semesterId         String
+  semester           Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  name               String
+  code               String?
+  color              String     @default("#6366f1")
+  icon               String?
+  thresholdLecture   Int        @default(75)
+  thresholdTutorial  Int        @default(75)
+  thresholdPractical Int        @default(75)
+  archived           Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  slots              Slot[]
+  records            AttendanceRecord[]
 
   @@index([semesterId])
 }
@@ -60,6 +63,7 @@ model Slot {
   semester       Semester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   subjectId      String
   subject        Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  type           String    @default("lecture") // "lecture" | "tutorial" | "practical"
   day            Int       // 0 = Monday .. 6 = Sunday
   startTime      String    // "09:00"
   endTime        String    // "10:00"

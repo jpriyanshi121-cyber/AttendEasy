@@ -37,4 +37,10 @@ function computeStats(records, threshold) {
   };
 }
 
-module.exports = { computeStats };
+function thresholdForType(subject, type) {
+  if (type === "tutorial") return subject.thresholdTutorial;
+  if (type === "practical") return subject.thresholdPractical;
+  return subject.thresholdLecture;
+}
+
+module.exports = { computeStats, thresholdForType };

@@ -3,7 +3,7 @@ const { body, query, validationResult } = require("express-validator");
 const prisma = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getOwnedSemester } = require("../lib/ownership");
-const { computeStats } = require("../lib/stats");
+const { computeStats, thresholdForType } = require("../lib/stats");
 const PDFDocument = require("pdfkit");
 
 const router = express.Router();
@@ -79,9 +79,27 @@ router.get("/stats/subject/:subjectId", async (req, res) => {
   const semester = await getOwnedSemester(subject.semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Subject not found" });
 
-  const records = await prisma.attendanceRecord.findMany({ where: { subjectId: subject.id } });
-  const stats = computeStats(records, subject.threshold);
-  res.json({ subject, stats });
+  const records = await prisma.attendanceRecord.findMany({
+    where: { subjectId: subject.id },
+    include: { slot: true },
+  });
+
+  const existingTypes = await prisma.slot.findMany({
+    where: { subjectId: subject.id },
+    distinct: ["type"],
+    select: { type: true },
+  });
+  const typesPresent = existingTypes.map((t) => t.type);
+
+  const breakdown = {};
+  for (const type of ["lecture", "tutorial", "practical"]) {
+    if (!typesPresent.includes(type)) continue;
+    const typeRecords = records.filter((r) => (r.slot?.type || "lecture") === type);
+    breakdown[type] = computeStats(typeRecords, thresholdForType(subject, type));
+  }
+
+  const overall = computeStats(records, 75);
+  res.json({ subject, overall, breakdown });
 });
 
 router.get("/stats/overview", async (req, res) => {
@@ -91,14 +109,33 @@ router.get("/stats/overview", async (req, res) => {
   const semester = await getOwnedSemester(semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Semester not found" });
 
-  const subjects = await prisma.subject.findMany({ where: { semesterId, archived: false } });
+  const subjects = await prisma.subject.findMany({
+    where: { semesterId, archived: false },
+  });
 
   const perSubject = await Promise.all(
     subjects.map(async (subject) => {
-      const records = await prisma.attendanceRecord.findMany({ where: { subjectId: subject.id } });
-      const stats = computeStats(records, subject.threshold);
-      const status =
-        stats.percentage >= subject.threshold ? "green" : stats.percentage >= subject.threshold - 10 ? "amber" : "red";
+      const records = await prisma.attendanceRecord.findMany({
+        where: { subjectId: subject.id },
+        include: { slot: true },
+      });
+      const stats = computeStats(records, 75);
+
+      const byType = { lecture: [], tutorial: [], practical: [] };
+      for (const r of records) {
+        const t = r.slot?.type || "lecture";
+        if (byType[t]) byType[t].push(r);
+      }
+
+      let status = "green";
+      for (const type of ["lecture", "tutorial", "practical"]) {
+        if (byType[type].length === 0) continue;
+        const threshold = thresholdForType(subject, type);
+        const typeStats = computeStats(byType[type], threshold);
+        if (typeStats.percentage < threshold - 10) { status = "red"; break; }
+        if (typeStats.percentage < threshold) status = "amber";
+      }
+
       return { subject, stats, status };
     })
   );
