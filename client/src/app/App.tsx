@@ -1485,8 +1485,28 @@ const navBtn: React.CSSProperties = {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 4 — SUBJECT DETAIL
 // ════════════════════════════════════════════════════════════════
-function SubjectDetailScreen({ subjectId, onBack, onMark }: {
-  subjectId:string; onBack:()=>void; onMark:(slotId:string)=>void;
+
+function Sparkline({ points, color }: { points:number[]; color:string }) {
+  if (points.length < 2) return null;
+  const w = 280, h = 56, pad = 4;
+  const stepX = (w - pad*2) / (points.length - 1);
+  const coords = points.map((p, i) => {
+    const x = pad + i*stepX;
+    const y = pad + (h - pad*2) * (1 - p/100);
+    return `${x},${y}`;
+  }).join(" ");
+  const lastX = pad + (points.length-1)*stepX;
+  const lastY = pad + (h - pad*2) * (1 - points[points.length-1]/100);
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{ display:"block" }}>
+      <polyline points={coords} fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r={4} fill={color} />
+    </svg>
+  );
+}
+
+function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
+  subjectId:string; onBack:()=>void; onMark:(slotId:string)=>void; onEditTimetable:()=>void;
 }) {
   const [data, setData] = useState<{subject:any; overall:any; breakdown:Record<string,any>}|null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -1553,7 +1573,16 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
             ))}
           </div>
         </div>
-        <Seal pct={Math.round(overall.percentage)} size={66} animate={true} label="Overall" flat />
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:10 }}>
+          <Seal pct={Math.round(overall.percentage)} size={66} animate={true} label="Overall" flat />
+          <button onClick={onEditTimetable} style={{
+            display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:20,
+            background:T.aFill, border:"none", cursor:"pointer",
+          }}>
+            <Edit2 size={11} color={T.accent} />
+            <span style={{ fontFamily:F.mono, fontSize:9.5, color:T.accent, fontWeight:600, letterSpacing:"0.04em" }}>EDIT</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -1573,6 +1602,35 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
           </div>
         ))}
       </div>
+
+      {/* Trend */}
+      {(() => {
+        const held = [...history]
+          .filter(r => r.status === "present" || r.status === "absent")
+          .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        if (held.length < 2) return null;
+        let presentCount = 0;
+        const points = held.map((r, i) => {
+          if (r.status === "present") presentCount++;
+          return Math.round((presentCount / (i+1)) * 100);
+        });
+        const trendPoints = points.slice(-12);
+        const delta = trendPoints[trendPoints.length-1] - trendPoints[0];
+        const trendColor = delta >= 0 ? T.safe : T.danger;
+        return (
+          <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+              <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
+                Recent Trend
+              </span>
+              <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color:trendColor }}>
+                {delta >= 0 ? "+" : ""}{delta}pp
+              </span>
+            </div>
+            <Sparkline points={trendPoints} color={trendColor} />
+          </div>
+        );
+      })()}
 
       {/* Per-type bunk calculators */}
       {Object.entries(breakdown).map(([type, stats]: [string, any]) => {
@@ -3201,6 +3259,7 @@ export default function App() {
               subjectId={subjId}
               onBack={() => { setScreen("home"); setTab("home"); setSubjId(null); }}
               onMark={id => setMarkSlot(id)}
+              onEditTimetable={() => setScreen("edit-timetable")}
             />
           )}
           {screen==="calendar"  && <CalendarScreen />}
