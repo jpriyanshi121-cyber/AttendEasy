@@ -177,7 +177,8 @@ router.get("/calendar", async (req, res) => {
     let color;
     if (allCancelled) color = "grey";
     else if (absent === 0) color = "green";
-    else color = "red";
+    else if (present === 0) color = "red";
+    else color = "yellow";
     return { date, color, classCount: dayRecords.length, present, absent };
   });
 

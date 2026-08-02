@@ -1792,8 +1792,10 @@ function CalendarScreen() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
   const [days, setDays] = useState<{date:string; color:string; classCount:number; present:number; absent:number}[]>([]);
+  const [allSlots, setAllSlots] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<string|null>(null);
   const [expRecs, setExpRecs] = useState<any[]>([]);
+  const [backfillBusy, setBackfillBusy] = useState<string|null>(null);
 
   useEffect(() => {
     (async () => {
@@ -1811,12 +1813,48 @@ function CalendarScreen() {
     })();
   }, [semesterId, year, month]);
 
+  useEffect(() => {
+    if (!semesterId) return;
+    (async () => {
+      const { slots } = await api.get(`/slots?semesterId=${semesterId}`);
+      setAllSlots(slots);
+    })();
+  }, [semesterId]);
+
   async function openDay(dateStr: string) {
     if (expanded === dateStr) { setExpanded(null); return; }
     setExpanded(dateStr);
     if (!semesterId) return;
     const { records } = await api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`);
     setExpRecs(records);
+  }
+
+  async function backfillMark(slotId: string, status: Status, dateStr: string) {
+    if (!semesterId) return;
+    setBackfillBusy(slotId);
+    try {
+      await api.post("/records/mark", { slotId, date: dateStr, status });
+      const [{ records }, { days: fetched }] = await Promise.all([
+        api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`),
+        api.get(`/records/calendar?semesterId=${semesterId}&year=${year}&month=${month}`),
+      ]);
+      setExpRecs(records);
+      setDays(fetched);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBackfillBusy(null);
+    }
+  }
+
+  function slotsForDate(dateStr: string) {
+    const weekday = (new Date(dateStr + "T12:00:00").getDay() + 6) % 7;
+    let list = allSlots.filter((s:any) =>
+      (!s.isExtra && s.day === weekday) ||
+      (s.isExtra && s.extraDate && String(s.extraDate).slice(0,10) === dateStr)
+    );
+    const replaced = new Set(list.filter((s:any) => s.isExtra && s.replacesSlotId).map((s:any) => s.replacesSlotId));
+    return list.filter((s:any) => !replaced.has(s.id)).sort((a:any,b:any) => a.startTime.localeCompare(b.startTime));
   }
 
   function prevMonth() {
@@ -1835,70 +1873,101 @@ function CalendarScreen() {
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
 
   function cs(color: string) {
-    if (color === "green") return { bg:T.safeFill,   fg:T.safe };
-    if (color === "red")   return { bg:T.dangerFill, fg:T.danger };
-    if (color === "grey")  return { bg:T.cancelFill, fg:T.inkM };
+    if (color === "green")  return { bg:T.safeFill,   fg:T.safe   };
+    if (color === "red")    return { bg:T.dangerFill, fg:T.danger };
+    if (color === "yellow") return { bg:"#F5EBD5",     fg:"#9C7A2E" };
+    if (color === "grey")   return { bg:T.cancelFill, fg:T.inkM   };
     return { bg:"transparent", fg:T.inkL };
   }
 
+  const expandedClasses = expanded ? slotsForDate(expanded).map(slot => ({
+    slot, rec: expRecs.find((r:any) => r.slotId === slot.id) || null,
+  })) : [];
+  const canBackfill = expanded ? expanded <= todayStr : false;
+
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
-      <div style={{ padding:"56px 24px 20px" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ padding:"52px 24px 0" }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
           <div>
-            <div className="ae0" style={{ marginBottom:8 }}><Eyebrow>ATTENDANCE HISTORY</Eyebrow></div>
-            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>{monthLabel}</h2>
+            <div className="ae0" style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+              <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+              <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>
+                Attendance History
+              </span>
+            </div>
+            <h2 className="ae1" style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:T.inkH, letterSpacing:"-0.01em" }}>
+              {monthLabel}
+            </h2>
           </div>
-          <div style={{ display:"flex", gap:4 }}>
-            <button onClick={prevMonth} style={navBtn}><ChevronLeft size={14} color={T.inkM} /></button>
-            <button onClick={nextMonth} style={navBtn}><ChevronRight size={14} color={T.inkM} /></button>
+          <div className="ae1" style={{ display:"flex", gap:8 }}>
+            <button onClick={prevMonth} style={{
+              width:34, height:34, borderRadius:11, background:T.card, border:`1px solid #EFEAF6`,
+              display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+              boxShadow:"0 2px 6px rgba(27,21,48,0.05)",
+            }}><ChevronLeft size={14} color={T.accent} strokeWidth={2.4} /></button>
+            <button onClick={nextMonth} style={{
+              width:34, height:34, borderRadius:11, background:T.card, border:`1px solid #EFEAF6`,
+              display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+              boxShadow:"0 2px 6px rgba(27,21,48,0.05)",
+            }}><ChevronRight size={14} color={T.accent} strokeWidth={2.4} /></button>
           </div>
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:18, padding:"0 24px", marginBottom:20 }}>
+      <div className="ae2" style={{ display:"flex", gap:8, padding:"16px 24px 4px", flexWrap:"wrap" }}>
         {[
-          { bg:T.safeFill,   fg:T.safe,   l:"All present" },
-          { bg:T.dangerFill, fg:T.danger, l:"Absent" },
-          { bg:T.cancelFill, fg:T.inkM,   l:"Cancelled" },
+          { c:"#2F7A5C", l:"All present" },
+          { c:"#C9A24B", l:"Partial" },
+          { c:"#B03A45", l:"Absent" },
+          { c:"#BAB4C4", l:"Cancelled" },
         ].map(item => (
-          <div key={item.l} style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <div style={{ width:11, height:11, borderRadius:4, background:item.bg, border:`1px solid ${item.fg}30` }} />
-            <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, letterSpacing:"0.06em" }}>{item.l}</span>
+          <div key={item.l} style={{
+            display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:20,
+            background:T.card, border:"1px solid #EFEAF6",
+          }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:item.c, flexShrink:0 }} />
+            <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, fontWeight:500 }}>{item.l}</span>
           </div>
         ))}
       </div>
 
-      <div style={{ padding:"0 24px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:6 }}>
+      <div className="ae3" style={{ padding:"18px 20px 0" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:10 }}>
           {["M","T","W","T","F","S","S"].map((d,i) => (
-            <div key={i} style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, textAlign:"center", paddingBottom:4 }}>{d}</div>
+            <span key={i} style={{
+              textAlign:"center", fontFamily:F.mono, fontSize:10, fontWeight:600,
+              color: i>=5 ? "#C9A24B" : T.inkL,
+            }}>{d}</span>
           ))}
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5 }}>
-          {Array.from({ length:firstWeekday }, (_,i) => <div key={`e${i}`} style={{ height:46 }} />)}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", rowGap:6 }}>
+          {Array.from({ length:firstWeekday }, (_,i) => <div key={`e${i}`} style={{ aspectRatio:"1", height:41 }} />)}
           {Array.from({ length:daysInMonth }, (_,i) => {
             const day = i + 1;
             const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
             const entry = dayMap.get(dateStr);
             const isToday = dateStr === todayStr;
+            const isSel = expanded === dateStr;
             const { bg, fg } = entry ? cs(entry.color) : cs("none");
-            const isE = expanded === dateStr;
             return (
               <button key={day}
                 onClick={() => openDay(dateStr)}
                 style={{
-                  height:46, borderRadius:12, border: isToday ? `2px solid ${T.accent}` : "none",
-                  background: bg || "rgba(110,79,145,0.028)",
+                  width:41, height:41, margin:"0 auto", borderRadius:13,
+                  border: isToday && !isSel ? `2px solid ${T.accent}` : "none",
+                  background: isSel ? T.accent : (bg || "rgba(110,79,145,0.028)"),
                   display:"flex", alignItems:"center", justifyContent:"center",
                   cursor:"pointer", outline:"none",
-                  transform: isE ? "scale(1.1)" : "scale(1)",
-                  boxShadow: isE ? S.md : "none",
-                  transition:"transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease",
+                  boxShadow: isSel ? "0 8px 18px rgba(110,79,145,0.4)" : "none",
+                  transition:"transform 0.15s ease",
                 }}
               >
-                <span style={{ fontFamily:F.serif, fontWeight:isToday?600:400, fontSize:15, color:fg }}>{day}</span>
+                <span style={{
+                  fontFamily:F.sans, fontWeight:600, fontSize:13.5,
+                  color: isSel ? "#fff" : (isToday ? T.accent : fg),
+                }}>{day}</span>
               </button>
             );
           })}
@@ -1906,28 +1975,91 @@ function CalendarScreen() {
 
         {expanded && (
           <div style={{
-            marginTop:16, background:T.card, borderRadius:24, padding:"18px 16px",
-            boxShadow:S.lg, border:`1px solid rgba(110,79,145,0.1)`,
+            margin:"22px 0 0", background:T.card, borderRadius:22, padding:"20px 20px 18px",
+            boxShadow:"0 16px 36px rgba(27,21,48,0.12), 0 4px 12px rgba(27,21,48,0.06)",
+            border:"1px solid #EFEAF6",
           }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-              <Eyebrow>{new Date(expanded + "T12:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"long" }).toUpperCase()}</Eyebrow>
-              <button onClick={()=>setExpanded(null)} style={{ background:"none", border:"none", cursor:"pointer", color:T.inkM }}><X size={16} /></button>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:F.mono, fontSize:10.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.accent, fontWeight:600 }}>
+                  {new Date(expanded + "T12:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"long" })}
+                </span>
+                <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+              </div>
+              <button onClick={() => setExpanded(null)} style={{
+                width:26, height:26, borderRadius:8, border:"none", cursor:"pointer",
+                background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
+              }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
-            {expRecs.length===0 ? (
-              <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No records for this day.</p>
-            ) : expRecs.map((rec,i) => (
-              <div key={rec.id} style={{
-                display:"flex", alignItems:"center", gap:12, marginBottom:10,
-                paddingBottom:10, borderBottom: i<expRecs.length-1 ? `1px solid rgba(110,79,145,0.07)` : "none",
+
+            {expandedClasses.length === 0 ? (
+              <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No classes on this day.</p>
+            ) : expandedClasses.map(({ slot, rec }, i) => (
+              <div key={slot.id} style={{
+                padding:"13px 0",
+                borderTop: i>0 ? "1px solid #EFEAF6" : "none",
               }}>
-                <div style={{ width:34, height:34, borderRadius:10, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <Icon name="BookOpen" size={15} color={rec.slot?.subject?.color||T.accent} />
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: rec ? 0 : 11 }}>
+                  <div>
+                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH }}>{slot.subject.name}</div>
+                    <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:2 }}>
+                      {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
+                    </div>
+                  </div>
+                  {rec && (
+                    <span style={{
+                      padding:"5px 12px", borderRadius:100, fontFamily:F.sans, fontWeight:700, fontSize:11,
+                      display:"inline-flex", alignItems:"center", gap:5,
+                      background:statusMeta(rec.status).bg, color:statusMeta(rec.status).text,
+                    }}>
+                      {rec.status==="present" && <Check size={9} strokeWidth={3} />}
+                      {statusMeta(rec.status).label}
+                    </span>
+                  )}
                 </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:14, color:T.inkH, marginBottom:2 }}>{rec.slot?.subject?.name}</div>
-                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot?.startTime} · {rec.slot?.room}</div>
-                </div>
-                <Pill status={rec.status} />
+
+                {!rec && (
+                  canBackfill ? (
+                    <>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9 }}>
+                        <span style={{ fontFamily:F.mono, fontSize:9, color:"#C9A24B", fontWeight:600, letterSpacing:"0.04em", textTransform:"uppercase" }}>
+                          ⚠ not marked yet
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", gap:7 }}>
+                        {(["present","absent"] as Status[]).map(s => {
+                          const { text, bg, label } = statusMeta(s);
+                          return (
+                            <button key={s}
+                              disabled={backfillBusy===slot.id}
+                              onClick={() => backfillMark(slot.id, s, expanded)}
+                              style={{
+                                flex:1, padding:"9px 6px", borderRadius:11,
+                                border:`1.5px solid ${text}2e`, background:bg, color:text,
+                                fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
+                                display:"flex", alignItems:"center", justifyContent:"center", gap:4,
+                              }}
+                            >
+                              {s==="present" ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          disabled={backfillBusy===slot.id}
+                          onClick={() => backfillMark(slot.id, "cancelled", expanded)}
+                          style={{
+                            flex:1, padding:"9px 6px", borderRadius:11,
+                            border:"1.5px solid rgba(138,129,148,0.12)", background:T.cancelFill, color:T.inkM,
+                            fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
+                          }}
+                        >Cancelled</button>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ fontSize:12, color:T.inkL, fontStyle:"italic" }}>Upcoming class</p>
+                  )
+                )}
               </div>
             ))}
           </div>
@@ -2431,21 +2563,23 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [createdAt, setCreatedAt] = useState("");
-  const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
   const [overallPct, setOverallPct] = useState(0);
   const [semesterName, setSemesterName] = useState("");
   const [subjectCount, setSubjectCount] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
 
-  const [changingPw, setChangingPw] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
   const [pwError, setPwError] = useState<string|null>(null);
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+  const [focused, setFocused] = useState<string|null>(null);
 
   useEffect(() => {
     (async () => {
@@ -2481,6 +2615,8 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
       await api.updateName(nameInput.trim());
       setName(nameInput.trim());
       setEditing(false);
+      setNameSaved(true);
+      setTimeout(() => setNameSaved(false), 1800);
     } catch (e) {
       console.error(e);
     } finally {
@@ -2498,6 +2634,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
       await api.changePassword(currentPw, newPw);
       setPwSuccess(true);
       setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setTimeout(() => { setPwSuccess(false); setChangingPw(false); }, 2200);
     } catch (e: any) {
       setPwError(e.message);
     } finally {
@@ -2507,110 +2644,172 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
 
   const memberSince = createdAt ? new Date(createdAt).toLocaleDateString("en-IN", { month:"long", year:"numeric" }) : "";
 
+  const label = (text: string) => (
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14 }}>
+      <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+      <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.13em", textTransform:"uppercase", color:T.accent, fontWeight:600 }}>{text}</span>
+    </div>
+  );
+
+  const inputStyle = (name: string): React.CSSProperties => ({
+    width:"100%", padding:"13px 15px", borderRadius:14,
+    border: focused===name ? `1.5px solid ${T.accent}` : "1.5px solid #EFEAF6",
+    background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+    fontFamily:F.sans, fontSize:14.5, color:T.inkH, outline:"none",
+    boxShadow: focused===name ? "0 0 0 4px rgba(110,79,145,0.12)" : "0 1px 2px rgba(27,21,48,0.03)",
+    boxSizing:"border-box", marginBottom:12, transition:"border-color .15s, box-shadow .15s",
+  });
+
+  const cancelBtn: React.CSSProperties = {
+    flex:1, padding:"12px", borderRadius:13, border:"1.5px solid #EFEAF6", background:"#fff",
+    color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer",
+  };
+  const saveBtn: React.CSSProperties = {
+    flex:1.6, padding:"12px", borderRadius:13, border:"none",
+    background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+    fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
+    boxShadow:"0 10px 22px rgba(94,63,138,0.36)",
+  };
+
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:60 }}>
-      <div style={{ padding:"56px 24px 20px" }}>
-        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:6, color:T.accent, marginBottom:20, padding:0, fontFamily:F.sans, fontSize:14, fontWeight:500 }}>
-          <ChevronLeft size={17} /> Back
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:40 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"52px 24px 0" }}>
+        <button onClick={onBack} style={{
+          width:34, height:34, borderRadius:11, background:T.card, border:"1px solid #EFEAF6",
+          display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+          boxShadow:"0 2px 6px rgba(27,21,48,0.05)",
+        }}>
+          <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <div style={{ marginBottom:8 }}><Eyebrow>YOUR ACCOUNT</Eyebrow></div>
-        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Profile</h2>
+        <span style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent }}>Back</span>
+      </div>
+
+      <div style={{ padding:"18px 24px 0" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:9 }}>
+          <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+          <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Your Account</span>
+        </div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:29, color:T.inkH, letterSpacing:"-0.01em" }}>Profile</h2>
       </div>
 
       <div style={{ padding:"0 24px" }}>
         {/* Profile card */}
-        <div style={{ background:T.card, borderRadius:22, padding:"24px 20px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.08)`, display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
+        <div style={{
+          marginTop:20, background:T.card, borderRadius:22, padding:20,
+          display:"flex", alignItems:"center", gap:14,
+          boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:"1px solid #EFEAF6",
+        }}>
           <div style={{
-            width:64, height:64, borderRadius:"50%",
-            background:"linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
-            display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-            boxShadow:S.acc,
+            width:56, height:56, borderRadius:"50%", flexShrink:0, position:"relative",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            background:"radial-gradient(circle at 30% 25%, #A98CD1 0%, #6E4F91 55%, #4A2F6E 100%)",
+            boxShadow:"0 8px 18px rgba(94,63,138,0.4), inset 0 2px 3px rgba(255,255,255,0.35)",
           }}>
-            <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:"#fff" }}>{name ? name[0].toUpperCase() : "?"}</span>
+            <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:22, color:"#fff" }}>{name ? name[0].toUpperCase() : "?"}</span>
+            <div style={{
+              position:"absolute", bottom:-3, right:-3, width:22, height:22, borderRadius:"50%",
+              background:T.card, border:`2px solid ${T.bg}`, display:"flex", alignItems:"center", justifyContent:"center",
+              boxShadow:"0 3px 8px rgba(27,21,48,0.18)",
+            }}>
+              <Edit2 size={10} color={T.accent} strokeWidth={2.6} />
+            </div>
           </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH, marginBottom:3 }}>{name || "..."}</div>
-            <div style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>{email}</div>
-            {memberSince && <div style={{ fontFamily:F.mono, fontSize:9, color:T.inkL, marginTop:3 }}>Member since {memberSince}</div>}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:17, color:T.inkH, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{name || "..."}</div>
+            <div style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM, marginTop:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{email}</div>
+            {memberSince && <div style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkL, marginTop:4 }}>Member since {memberSince}</div>}
           </div>
-          <Seal pct={overallPct} size={50} label="" />
+          <Seal pct={overallPct} size={56} label="" />
         </div>
 
         {/* Quick stats */}
-        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+        <div style={{ display:"flex", gap:10, marginTop:14 }}>
           {[
-            { label:"Semester", v: semesterName || "—" },
+            { label:"Current Semester", v: semesterName || "—" },
             { label:"Subjects", v: subjectCount },
             { label:"Classes Held", v: totalClasses },
           ].map(item => (
             <div key={item.label} style={{
-              flex:1, background:T.card, borderRadius:15, padding:"12px 8px",
-              textAlign:"center", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
+              flex:1, background:T.card, borderRadius:18, padding:"15px 12px", textAlign:"center",
+              boxShadow:"0 8px 20px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
             }}>
-              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.v}</div>
-              <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:3 }}>{item.label}</div>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.v}</div>
+              <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:5, fontWeight:500 }}>{item.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Display name edit */}
-        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`, marginBottom:16 }}>
-          <div style={{ marginBottom:10 }}><Eyebrow>DISPLAY NAME</Eyebrow></div>
+        {/* Display name */}
+        <div style={{
+          marginTop:18, background:T.card, borderRadius:22, padding:20,
+          boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: editing ? 14 : 0 }}>
+            {label("Display Name")}
+            {!editing && (
+              <button onClick={() => { setEditing(true); setNameInput(name); }} style={{
+                background:"none", border:"none", cursor:"pointer", color:T.accent,
+                display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600, marginBottom:14,
+              }}>
+                <Edit2 size={13} /> Edit
+              </button>
+            )}
+          </div>
           {editing ? (
             <>
               <input
                 value={nameInput}
+                onFocus={() => setFocused("name")} onBlur={() => setFocused(null)}
                 onChange={e => setNameInput(e.target.value)}
-                style={{
-                  width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10,
-                  border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
-                  fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box",
-                }}
+                style={inputStyle("name")}
               />
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={() => { setEditing(false); setNameInput(name); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-                <button onClick={saveName} disabled={saving} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
-                  {saving ? "Saving..." : "Save"}
-                </button>
+              <div style={{ display:"flex", gap:9, marginTop:4 }}>
+                <button onClick={() => { setEditing(false); setNameInput(name); }} style={cancelBtn}>Cancel</button>
+                <button onClick={saveName} disabled={saving} style={saveBtn}>{saving ? "Saving..." : "Save"}</button>
               </div>
             </>
           ) : (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:15, color:T.inkH }}>{name}</span>
-              <button onClick={() => setEditing(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
-                <Edit2 size={13} /> Edit
-              </button>
+              {nameSaved && <span style={{ fontSize:12, color:T.safe }}>Saved!</span>}
             </div>
           )}
         </div>
 
-        {/* Change password */}
-        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: changingPw ? 12 : 0 }}>
-            <Eyebrow>PASSWORD</Eyebrow>
+        {/* Password */}
+        <div style={{
+          marginTop:18, background:T.card, borderRadius:22, padding:20,
+          boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: changingPw ? 14 : 0 }}>
+            {label("Password")}
             {!changingPw && (
-              <button onClick={() => { setChangingPw(true); setPwSuccess(false); }} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
+              <button onClick={() => { setChangingPw(true); setPwSuccess(false); setPwError(null); }} style={{
+                background:"none", border:"none", cursor:"pointer", color:T.accent,
+                display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600, marginBottom:14,
+              }}>
                 <Edit2 size={13} /> Change
               </button>
             )}
           </div>
           {changingPw && (
             pwSuccess ? (
-              <>
-                <p style={{ fontSize:13, color:T.safe, marginBottom:12 }}>Password updated successfully.</p>
-                <button onClick={() => { setChangingPw(false); setPwSuccess(false); }} style={{ width:"100%", padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Done</button>
-              </>
+              <p style={{ fontSize:13, color:T.safe, marginBottom:4 }}>Password updated successfully.</p>
             ) : (
               <>
-                <input type="password" placeholder="Current password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:8, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
-                <input type="password" placeholder="New password" value={newPw} onChange={e => setNewPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:8, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
-                <input type="password" placeholder="Confirm new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }} />
+                <input type="password" placeholder="Current password" value={currentPw}
+                  onFocus={() => setFocused("cur")} onBlur={() => setFocused(null)}
+                  onChange={e => setCurrentPw(e.target.value)} style={inputStyle("cur")} />
+                <input type="password" placeholder="New password" value={newPw}
+                  onFocus={() => setFocused("new")} onBlur={() => setFocused(null)}
+                  onChange={e => setNewPw(e.target.value)} style={inputStyle("new")} />
+                <input type="password" placeholder="Confirm new password" value={confirmPw}
+                  onFocus={() => setFocused("conf")} onBlur={() => setFocused(null)}
+                  onChange={e => setConfirmPw(e.target.value)} style={{ ...inputStyle("conf"), marginBottom:16 }} />
                 {pwError && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{pwError}</p>}
-                <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={() => { setChangingPw(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(null); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-                  <button onClick={submitChangePassword} disabled={pwSaving} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
-                    {pwSaving ? "Saving..." : "Update"}
-                  </button>
+                <div style={{ display:"flex", gap:9 }}>
+                  <button onClick={() => { setChangingPw(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(null); }} style={cancelBtn}>Cancel</button>
+                  <button onClick={submitChangePassword} disabled={pwSaving} style={saveBtn}>{pwSaving ? "Saving..." : "Update"}</button>
                 </div>
               </>
             )
