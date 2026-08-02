@@ -1269,27 +1269,37 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   const [slots, setSlots] = useState<any[]>([]);
   const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
   const HOUR_START = 9, HOUR_END = 17;
-  const rowHeight = 58;
+  const LANE_H = 76;       // min height of a single (non-overlapping) event card — compact, just enough for name/time/room
+  const LANE_GAP = 4;      // gap between stacked lanes when events overlap
+  const ROW_PAD = 4;       // vertical padding inside a day row
   const DAY_LABEL_W = 46;
-  const MIN_HOUR_WIDTH = 44; // below this it truly needs to scroll (very small screens)
+  const MIN_HOUR_WIDTH = 64; // compact — text wraps inside the card instead of needing extra width
   const hoursArr = Array.from({ length: HOUR_END-HOUR_START+1 }, (_,i) => HOUR_START+i);
   const hair = "#EFEAF6";
 
-  // Measure the available grid area and size each hour column to fit it exactly,
-  // instead of a fixed px width that overflows on smaller landscape phones.
+  // Measure the available grid area (width AND height) and size the hour
+  // columns / row heights to fit it exactly — so the full week always fits
+  // on screen with no scrollbar, instead of a fixed px size that overflows.
+  const HOUR_HEADER_H = 20; // x-axis hour label row + its bottom margin
   const gridAreaRef = useRef<HTMLDivElement>(null);
   const [gridAreaW, setGridAreaW] = useState(0);
+  const [gridAreaH, setGridAreaH] = useState(0);
   useEffect(() => {
     const el = gridAreaRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) setGridAreaW(entry.contentRect.width);
+      for (const entry of entries) {
+        setGridAreaW(entry.contentRect.width);
+        setGridAreaH(entry.contentRect.height);
+      }
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   const availableForHours = Math.max(0, gridAreaW - DAY_LABEL_W);
-  const hourWidth = Math.max(MIN_HOUR_WIDTH, availableForHours / (HOUR_END-HOUR_START) || MIN_HOUR_WIDTH);
+  // No fixed minimum here — if width is tight, columns shrink to fit rather
+  // than forcing a horizontal scrollbar.
+  const hourWidth = availableForHours > 0 ? availableForHours / (HOUR_END-HOUR_START) : MIN_HOUR_WIDTH;
   const gridWidth = (HOUR_END-HOUR_START) * hourWidth;
 
   useEffect(() => {
@@ -1318,7 +1328,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
 
   function timeToMin(t:string) { const [h,m] = t.split(":").map(Number); return h*60+m; }
   function leftFor(t:string)   { return Math.max(0, (timeToMin(t) - HOUR_START*60) * (hourWidth/60)); }
-  function widthFor(s:string,e:string) { return Math.max(46, (timeToMin(e)-timeToMin(s)) * (hourWidth/60)); }
+  function widthFor(s:string,e:string) { return Math.max(MIN_HOUR_WIDTH, (timeToMin(e)-timeToMin(s)) * (hourWidth/60)); }
 
   // When two slots on the same day overlap in time (e.g. a rescheduled/extra class
   // landing on top of a regular one), stack them into separate tracks within the
@@ -1355,8 +1365,82 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
     return laidOut;
   }
 
+  // Rough estimate of how many lines a string wraps to at a given font size
+  // inside a pixel width, so a lane can grow just enough to avoid clipping —
+  // without an actual text-measurement pass.
+  function estimateLines(text:string, avgCharW:number, widthPx:number) {
+    const charsPerLine = Math.max(1, Math.floor(widthPx / avgCharW));
+    return Math.max(1, Math.ceil(text.length / charsPerLine));
+  }
+  function estimateCardHeight(slot:any, cardWidth:number, narrow:boolean) {
+    const pad = narrow ? 12 : 16;
+    const contentW = Math.max(20, cardWidth - pad);
+    const nameLines = estimateLines(slot.subject.name, 11.5*0.62, contentW);
+    const timeLines = estimateLines(`${slot.startTime} – ${slot.endTime}`, 9.5*0.56, contentW);
+    const roomLines = slot.room ? estimateLines(`Room: ${slot.room}`, 8.5*0.56, contentW) : 0;
+    const textHeight = nameLines*14 + timeLines*12 + roomLines*11 + 4; // + gaps between lines
+    return Math.ceil(textHeight + pad);
+  }
+
+  // Each day's natural row height: compact by default (LANE_H), taller only
+  // when a specific card's wrapped content genuinely needs more room (long
+  // room name on a narrow 1hr card) — not taller across the board.
+  const baseDayLayouts = dates.map((_d, di) => {
+    const daySlots = slots.filter(s => s.day === di);
+    const laidOut = layoutDaySlots(daySlots);
+    const laneCount = laidOut.reduce((max, l) => Math.max(max, l.trackCount), 1);
+    const laneH = laidOut.reduce((max, { slot }) => {
+      const w = widthFor(slot.startTime, slot.endTime);
+      return Math.max(max, estimateCardHeight(slot, w, w < 100));
+    }, LANE_H);
+    const height = laneCount*laneH + (laneCount-1)*LANE_GAP + ROW_PAD*2;
+    return { daySlots, laidOut, laneCount, laneH, height };
+  });
+  const naturalRowsHeight = baseDayLayouts.reduce((sum, d) => sum + d.height, 0);
+
+  // Shrink everything proportionally — but only as much as needed — so the
+  // whole week always fits the measured viewport with zero scrollbars. When
+  // there's already room to spare, scale stays at 1 and nothing changes.
+  const availableRowsH = Math.max(0, gridAreaH - HOUR_HEADER_H);
+  const MIN_SCALE = 0.62; // floor so text never becomes unreadable on very short viewports
+  const vScale = (gridAreaH > 0 && naturalRowsHeight > 0)
+    ? Math.max(MIN_SCALE, Math.min(1, availableRowsH / naturalRowsHeight))
+    : 1;
+  const scaledGap = LANE_GAP * vScale;
+  const scaledPad = ROW_PAD * vScale;
+  const dayLayouts = baseDayLayouts.map(d => {
+    const laneH = Math.max(30, Math.round(d.laneH * vScale));
+    const height = d.laneCount*laneH + (d.laneCount-1)*scaledGap + scaledPad*2;
+    return { ...d, laneH, height };
+  });
+  const totalGridHeight = dayLayouts.reduce((sum, d) => sum + d.height, 0);
+
+  // Timetable-only color assignment. Deliberately NOT reading subject.color —
+  // that field is shared with the Home screen, Subject detail screen, and
+  // Calendar, so changing it changes the color everywhere. This map is local
+  // to this screen only, assigned by first-appearance order in `slots`.
+  // Soft, desaturated shades spanning a few adjacent hue families (violet,
+  // blue, green, rose, taupe) so subjects are clearly distinguishable, while
+  // staying similar in saturation/lightness for a cohesive, premium feel.
+  const TIMETABLE_PALETTE = [
+    "#6C5D8C", // Deep Violet
+    "#5C86A3", // Dusty Blue
+    "#7E9B85", // Sage Green
+    "#C08B97", // Soft Rose
+    "#A38A72", // Warm Taupe
+    "#6D7793", // Slate Blue
+    "#4F9490", // Muted Teal
+    "#9B7290", // Mauve
+    "#8C4F5C", // Muted Burgundy
+    "#8087C9", // Periwinkle
+  ];
+  const subjectColor = new Map<string,string>();
+  slots.forEach(s => {
+    if (!subjectColor.has(s.subjectId)) subjectColor.set(s.subjectId, TIMETABLE_PALETTE[subjectColor.size % TIMETABLE_PALETTE.length]);
+  });
+
   const legendMap = new Map<string,{name:string; color:string}>();
-  slots.forEach(s => { if (!legendMap.has(s.subjectId)) legendMap.set(s.subjectId, { name:s.subject.name, color:s.subject.color }); });
+  slots.forEach(s => { if (!legendMap.has(s.subjectId)) legendMap.set(s.subjectId, { name:s.subject.name, color: subjectColor.get(s.subjectId)! }); });
   const legend = Array.from(legendMap.values());
 
   if (!isLandscape) {
@@ -1447,7 +1531,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
       </div>
 
       {/* ── Main: time-axis grid ── */}
-      <div ref={gridAreaRef} style={{ flex:1, display:"flex", flexDirection:"column", padding:"24px 24px 20px 22px", overflow:"auto", minWidth:0 }}>
+      <div ref={gridAreaRef} style={{ flex:1, display:"flex", flexDirection:"column", padding:"24px 24px 20px 22px", overflow:"hidden", minWidth:0 }}>
         {/* time header (X-axis) */}
         <div style={{ display:"flex", marginBottom:4, flexShrink:0 }}>
           <div style={{ width:46, flexShrink:0 }} />
@@ -1468,7 +1552,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
             {dates.map((d,i) => {
               const isToday = i === todayIdx;
               return (
-                <div key={i} style={{ height:rowHeight, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+                <div key={i} style={{ height:dayLayouts[i].height, display:"flex", flexDirection:"column", justifyContent:"center" }}>
                   <span style={{ fontFamily:F.mono, fontSize:8.5, letterSpacing:"0.08em", color:isToday?T.accent:T.inkL, fontWeight:500 }}>
                     {DAYS[i].toUpperCase()}
                   </span>
@@ -1489,7 +1573,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
           {/* fixed-width time-axis grid, exact reference pixel sizing */}
           <div style={{ width:gridWidth, flexShrink:0, position:"relative" }}>
             {/* vertical hour gridlines spanning all rows */}
-            <div style={{ position:"absolute", inset:0, height:dates.length*rowHeight, pointerEvents:"none" }}>
+            <div style={{ position:"absolute", inset:0, height:totalGridHeight, pointerEvents:"none" }}>
               {hoursArr.map(h => (
                 <div key={h} style={{ position:"absolute", top:0, bottom:0, left:(h-HOUR_START)*hourWidth, width:1, background:hair }} />
               ))}
@@ -1497,7 +1581,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
 
             {dates.map((d,di) => {
               const isToday = di === todayIdx;
-              const daySlots = slots.filter(s => s.day === di);
+              const { laidOut, height: rowHeight, laneH } = dayLayouts[di];
               return (
                 <div key={di} style={{
                   position:"relative", height:rowHeight,
@@ -1505,41 +1589,53 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
                   borderBottom: di===dates.length-1 ? `1px solid ${hair}` : "none",
                   background: isToday ? "rgba(239,231,246,0.35)" : "transparent",
                 }}>
-                  {layoutDaySlots(daySlots).map(({ slot, track, trackCount }) => {
+                  {laidOut.map(({ slot, track, trackCount }) => {
                     const typeLabel = slot.type === "practical" ? "Lab" : slot.type === "tutorial" ? "Tut" : null;
-                    const trackH = (rowHeight - 8) / trackCount;
-                    const compact = trackCount > 1 && trackH < 40;
+                    const top = scaledPad + track*(laneH + scaledGap);
+                    const color = subjectColor.get(slot.subjectId)!;
+                    const w = widthFor(slot.startTime, slot.endTime);
+                    const narrow = w < 100;
+                    const nameFs = Math.max(8, 11.5*vScale);
+                    const timeFs = Math.max(7, 9.5*vScale);
+                    const roomFs = Math.max(6.5, 8.5*vScale);
+                    const badgeFs = Math.max(6, 8*vScale);
+                    const padV = (narrow ? 6 : 8) * vScale;
+                    const padH = (narrow ? 8 : 10) * vScale;
                     return (
                     <button key={slot.id} onClick={() => onMark(slot.id)} style={{
-                      position:"absolute", top:4 + track*trackH, height:trackH - (trackCount>1 ? 3 : 0),
-                      left:leftFor(slot.startTime), width:widthFor(slot.startTime, slot.endTime),
-                      borderRadius:11, padding: compact ? "3px 8px" : "6px 9px", border:"none", cursor:"pointer",
-                      background:`${slot.subject.color}1A`,
-                      borderLeft:`3px solid ${slot.subject.color}`,
-                      boxShadow:`0 6px 16px -4px ${slot.subject.color}6B, 0 1px 2px rgba(27,21,48,0.04)`,
-                      display:"flex", flexDirection:"column", justifyContent:"center",
+                      position:"absolute", top, height:laneH,
+                      left:leftFor(slot.startTime), width:w,
+                      borderRadius:11, padding: `${padV}px ${padH}px`, border:"none", cursor:"pointer",
+                      background:"rgba(255,255,255,0.72)",
+                      backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)",
+                      borderLeft:`3px solid ${color}`,
+                      boxShadow:"0 6px 16px -6px rgba(27,21,48,0.14), 0 1px 2px rgba(27,21,48,0.05)",
+                      display:"flex", flexDirection:"column", justifyContent:"flex-start", gap:Math.max(1, 2*vScale),
                       overflow:"hidden", textAlign:"left", zIndex:track+1,
                     }}>
-                      <span style={{ display:"flex", alignItems:"center", gap:4, overflow:"hidden" }}>
+                      <span style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:5, width:"100%" }}>
                         <span style={{
-                          fontFamily:F.serif, fontWeight:600, fontSize:11, color:slot.subject.color, lineHeight:1.15,
-                          whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                          fontFamily:F.serif, fontWeight:700, fontSize:nameFs, color, lineHeight:1.2,
+                          whiteSpace:"normal", wordBreak:"break-word", minWidth:0,
                         }}>
                           {slot.subject.name}
                         </span>
                         {typeLabel && (
                           <span style={{
-                            fontFamily:F.mono, fontSize:7.5, fontWeight:700, letterSpacing:"0.03em",
-                            color:"#fff", background:slot.subject.color,
-                            borderRadius:4, padding:"1.5px 5px", flexShrink:0, textTransform:"uppercase",
+                            fontFamily:F.mono, fontSize:badgeFs, fontWeight:700, letterSpacing:"0.02em",
+                            color:"#fff", background:color, lineHeight:1.4,
+                            borderRadius:999, padding:"1px 6px", flexShrink:0, textTransform:"uppercase",
                           }}>
                             {typeLabel}
                           </span>
                         )}
                       </span>
-                      {!compact && (
-                        <span style={{ fontFamily:F.mono, fontSize:7.5, color:`${slot.subject.color}`, opacity:0.75, marginTop:2, letterSpacing:"0.01em", fontWeight:600, whiteSpace:"nowrap" }}>
-                          {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
+                      <span style={{ fontFamily:F.mono, fontSize:timeFs, color:"#2E2E2E", fontWeight:600, whiteSpace:"normal", lineHeight:1.25 }}>
+                        {slot.startTime} – {slot.endTime}
+                      </span>
+                      {slot.room && (
+                        <span style={{ fontFamily:F.sans, fontSize:roomFs, color:"#6B7280", fontWeight:500, whiteSpace:"normal", wordBreak:"break-word", lineHeight:1.25 }}>
+                          Room: {slot.room}
                         </span>
                       )}
                     </button>
