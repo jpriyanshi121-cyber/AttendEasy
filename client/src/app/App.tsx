@@ -1511,7 +1511,9 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
   const [data, setData] = useState<{subject:any; overall:any; breakdown:Record<string,any>}|null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
+  const [activeType, setActiveType] = useState<string|null>(null);
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const typeLabels: Record<string,string> = { lecture:"Theory", tutorial:"Tutorial", practical:"Lab" };
 
   useEffect(() => {
     (async () => {
@@ -1523,6 +1525,7 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         ]);
         setData(statsRes);
         setHistory(recordsRes.records);
+        setActiveType(Object.keys(statsRes.breakdown)[0] || "lecture");
 
         const active = semRes.semesters.find((s:any) => s.isActive) || semRes.semesters[0];
         if (active) {
@@ -1535,7 +1538,7 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
     })();
   }, [subjectId]);
 
-  if (!data) {
+  if (!data || !activeType) {
     return (
       <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", padding:"56px 24px" }}>
         <p style={{ color:T.inkM }}>Loading...</p>
@@ -1543,8 +1546,38 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
     );
   }
 
-  const { subject, overall, breakdown } = data;
-  const typeLabels: Record<string,string> = { lecture:"Lecture", tutorial:"Tutorial", practical:"Practical" };
+  const { subject, breakdown } = data;
+  const typesPresent = Object.keys(breakdown);
+  const stats = breakdown[activeType];
+
+  const activeSlots = slots.filter(sl => (sl.type || "lecture") === activeType);
+  const groupMap = new Map<string, { days:number[]; startTime:string; endTime:string; room:string|null }>();
+  for (const sl of activeSlots) {
+    const key = `${sl.startTime}-${sl.endTime}-${sl.room||""}`;
+    if (!groupMap.has(key)) groupMap.set(key, { days:[], startTime:sl.startTime, endTime:sl.endTime, room:sl.room });
+    groupMap.get(key)!.days.push(sl.day);
+  }
+  const scheduleLines = Array.from(groupMap.values()).map(g => {
+    const dayStr = [...g.days].sort((a,b)=>a-b).map(d => DAYS[d]).join(" · ");
+    return `${dayStr}, ${g.startTime}–${g.endTime}${g.room ? " · Room " + g.room : ""}`;
+  });
+
+  const activeHistory = history.filter(r => (r.slot?.type || "lecture") === activeType);
+
+  const held = [...activeHistory]
+    .filter(r => r.status === "present" || r.status === "absent")
+    .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  let presentCount = 0;
+  const trendAll = held.map((r, i) => {
+    if (r.status === "present") presentCount++;
+    return Math.round((presentCount / (i+1)) * 100);
+  });
+  const trendPoints = trendAll.slice(-12);
+  const trendDelta = trendPoints.length >= 2 ? trendPoints[trendPoints.length-1] - trendPoints[0] : 0;
+  const trendColor = trendDelta >= 0 ? T.safe : T.danger;
+
+  const isGood = stats.canMissMore > 0;
+  const diff = Math.round(Math.abs(stats.percentage - stats.threshold));
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:108 }}>
@@ -1559,22 +1592,21 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         </button>
         <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
       </div>
+
       <div style={{ padding:"18px 24px 0", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-        <div>
+        <div style={{ flex:1, paddingRight:14 }}>
           <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:T.inkH, letterSpacing:"-0.01em" }}>{subject.name}</div>
-          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:9 }}>
-            {slots.map(sl => (
-              <span key={sl.id} style={{
-                display:"inline-flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:20,
-                background:T.aFill, fontFamily:F.mono, fontSize:10, color:T.accent, fontWeight:600,
-              }}>
-                {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
-              </span>
+          {subject.code && (
+            <div style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM, marginTop:3, letterSpacing:"0.04em" }}>{subject.code}</div>
+          )}
+          <div style={{ marginTop:9 }}>
+            {scheduleLines.map((line, i) => (
+              <div key={i} style={{ fontFamily:F.mono, fontSize:10.5, color:T.accent, fontWeight:600, marginBottom:3 }}>{line}</div>
             ))}
           </div>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:10 }}>
-          <Seal pct={Math.round(overall.percentage)} size={66} animate={true} label="Overall" flat />
+          <Seal pct={Math.round(stats.percentage)} size={66} animate={true} label={stats.threshold !== 75 ? `${stats.threshold}% min` : "Overall"} flat />
           <button onClick={onEditTimetable} style={{
             display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:20,
             background:T.aFill, border:"none", cursor:"pointer",
@@ -1585,13 +1617,34 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         </div>
       </div>
 
+      {/* Theory / Lab tabs */}
+      {typesPresent.length > 1 && (
+        <div style={{ display:"flex", gap:8, margin:"20px 24px 0" }}>
+          {typesPresent.map(type => {
+            const on = activeType === type;
+            return (
+              <button key={type} onClick={() => setActiveType(type)} style={{
+                flex:1, padding:"10px 0", borderRadius:14, cursor:"pointer",
+                background: on ? T.accent : T.card,
+                boxShadow: on ? S.acc : `0 2px 6px rgba(27,21,48,0.05)`,
+                border: on ? "none" : `1px solid ${HAIR}`,
+              }}>
+                <span style={{ fontFamily:F.sans, fontWeight:600, fontSize:13, color: on ? "#fff" : T.inkM }}>
+                  {typeLabels[type]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Stats row */}
       <div style={{ display:"flex", gap:8, margin:"20px 24px 0" }}>
         {[
-          { label:"Total",     v:overall.held,     c:T.inkH },
-          { label:"Attended",  v:overall.attended, c:T.safe },
-          { label:"Missed",    v:overall.missed,   c:T.danger },
-          { label:"Cancelled", v:overall.cancelled,c:T.inkL },
+          { label:"Total",     v:stats.held,     c:T.inkH },
+          { label:"Attended",  v:stats.attended, c:T.safe },
+          { label:"Missed",    v:stats.missed,   c:T.danger },
+          { label:"Cancelled", v:stats.cancelled,c:T.inkL },
         ].map(item => (
           <div key={item.label} style={{
             flex:1, background:T.card, borderRadius:16, padding:"13px 6px",
@@ -1603,90 +1656,72 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         ))}
       </div>
 
+      {/* Bunk calculator */}
+      <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+            <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+            <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600, whiteSpace:"nowrap" }}>
+              {typeLabels[activeType]} Recovery Plan
+            </span>
+          </div>
+          <div style={{ padding:"5px 11px", borderRadius:20, background: isGood?T.safeFill:T.dangerFill, flexShrink:0 }}>
+            <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+          <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:44, color: isGood?T.safe:T.danger, lineHeight:1 }}>{isGood ? 0 : stats.needToAttend}</span>
+          <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
+        </div>
+
+        <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
+          {isGood
+            ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
+            : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[activeType].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
+          }
+        </p>
+
+        <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background: isGood?T.safeFill:T.dangerFill, alignItems:"flex-start" }}>
+          {isGood
+            ? <Check size={15} color={T.safe} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
+            : <AlertCircle size={15} color={T.danger} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
+          }
+          <span style={{ fontFamily:F.sans, fontSize:12.5, fontWeight:600, color: isGood?T.safe:T.danger, lineHeight:1.4 }}>
+            Currently at {Math.round(stats.percentage)}% — {diff}pp {isGood?"above":"below"} threshold
+          </span>
+        </div>
+      </div>
+
       {/* Trend */}
-      {(() => {
-        const held = [...history]
-          .filter(r => r.status === "present" || r.status === "absent")
-          .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        if (held.length < 2) return null;
-        let presentCount = 0;
-        const points = held.map((r, i) => {
-          if (r.status === "present") presentCount++;
-          return Math.round((presentCount / (i+1)) * 100);
-        });
-        const trendPoints = points.slice(-12);
-        const delta = trendPoints[trendPoints.length-1] - trendPoints[0];
-        const trendColor = delta >= 0 ? T.safe : T.danger;
-        return (
-          <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-              <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
-                Recent Trend
-              </span>
-              <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color:trendColor }}>
-                {delta >= 0 ? "+" : ""}{delta}pp
-              </span>
-            </div>
-            <Sparkline points={trendPoints} color={trendColor} />
+      {trendPoints.length >= 2 && (
+        <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+            <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
+              Recent Trend
+            </span>
+            <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color:trendColor }}>
+              {trendDelta >= 0 ? "+" : ""}{trendDelta}pp
+            </span>
           </div>
-        );
-      })()}
-
-      {/* Per-type bunk calculators */}
-      {Object.entries(breakdown).map(([type, stats]: [string, any]) => {
-        const isGood = stats.canMissMore > 0;
-        const diff = Math.round(Math.abs(stats.percentage - stats.threshold));
-        return (
-          <div key={type} style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:16 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
-                <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600, whiteSpace:"nowrap" }}>
-                  {typeLabels[type]} Recovery Plan
-                </span>
-              </div>
-              <div style={{ padding:"5px 11px", borderRadius:20, background: isGood?T.safeFill:T.dangerFill, flexShrink:0 }}>
-                <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
-              </div>
-            </div>
-
-            <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
-              <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:44, color: isGood?T.safe:T.danger, lineHeight:1 }}>{isGood ? 0 : stats.needToAttend}</span>
-              <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
-            </div>
-
-            <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
-              {isGood
-                ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
-                : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[type].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
-              }
-            </p>
-
-            <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background: isGood?T.safeFill:T.dangerFill, alignItems:"flex-start" }}>
-              {isGood
-                ? <Check size={15} color={T.safe} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
-                : <AlertCircle size={15} color={T.danger} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
-              }
-              <span style={{ fontFamily:F.sans, fontSize:12.5, fontWeight:600, color: isGood?T.safe:T.danger, lineHeight:1.4 }}>
-                Currently at {Math.round(stats.percentage)}% — {diff}pp {isGood?"above":"below"} threshold
-              </span>
-            </div>
-          </div>
-        );
-      })}
+          <Sparkline points={trendPoints} color={trendColor} />
+        </div>
+      )}
 
       {/* History */}
       <div style={{ margin:"26px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:13 }}>
           <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
-          <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Attendance History</span>
+          <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>
+            {typeLabels[activeType]} History
+          </span>
         </div>
-        {history.length === 0 && (
+        {activeHistory.length === 0 && (
           <div style={{ padding:20, borderRadius:18, background:T.card, border:`1.5px dashed ${HAIR}`, textAlign:"center" }}>
             <span style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:14, color:T.inkL }}>No records yet.</span>
           </div>
         )}
-        {history.map((rec, i) => (
+        {activeHistory.map((rec, i) => (
           <div key={rec.id} className={`ae${Math.min(i+1,5)}`} style={{
             display:"flex", justifyContent:"space-between", alignItems:"center",
             background:T.card, borderRadius:17, padding:"14px 16px", marginBottom:9,
@@ -1698,7 +1733,6 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:5, flexWrap:"wrap" }}>
                 {rec.slot?.startTime && <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot.startTime}</span>}
-                {rec.slot?.type && <span style={{ padding:"2px 8px", borderRadius:8, background:T.aFill, fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600, textTransform:"uppercase" }}>{rec.slot.type}</span>}
                 {rec.slot?.room && <span style={{ padding:"2px 8px", borderRadius:8, background:T.aFill, fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>{rec.slot.room}</span>}
                 {rec.tag && <span style={{ padding:"2px 8px", borderRadius:8, background:T.warnFill, fontFamily:F.mono, fontSize:8.5, color:T.warn, fontWeight:600 }}>{rec.tag}</span>}
               </div>
