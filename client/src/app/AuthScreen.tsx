@@ -243,7 +243,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
                 onChange={(e) => setPassword(e.target.value)} style={inputStyle("password")}
               />
               {mode === "signup" && (
-                <div style={{ display: "flex", gap: 5, marginTop: 10, paddingLeft: 3 }}>
+                <div style={{ display: "flex", gap: 5, marginTop: 8, paddingLeft: 3 }}>
                   {[1, 2, 3].map((i) => (
                     <i key={i} style={{
                       flex: 1, height: 3.5, borderRadius: 3, display: "block",
@@ -255,7 +255,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
             </div>
 
             {mode === "signup" && (
-              <div style={{ marginBottom: 18 }}>
+              <div style={{ marginBottom: 12 }}>
                 {label("Confirm password")}
                 <input
                   placeholder="••••••••" type="password" value={confirmPassword}
@@ -285,7 +285,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
 
             {mode === "login" && chip("Your data stays on device", <ShieldCheck size={12} />)}
 
-            <p style={{ textAlign: "center", marginTop: mode === "login" ? 8 : 22, fontSize: 13.5, color: T.inkM }}>
+            <p style={{ textAlign: "center", marginTop: mode === "login" ? 8 : 8, fontSize: 13.5, color: T.inkM }}>
               {mode === "login" ? "New here?" : "Already have an account?"}{" "}
               <span
                 onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(null); }}
