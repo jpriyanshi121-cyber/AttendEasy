@@ -68,11 +68,12 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
     minHeight: "100%", background: T.bg, display: "flex",
     flexDirection: "column", justifyContent: "center", padding: 24,
     fontFamily: F.sans, maxWidth: 390, margin: "0 auto", boxSizing: "border-box",
+    overflowY: "auto",
   };
 
   const cardStyle: CSSProperties = {
     background: "linear-gradient(180deg, #FEFDFF 0%, #FBF8FE 55%, #F6F1FB 100%)",
-    borderRadius: 32, padding: "36px 28px 32px", boxShadow: S.lg,
+    borderRadius: 28, padding: "28px 24px 24px", boxShadow: S.lg,
   };
 
   const label = (text: string) => (
@@ -135,8 +136,8 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
 
   const sub = (text: string) => (
     <p style={{
-      textAlign: "center", color: T.inkM, fontSize: 14, margin: "0 0 30px",
-      lineHeight: 1.55, maxWidth: 270, marginLeft: "auto", marginRight: "auto",
+      textAlign: "center", color: T.inkM, fontSize: 13, margin: "0 0 18px",
+      lineHeight: 1.5, maxWidth: 270, marginLeft: "auto", marginRight: "auto",
     }}>
       {text}
     </p>
@@ -215,7 +216,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
               : "Set up your timetable once — track every lecture all semester.")}
 
             {mode === "signup" && (
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12 }}>
                 {label("Username")}
                 <input
                   placeholder="e.g. priyanshi_23" value={username}
@@ -225,7 +226,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
               </div>
             )}
 
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 12 }}>
               {label("Email")}
               <input
                 placeholder="you@college.edu" value={email}
@@ -234,7 +235,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
               />
             </div>
 
-            <div style={{ marginBottom: mode === "signup" ? 16 : 8 }}>
+            <div style={{ marginBottom: mode === "signup" ? 12 : 8 }}>
               {label("Password")}
               <input
                 placeholder="••••••••" type="password" value={password}
@@ -254,7 +255,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
             </div>
 
             {mode === "signup" && (
-              <div style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: 18 }}>
                 {label("Confirm password")}
                 <input
                   placeholder="••••••••" type="password" value={confirmPassword}
