@@ -1280,17 +1280,16 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
           <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
           <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Week View</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, marginBottom:20, position:"relative", zIndex:1 }}>
-          <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-            Timetable
-          </h2>
-          <button onClick={onEditTimetable} title="Edit timetable" style={{
-            width:26, height:26, minWidth:26, borderRadius:8, border:"none", cursor:"pointer", flexShrink:0,
-            background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
-          }}>
-            <PenLine size={12} color={T.accent} strokeWidth={2} />
-          </button>
-        </div>
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, position:"relative", zIndex:1 }}>
+          Timetable
+        </h2>
+        <button onClick={onEditTimetable} title="Edit timetable" style={{
+          width:26, height:26, minWidth:26, borderRadius:8, border:"none", cursor:"pointer", flexShrink:0,
+          background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
+          marginTop:8, marginBottom:20, position:"relative", zIndex:1,
+        }}>
+          <PenLine size={12} color={T.accent} strokeWidth={2} />
+        </button>
 
         {legend.length > 0 && (
           <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:8, position:"relative", zIndex:1 }}>
