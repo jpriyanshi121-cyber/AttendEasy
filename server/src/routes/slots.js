@@ -17,6 +17,34 @@ function startOfDay(date) {
   return d;
 }
 
+function timeToMin(t) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// A timetable slot can't share a day + overlapping time with another
+// recurring slot — whether that slot belongs to the same subject or a
+// different one. Returns the first conflicting slot (with its subject
+// attached) or null.
+async function findConflictingSlot(semesterId, day, startTime, endTime, excludeSlotId) {
+  const candidates = await prisma.slot.findMany({
+    where: {
+      semesterId,
+      day,
+      isExtra: false,
+      ...(excludeSlotId ? { id: { not: excludeSlotId } } : {}),
+    },
+    include: { subject: true },
+  });
+  const start = timeToMin(startTime);
+  const end = timeToMin(endTime);
+  return candidates.find((s) => timeToMin(s.startTime) < end && start < timeToMin(s.endTime)) || null;
+}
+
+function conflictMessage(conflict) {
+  return `This time slot conflicts with ${conflict.subject.name} (${conflict.startTime}\u2013${conflict.endTime}). Please choose another time.`;
+}
+
 router.get("/", async (req, res) => {
   const semesterId = req.query.semesterId;
   if (!semesterId) return res.status(400).json({ error: "semesterId is required" });
@@ -88,11 +116,18 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
 
+    if (timeToMin(req.body.endTime) <= timeToMin(req.body.startTime)) {
+      return res.status(400).json({ error: "End time must be after start time." });
+    }
+
     const semester = await getOwnedSemester(req.body.semesterId, req.userId);
     if (!semester) return res.status(404).json({ error: "Semester not found" });
 
     const subject = await prisma.subject.findFirst({ where: { id: req.body.subjectId, semesterId: semester.id } });
     if (!subject) return res.status(404).json({ error: "Subject not found in this semester" });
+
+    const conflict = await findConflictingSlot(semester.id, req.body.day, req.body.startTime, req.body.endTime);
+    if (conflict) return res.status(409).json({ error: conflictMessage(conflict) });
 
     const slot = await prisma.slot.create({
       data: {
@@ -105,6 +140,7 @@ router.post(
         room: req.body.room || null,
         prof: req.body.prof || null,
       },
+      include: { subject: true },
     });
     res.status(201).json({ slot });
   }
@@ -166,6 +202,7 @@ router.patch(
     body("startTime").optional().matches(/^\d{2}:\d{2}$/),
     body("endTime").optional().matches(/^\d{2}:\d{2}$/),
     body("room").optional().isString(),
+    body("type").optional().isIn(["lecture", "tutorial", "practical"]),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -176,15 +213,30 @@ router.patch(
     const semester = await getOwnedSemester(slot.semesterId, req.userId);
     if (!semester) return res.status(404).json({ error: "Slot not found" });
 
+    const day = req.body.day ?? slot.day;
+    const startTime = req.body.startTime ?? slot.startTime;
+    const endTime = req.body.endTime ?? slot.endTime;
+
+    if (timeToMin(endTime) <= timeToMin(startTime)) {
+      return res.status(400).json({ error: "End time must be after start time." });
+    }
+
+    if (!slot.isExtra) {
+      const conflict = await findConflictingSlot(semester.id, day, startTime, endTime, slot.id);
+      if (conflict) return res.status(409).json({ error: conflictMessage(conflict) });
+    }
+
     const updated = await prisma.slot.update({
       where: { id: slot.id },
       data: {
-        day: req.body.day ?? slot.day,
-        startTime: req.body.startTime ?? slot.startTime,
-        endTime: req.body.endTime ?? slot.endTime,
+        type: req.body.type ?? slot.type,
+        day,
+        startTime,
+        endTime,
         room: req.body.room ?? slot.room,
         prof: req.body.prof ?? slot.prof,
       },
+      include: { subject: true },
     });
     res.json({ slot: updated });
   }

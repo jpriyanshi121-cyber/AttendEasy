@@ -34,9 +34,9 @@ router.post(
     body("semesterId").isString().notEmpty(),
     body("name").trim().isLength({ min: 1 }).withMessage("Subject name is required"),
     body("color").optional().isString(),
-    body("thresholdLecture").optional().isInt({ min: 1, max: 100 }),
-    body("thresholdTutorial").optional().isInt({ min: 1, max: 100 }),
-    body("thresholdPractical").optional().isInt({ min: 1, max: 100 }),
+    body("thresholdLecture").optional().isInt({ min: 0, max: 100 }),
+    body("thresholdTutorial").optional().isInt({ min: 0, max: 100 }),
+    body("thresholdPractical").optional().isInt({ min: 0, max: 100 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -65,9 +65,9 @@ router.patch(
   [
     body("name").optional().trim().isLength({ min: 1 }),
     body("color").optional().isString(),
-    body("thresholdLecture").optional().isInt({ min: 1, max: 100 }),
-    body("thresholdTutorial").optional().isInt({ min: 1, max: 100 }),
-    body("thresholdPractical").optional().isInt({ min: 1, max: 100 }),
+    body("thresholdLecture").optional().isInt({ min: 0, max: 100 }),
+    body("thresholdTutorial").optional().isInt({ min: 0, max: 100 }),
+    body("thresholdPractical").optional().isInt({ min: 0, max: 100 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);

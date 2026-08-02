@@ -3,7 +3,7 @@ import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star, Clock, Smartphone,
+  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -531,6 +531,11 @@ const TYPE_TAG: Record<string,string> = { lecture:"LEC", tutorial:"TUT", practic
 const DAYS_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const DAYS_FULL  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
+const TYPE_ORDER = ["lecture", "tutorial", "practical"] as const;
+type ClassType = typeof TYPE_ORDER[number];
+
+function timeToMin(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+
 function SubjectSlotRow({ subject, index, semesterId }: {
   subject: {id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
   index: number;
@@ -547,56 +552,146 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     tutorial: String(subject.thresholdTutorial),
     practical: String(subject.thresholdPractical),
   });
-  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null; prof?:string|null; type?:string}[]>([]);
-  const [classType, setClassType] = useState<"lecture"|"tutorial"|"practical">("lecture");
+  const [thresholdError, setThresholdError] = useState<string|null>(null);
+
+  // Every slot in the semester (all subjects) — needed so we can detect
+  // day/time conflicts against subjects other than this one, not just our own.
+  const [allSlots, setAllSlots] = useState<{id:string; subjectId:string; day:number; startTime:string; endTime:string; room:string|null; prof?:string|null; type?:string; isExtra?:boolean; subject?:{name:string}}[]>([]);
+  const slots = allSlots.filter(s => s.subjectId === subject.id && !s.isExtra);
+
+  // Which class types this subject actually has slots for — thresholds and
+  // the add/edit form should only ever surface those, never an empty type.
+  const presentTypes: ClassType[] = TYPE_ORDER.filter(t => slots.some(s => (s.type || "lecture") === t));
+  const visibleTypes: ClassType[] = presentTypes.length ? presentTypes : ["lecture"];
+  // Type field options: restricted to the subject's existing class types.
+  // A brand-new subject with no slots yet hasn't established a type, so all
+  // three stay open for its first slot.
+  const typeOptions: ClassType[] = presentTypes.length ? presentTypes : [...TYPE_ORDER];
+
+  const [classType, setClassType] = useState<ClassType>("lecture");
   const [day, setDay] = useState("0");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [room, setRoom] = useState("");
   const [prof, setProf] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editingSlotId, setEditingSlotId] = useState<string|null>(null);
+  const [formError, setFormError] = useState<string|null>(null);
 
   useEffect(() => {
     (async () => {
       const { slots: fetched } = await api.get(`/slots?semesterId=${semesterId}`);
-      setSlots(fetched.filter((s:any) => s.subjectId === subject.id));
+      setAllSlots(fetched);
     })();
-  }, [subject.id, semesterId]);
+  }, [semesterId]);
 
   function resetForm() {
     setClassType("lecture"); setDay("0"); setStartTime("09:00"); setEndTime("10:00");
-    setRoom(""); setProf("");
+    setRoom(""); setProf(""); setEditingSlotId(null); setFormError(null);
   }
 
-  async function addSlot() {
+  function openAddForm() {
+    resetForm();
+    if (typeOptions.length === 1) setClassType(typeOptions[0]);
+    setAdding(true);
+  }
+
+  function openEditForm(sl: typeof allSlots[number]) {
+    setClassType((sl.type as ClassType) || "lecture");
+    setDay(String(sl.day));
+    setStartTime(sl.startTime);
+    setEndTime(sl.endTime);
+    setRoom(sl.room || "");
+    setProf(sl.prof || "");
+    setEditingSlotId(sl.id);
+    setFormError(null);
+    setAdding(true);
+  }
+
+  // A slot can't share a day + overlapping time with any other slot in the
+  // semester — same subject or different. excludeId lets an edit ignore
+  // the slot it's currently editing.
+  function findConflict(dayVal: string, start: string, end: string, excludeId: string|null) {
+    const d = parseInt(dayVal, 10);
+    const s = timeToMin(start), e = timeToMin(end);
+    return allSlots.find(sl =>
+      sl.id !== excludeId && !sl.isExtra && sl.day === d &&
+      timeToMin(sl.startTime) < e && s < timeToMin(sl.endTime)
+    ) || null;
+  }
+
+  async function saveSlot() {
+    setFormError(null);
+    if (!startTime || !endTime) { setFormError("Start and end time are required."); return; }
+    if (timeToMin(endTime) <= timeToMin(startTime)) { setFormError("End time must be after start time."); return; }
+    const conflict = findConflict(day, startTime, endTime, editingSlotId);
+    if (conflict) {
+      const withName = conflict.subject?.name || (conflict.subjectId === subject.id ? subject.name : "another class");
+      setFormError(`This time slot conflicts with ${withName} (${conflict.startTime}\u2013${conflict.endTime}). Please choose another time.`);
+      return;
+    }
     setLoading(true);
     try {
-      const { slot } = await api.post("/slots", {
-        semesterId, subjectId: subject.id,
-        type: classType,
-        day: parseInt(day, 10), startTime, endTime, room: room || undefined, prof: prof || undefined,
-      });
-      setSlots(prev => [...prev, slot]);
+      if (editingSlotId) {
+        const { slot } = await api.patch(`/slots/${editingSlotId}`, {
+          type: classType, day: parseInt(day, 10), startTime, endTime,
+          room: room || null, prof: prof || null,
+        });
+        setAllSlots(prev => prev.map(s => s.id === slot.id ? { ...slot, subject } : s));
+      } else {
+        const { slot } = await api.post("/slots", {
+          semesterId, subjectId: subject.id, type: classType,
+          day: parseInt(day, 10), startTime, endTime, room: room || undefined, prof: prof || undefined,
+        });
+        setAllSlots(prev => [...prev, { ...slot, subject }]);
+      }
       resetForm();
       setAdding(false);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      setFormError(e.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function saveThresholds() {
-    const l = parseInt(thresholdInputs.lecture, 10) || 75;
-    const t = parseInt(thresholdInputs.tutorial, 10) || 75;
-    const p = parseInt(thresholdInputs.practical, 10) || 75;
+  async function deleteSlot(id: string) {
+    setDeleting(true);
     try {
-      await api.patch(`/subjects/${subject.id}`, { thresholdLecture: l, thresholdTutorial: t, thresholdPractical: p });
-      setThresholds({ lecture: l, tutorial: t, practical: p });
+      await api.del(`/slots/${id}`);
+      setAllSlots(prev => prev.filter(s => s.id !== id));
+      resetForm();
+      setAdding(false);
+    } catch (e: any) {
+      setFormError(e.message || "Couldn't delete this slot. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function saveThresholds() {
+    setThresholdError(null);
+    const parsed: Partial<Record<ClassType, number>> = {};
+    for (const t of visibleTypes) {
+      const raw = thresholdInputs[t].trim();
+      const n = parseInt(raw, 10);
+      if (raw === "" || isNaN(n) || n < 0 || n > 100) {
+        setThresholdError(`${t[0].toUpperCase()+t.slice(1)} threshold must be between 0–100%.`);
+        return;
+      }
+      parsed[t] = n;
+    }
+    try {
+      await api.patch(`/subjects/${subject.id}`, {
+        thresholdLecture: parsed.lecture ?? thresholds.lecture,
+        thresholdTutorial: parsed.tutorial ?? thresholds.tutorial,
+        thresholdPractical: parsed.practical ?? thresholds.practical,
+      });
+      setThresholds(prev => ({ ...prev, ...parsed }));
       setEditingThreshold(false);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      setThresholdError(e.message || "Couldn't save thresholds. Please try again.");
     }
   }
 
@@ -631,7 +726,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
             <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH }}>{subject.name}</div>
             <button
-              onClick={() => setEditingThreshold(v => !v)}
+              onClick={() => { setEditingThreshold(v => !v); setThresholdError(null); }}
               style={{ width:26, height:26, borderRadius:8, background:T.aFill, border:"none", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}
             >
               <Edit2 size={12} color={T.accent} />
@@ -640,7 +735,8 @@ function SubjectSlotRow({ subject, index, semesterId }: {
 
           {editingThreshold ? (
             <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:9 }}>
-              {(["lecture","tutorial","practical"] as const).map(t => (
+              {/* only the class types this subject actually runs get a threshold field */}
+              {visibleTypes.map(t => (
                 <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
                   <input
@@ -651,67 +747,99 @@ function SubjectSlotRow({ subject, index, semesterId }: {
                   <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
                 </div>
               ))}
+              {thresholdError && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:2 }}>
+                  <AlertTriangle size={10} color={T.danger} />
+                  <span style={{ fontFamily:F.sans, fontSize:10, color:T.danger, fontWeight:600 }}>{thresholdError}</span>
+                </div>
+              )}
               <div style={{ display:"flex", gap:10, marginTop:2 }}>
                 <button onClick={saveThresholds} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
-                <button onClick={() => setEditingThreshold(false)} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+                <button onClick={() => { setEditingThreshold(false); setThresholdError(null); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
               </div>
             </div>
           ) : (
             <div style={{ display:"flex", gap:6, marginTop:9, flexWrap:"wrap" }}>
-              {(["lecture","tutorial","practical"] as const).map(t => (
+              {/* only the class types that exist for this subject are shown — no empty Tutorial/Practical badges */}
+              {visibleTypes.map(t => (
                 <div key={t} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.bg, border:`1px solid ${HAIR}` }}>
                   <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.inkM, fontWeight:600 }}>{t[0].toUpperCase()}</span>
                   <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkH, fontWeight:700 }}>{thresholds[t]}%</span>
                 </div>
               ))}
-              <div style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.aFill }}>
-                <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.accent, fontWeight:700 }}>{slots.length}</span>
-                <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>slots/wk</span>
-              </div>
+              {/* per-type slot counts — "2 Lecture slots" instead of an ambiguous combined total,
+                  since a subject can run Lecture + Tutorial + Practical as separate tracks */}
+              {presentTypes.map(t => {
+                const count = slots.filter(s => (s.type || "lecture") === t).length;
+                return (
+                  <div key={t} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.aFill }}>
+                    <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.accent, fontWeight:700 }}>{count}</span>
+                    <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>
+                      {t[0].toUpperCase()+t.slice(1)} slot{count !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* slots grid */}
+      {/* slots grid — tap a slot to edit it, the + tile always starts a fresh one */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:16 }}>
         {slots.map(sl => (
-          <div key={sl.id} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 11px", borderRadius:12, background:T.aFill }}>
+          <button
+            key={sl.id}
+            onClick={() => openEditForm(sl)}
+            style={{
+              display:"flex", alignItems:"center", gap:7, padding:"10px 11px", borderRadius:12,
+              background:T.aFill, border: sl.id === editingSlotId ? `1.5px solid ${T.accent}` : "1.5px solid transparent",
+              cursor:"pointer", textAlign:"left", font:"inherit",
+            }}
+          >
             <div style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, background:TYPE_DOT[sl.type||"lecture"] }} />
             <span style={{ fontFamily:F.sans, fontSize:11.5, color:T.inkB, fontWeight:600 }}>{DAYS_SHORT[sl.day]} {sl.startTime}</span>
             <span style={{ marginLeft:"auto", fontFamily:F.mono, fontSize:7.5, color:T.accent, fontWeight:700, opacity:0.7 }}>{TYPE_TAG[sl.type||"lecture"]}</span>
-          </div>
+          </button>
         ))}
         <div
-          onClick={() => setAdding(true)}
+          onClick={openAddForm}
           style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"10px 11px", borderRadius:12, background:"transparent", border:`1.5px dashed ${T.inkL}`, cursor:"pointer" }}
         >
           <Plus size={13} color={T.inkL} />
         </div>
       </div>
 
-      {/* add / edit slot form — collapsed until opened via the + tile */}
+      {/* add / edit slot form — collapsed until opened via a slot card or the + tile */}
       {adding && (
         <>
           <div style={{ height:1, background:HAIR, margin:"20px 0 18px" }} />
 
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14 }}>
-              <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
-              <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.13em", textTransform:"uppercase", color:T.accent, fontWeight:600 }}>Add / edit slot</span>
+              <div style={{ width:4, height:4, borderRadius:"50%", background: editingSlotId ? GOLD : T.accent }} />
+              <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.13em", textTransform:"uppercase", color: editingSlotId ? GOLD : T.accent, fontWeight:600 }}>
+                {editingSlotId ? "Editing slot" : "New slot"}
+              </span>
             </div>
 
             <div style={{ display:"flex", gap:9, marginBottom:11 }}>
               <div style={{ flex:1 }}>
                 <label style={fieldLabelStyle}>Type</label>
-                <div style={{ position:"relative" }}>
-                  <select value={classType} onChange={e => setClassType(e.target.value as any)} style={selectStyle}>
-                    <option value="lecture">Lecture</option>
-                    <option value="tutorial">Tutorial</option>
-                    <option value="practical">Practical</option>
-                  </select>
-                  <ChevronDown size={13} color={T.inkM} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
-                </div>
+                {typeOptions.length > 1 ? (
+                  <div style={{ position:"relative" }}>
+                    <select value={classType} onChange={e => setClassType(e.target.value as ClassType)} style={selectStyle}>
+                      {typeOptions.map(t => (
+                        <option key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={13} color={T.inkM} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                  </div>
+                ) : (
+                  <div style={{ ...selectStyle, cursor:"default", color:T.inkH, fontWeight:600, background:T.bg }}>
+                    {typeOptions[0][0].toUpperCase()+typeOptions[0].slice(1)}
+                  </div>
+                )}
               </div>
               <div style={{ flex:1 }}>
                 <label style={fieldLabelStyle}>Day</label>
@@ -746,17 +874,33 @@ function SubjectSlotRow({ subject, index, semesterId }: {
               </div>
             </div>
 
-            <div style={{ display:"flex", gap:9, marginTop:6 }}>
+            {formError && (
+              <div style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"10px 12px", borderRadius:12, background:T.dangerFill, marginBottom:11 }}>
+                <AlertTriangle size={13} color={T.danger} style={{ flexShrink:0, marginTop:1 }} />
+                <span style={{ fontFamily:F.sans, fontSize:12, color:T.danger, fontWeight:600, lineHeight:1.4 }}>{formError}</span>
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:9, marginTop:6, alignItems:"center" }}>
+              {editingSlotId && (
+                <button onClick={() => deleteSlot(editingSlotId)} disabled={deleting} style={{
+                  display:"flex", alignItems:"center", gap:5, padding:"13px 12px", borderRadius:13,
+                  border:`1.5px solid ${T.dangerFill}`, background:T.dangerFill, color:T.danger,
+                  fontFamily:F.sans, fontWeight:600, fontSize:13, cursor:"pointer", flexShrink:0,
+                }}>
+                  <Trash2 size={13} /> {deleting ? "Deleting..." : "Delete"}
+                </button>
+              )}
               <button onClick={() => { resetForm(); setAdding(false); }} style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}>
-                Cancel
+                {editingSlotId ? "Cancel editing" : "Cancel"}
               </button>
-              <button onClick={addSlot} disabled={loading} style={{
+              <button onClick={saveSlot} disabled={loading} style={{
                 flex:1.6, padding:13, borderRadius:13, border:"none",
                 background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
                 fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
                 boxShadow:"0 10px 22px rgba(94,63,138,0.36), inset 0 1px 0 rgba(255,255,255,0.2)",
               }}>
-                {loading ? "Saving..." : "Save slot"}
+                {loading ? "Saving..." : editingSlotId ? "Update slot" : "Save slot"}
               </button>
             </div>
           </div>
@@ -765,6 +909,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     </div>
   );
 }
+
 
 // ════════════════════════════════════════════════════════════════
 // SCREEN 2 — HOME DASHBOARD
