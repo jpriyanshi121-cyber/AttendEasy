@@ -1269,10 +1269,28 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   const [slots, setSlots] = useState<any[]>([]);
   const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
   const HOUR_START = 9, HOUR_END = 17;
-  const hourWidth = 68, rowHeight = 58;
+  const rowHeight = 58;
+  const DAY_LABEL_W = 46;
+  const MIN_HOUR_WIDTH = 44; // below this it truly needs to scroll (very small screens)
   const hoursArr = Array.from({ length: HOUR_END-HOUR_START+1 }, (_,i) => HOUR_START+i);
-  const gridWidth = (HOUR_END-HOUR_START) * hourWidth;
   const hair = "#EFEAF6";
+
+  // Measure the available grid area and size each hour column to fit it exactly,
+  // instead of a fixed px width that overflows on smaller landscape phones.
+  const gridAreaRef = useRef<HTMLDivElement>(null);
+  const [gridAreaW, setGridAreaW] = useState(0);
+  useEffect(() => {
+    const el = gridAreaRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setGridAreaW(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const availableForHours = Math.max(0, gridAreaW - DAY_LABEL_W);
+  const hourWidth = Math.max(MIN_HOUR_WIDTH, availableForHours / (HOUR_END-HOUR_START) || MIN_HOUR_WIDTH);
+  const gridWidth = (HOUR_END-HOUR_START) * hourWidth;
 
   useEffect(() => {
     (async () => {
@@ -1301,6 +1319,41 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   function timeToMin(t:string) { const [h,m] = t.split(":").map(Number); return h*60+m; }
   function leftFor(t:string)   { return Math.max(0, (timeToMin(t) - HOUR_START*60) * (hourWidth/60)); }
   function widthFor(s:string,e:string) { return Math.max(46, (timeToMin(e)-timeToMin(s)) * (hourWidth/60)); }
+
+  // When two slots on the same day overlap in time (e.g. a rescheduled/extra class
+  // landing on top of a regular one), stack them into separate tracks within the
+  // row instead of letting them render on top of each other.
+  function layoutDaySlots(daySlots:any[]) {
+    const sorted = [...daySlots].sort((a,b) => timeToMin(a.startTime) - timeToMin(b.startTime));
+    const laidOut: { slot:any; track:number; trackCount:number }[] = [];
+    let cluster: any[] = [];
+    let clusterEnd = -Infinity;
+
+    function flushCluster() {
+      if (!cluster.length) return;
+      const trackEnds: number[] = [];
+      const withTrack = cluster.map(s => {
+        const start = timeToMin(s.startTime);
+        let track = trackEnds.findIndex(end => end <= start);
+        if (track === -1) { track = trackEnds.length; trackEnds.push(timeToMin(s.endTime)); }
+        else { trackEnds[track] = timeToMin(s.endTime); }
+        return { slot:s, track };
+      });
+      const trackCount = trackEnds.length;
+      withTrack.forEach(({ slot, track }) => laidOut.push({ slot, track, trackCount }));
+      cluster = [];
+      clusterEnd = -Infinity;
+    }
+
+    for (const s of sorted) {
+      const start = timeToMin(s.startTime), end = timeToMin(s.endTime);
+      if (cluster.length && start >= clusterEnd) flushCluster();
+      cluster.push(s);
+      clusterEnd = Math.max(clusterEnd, end);
+    }
+    flushCluster();
+    return laidOut;
+  }
 
   const legendMap = new Map<string,{name:string; color:string}>();
   slots.forEach(s => { if (!legendMap.has(s.subjectId)) legendMap.set(s.subjectId, { name:s.subject.name, color:s.subject.color }); });
@@ -1349,34 +1402,42 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
           position:"absolute", top:-40, right:-50, width:160, height:160, borderRadius:"50%",
           background:"radial-gradient(circle, rgba(139,111,187,0.16), transparent 70%)", pointerEvents:"none",
         }} />
-        <button onClick={onBack} style={{
-          width:28, height:28, borderRadius:9, border:"none", cursor:"pointer",
-          background:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center", justifyContent:"center",
-          marginBottom:16, position:"relative", zIndex:1,
-        }}>
-          <ChevronLeft size={16} color={T.inkM} />
-        </button>
-        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9, position:"relative", zIndex:1 }}>
-          <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
-          <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Week View</span>
+        {/* fixed header block — never scrolls */}
+        <div style={{ flexShrink:0, position:"relative", zIndex:1 }}>
+          <button onClick={onBack} style={{
+            width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${hair}`,
+            display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+            boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
+            marginBottom:12,
+          }}>
+            <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
+          </button>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+            <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+            <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Week View</span>
+          </div>
+          <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1 }}>
+            Timetable
+          </h2>
+          <button onClick={onEditTimetable} title="Edit timetable" style={{
+            width:26, height:26, minWidth:26, borderRadius:8, border:"none", cursor:"pointer", flexShrink:0,
+            background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
+            marginTop:6, marginBottom:14,
+          }}>
+            <PenLine size={12} color={T.accent} strokeWidth={2} />
+          </button>
         </div>
-        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, letterSpacing:"-0.01em", lineHeight:1.1, position:"relative", zIndex:1 }}>
-          Timetable
-        </h2>
-        <button onClick={onEditTimetable} title="Edit timetable" style={{
-          width:26, height:26, minWidth:26, borderRadius:8, border:"none", cursor:"pointer", flexShrink:0,
-          background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
-          marginTop:8, marginBottom:20, position:"relative", zIndex:1,
-        }}>
-          <PenLine size={12} color={T.accent} strokeWidth={2} />
-        </button>
 
+        {/* subject legend — 2-column grid keeps every subject visible without needing to scroll */}
         {legend.length > 0 && (
-          <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:8, position:"relative", zIndex:1 }}>
+          <div style={{
+            marginTop:"auto", display:"grid", gridTemplateColumns:"1fr 1fr", gap:6,
+            position:"relative", zIndex:1, overflow:"visible",
+          }}>
             {legend.map(s => (
-              <div key={s.name} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:11, background:"rgba(255,255,255,0.7)" }}>
-                <span style={{ width:8, height:8, borderRadius:"50%", background:s.color, boxShadow:`0 0 0 3px ${s.color}38`, flexShrink:0 }} />
-                <span style={{ fontFamily:F.sans, fontSize:10, color:T.inkB, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+              <div key={s.name} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 6px", borderRadius:8, background:"rgba(255,255,255,0.7)", minWidth:0 }}>
+                <span style={{ width:7, height:7, borderRadius:"50%", background:s.color, boxShadow:`0 0 0 3px ${s.color}38`, flexShrink:0 }} />
+                <span style={{ fontFamily:F.sans, fontSize:9.5, color:T.inkB, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                   {s.name}
                 </span>
               </div>
@@ -1386,7 +1447,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
       </div>
 
       {/* ── Main: time-axis grid ── */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"24px 24px 20px 22px", overflow:"auto" }}>
+      <div ref={gridAreaRef} style={{ flex:1, display:"flex", flexDirection:"column", padding:"24px 24px 20px 22px", overflow:"auto", minWidth:0 }}>
         {/* time header (X-axis) */}
         <div style={{ display:"flex", marginBottom:4, flexShrink:0 }}>
           <div style={{ width:46, flexShrink:0 }} />
@@ -1444,28 +1505,46 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
                   borderBottom: di===dates.length-1 ? `1px solid ${hair}` : "none",
                   background: isToday ? "rgba(239,231,246,0.35)" : "transparent",
                 }}>
-                  {daySlots.map(slot => (
+                  {layoutDaySlots(daySlots).map(({ slot, track, trackCount }) => {
+                    const typeLabel = slot.type === "practical" ? "Lab" : slot.type === "tutorial" ? "Tut" : null;
+                    const trackH = (rowHeight - 8) / trackCount;
+                    const compact = trackCount > 1 && trackH < 40;
+                    return (
                     <button key={slot.id} onClick={() => onMark(slot.id)} style={{
-                      position:"absolute", top:4, bottom:4,
+                      position:"absolute", top:4 + track*trackH, height:trackH - (trackCount>1 ? 3 : 0),
                       left:leftFor(slot.startTime), width:widthFor(slot.startTime, slot.endTime),
-                      borderRadius:11, padding:"6px 9px", border:"none", cursor:"pointer",
+                      borderRadius:11, padding: compact ? "3px 8px" : "6px 9px", border:"none", cursor:"pointer",
                       background:`${slot.subject.color}1A`,
                       borderLeft:`3px solid ${slot.subject.color}`,
                       boxShadow:`0 6px 16px -4px ${slot.subject.color}6B, 0 1px 2px rgba(27,21,48,0.04)`,
                       display:"flex", flexDirection:"column", justifyContent:"center",
-                      overflow:"hidden", textAlign:"left",
+                      overflow:"hidden", textAlign:"left", zIndex:track+1,
                     }}>
-                      <span style={{
-                        fontFamily:F.serif, fontWeight:600, fontSize:11, color:slot.subject.color, lineHeight:1.15,
-                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
-                      }}>
-                        {slot.subject.name}
+                      <span style={{ display:"flex", alignItems:"center", gap:4, overflow:"hidden" }}>
+                        <span style={{
+                          fontFamily:F.serif, fontWeight:600, fontSize:11, color:slot.subject.color, lineHeight:1.15,
+                          whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                        }}>
+                          {slot.subject.name}
+                        </span>
+                        {typeLabel && (
+                          <span style={{
+                            fontFamily:F.mono, fontSize:7.5, fontWeight:700, letterSpacing:"0.03em",
+                            color:"#fff", background:slot.subject.color,
+                            borderRadius:4, padding:"1.5px 5px", flexShrink:0, textTransform:"uppercase",
+                          }}>
+                            {typeLabel}
+                          </span>
+                        )}
                       </span>
-                      <span style={{ fontFamily:F.mono, fontSize:7, color:T.inkM, marginTop:2, letterSpacing:"0.02em", fontWeight:500, whiteSpace:"nowrap" }}>
-                        {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
-                      </span>
+                      {!compact && (
+                        <span style={{ fontFamily:F.mono, fontSize:7.5, color:`${slot.subject.color}`, opacity:0.75, marginTop:2, letterSpacing:"0.01em", fontWeight:600, whiteSpace:"nowrap" }}>
+                          {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
+                        </span>
+                      )}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })}
@@ -3265,7 +3344,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          style={{ height:"100%", overflowY:"auto" }}
+          style={{ height:"100%", overflowY: (screen==="timetable" && isLandscape) ? "hidden" : "auto" }}
         >
           {screen==="onboarding" && (
             <OnboardingScreen
