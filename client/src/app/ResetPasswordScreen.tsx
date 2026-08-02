@@ -75,7 +75,7 @@ export default function ResetPasswordScreen({ token, onDone }: { token: string; 
 
   return (
     <div style={{
-      minHeight: "100dvh", background: T.bg, display: "flex",
+      minHeight: "100%", background: T.bg, display: "flex",
       flexDirection: "column", justifyContent: "center", padding: 24,
       fontFamily: F.sans, maxWidth: 390, margin: "0 auto", boxSizing: "border-box",
     }}>

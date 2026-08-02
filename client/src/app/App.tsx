@@ -3075,7 +3075,7 @@ export default function App() {
   if (checkingOnboard) {
     return (
       <div style={{
-        minHeight: "100dvh", background: T.bg, display: "flex",
+        minHeight: "100%", background: T.bg, display: "flex",
         alignItems: "center", justifyContent: "center", fontFamily: F.sans,
       }}>
         <div style={{
@@ -3145,7 +3145,7 @@ export default function App() {
 
       <div style={{
         width:"100%", maxWidth: (screen==="timetable" && isLandscape) ? "none" : 390, margin:"0 auto",
-        minHeight:"100dvh", background:T.bg, position:"relative",
+        minHeight:"100%", background:T.bg, position:"relative",
         fontFamily:F.sans, overflow:"hidden",
       }}>
         <AnimatePresence mode="wait">
@@ -3155,7 +3155,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          style={{ height:"100dvh", overflowY:"auto" }}
+          style={{ height:"100%", overflowY:"auto" }}
         >
           {screen==="onboarding" && (
             <OnboardingScreen

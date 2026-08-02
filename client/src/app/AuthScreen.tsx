@@ -65,7 +65,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
 
   // ── shared style helpers ──────────────────────────────────────
   const wrapStyle: CSSProperties = {
-    minHeight: "100dvh", background: T.bg, display: "flex",
+    minHeight: "100%", background: T.bg, display: "flex",
     flexDirection: "column", justifyContent: "center", padding: 24,
     fontFamily: F.sans, maxWidth: 390, margin: "0 auto", boxSizing: "border-box",
   };
