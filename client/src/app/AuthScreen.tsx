@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { T, F, S } from "./App";
 import { api, setToken } from "../lib/api";
-import { ArrowRight, Mail, ShieldCheck, Clock, GraduationCap } from "lucide-react";
+import { ArrowRight, Mail, ShieldCheck, Clock, GraduationCap, Eye, EyeOff } from "lucide-react";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -16,6 +16,8 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const submit = async () => {
     setError(null);
@@ -237,11 +239,20 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
 
             <div style={{ marginBottom: mode === "signup" ? 12 : 8 }}>
               {label("Password")}
-              <input
-                placeholder="••••••••" type="password" value={password}
-                onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
-                onChange={(e) => setPassword(e.target.value)} style={inputStyle("password")}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  placeholder="••••••••" type={showPassword ? "text" : "password"} value={password}
+                  onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
+                  onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle("password"), paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.inkM, padding: 4, display: "flex" }}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
               {mode === "signup" && (
                 <div style={{ display: "flex", gap: 5, marginTop: 8, paddingLeft: 3 }}>
                   {[1, 2, 3].map((i) => (
@@ -257,11 +268,20 @@ export default function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
             {mode === "signup" && (
               <div style={{ marginBottom: 12 }}>
                 {label("Confirm password")}
-                <input
-                  placeholder="••••••••" type="password" value={confirmPassword}
-                  onFocus={() => setFocused("confirmPassword")} onBlur={() => setFocused(null)}
-                  onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle("confirmPassword")}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    placeholder="••••••••" type={showConfirmPassword ? "text" : "password"} value={confirmPassword}
+                    onFocus={() => setFocused("confirmPassword")} onBlur={() => setFocused(null)}
+                    onChange={(e) => setConfirmPassword(e.target.value)} style={{ ...inputStyle("confirmPassword"), paddingRight: 44 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.inkM, padding: 4, display: "flex" }}
+                  >
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </div>
             )}
 

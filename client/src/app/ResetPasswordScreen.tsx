@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { T, F, S } from "./App";
 import { api } from "../lib/api";
-import { ArrowRight, Check, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
 export default function ResetPasswordScreen({ token, onDone }: { token: string; onDone: () => void }) {
   const [password, setPassword] = useState("");
@@ -10,6 +10,8 @@ export default function ResetPasswordScreen({ token, onDone }: { token: string; 
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const submit = async () => {
     setError(null);
@@ -108,11 +110,20 @@ export default function ResetPasswordScreen({ token, onDone }: { token: string; 
 
             <div style={{ marginBottom: 16 }}>
               {label("New password")}
-              <input
-                placeholder="••••••••" type="password" value={password}
-                onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
-                onChange={(e) => setPassword(e.target.value)} style={inputStyle("password")}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  placeholder="••••••••" type={showPassword ? "text" : "password"} value={password}
+                  onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
+                  onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle("password"), paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.inkM, padding: 4, display: "flex" }}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
               <div style={{ display: "flex", gap: 5, marginTop: 10, paddingLeft: 3 }}>
                 {[1, 2, 3].map((i) => (
                   <i key={i} style={{
@@ -125,11 +136,20 @@ export default function ResetPasswordScreen({ token, onDone }: { token: string; 
 
             <div style={{ marginBottom: 28 }}>
               {label("Confirm new password")}
-              <input
-                placeholder="••••••••" type="password" value={confirmPassword}
-                onFocus={() => setFocused("confirmPassword")} onBlur={() => setFocused(null)}
-                onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle("confirmPassword")}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  placeholder="••••••••" type={showConfirmPassword ? "text" : "password"} value={confirmPassword}
+                  onFocus={() => setFocused("confirmPassword")} onBlur={() => setFocused(null)}
+                  onChange={(e) => setConfirmPassword(e.target.value)} style={{ ...inputStyle("confirmPassword"), paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.inkM, padding: 4, display: "flex" }}
+                >
+                  {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
             </div>
 
             {error && <p style={{ color: T.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}

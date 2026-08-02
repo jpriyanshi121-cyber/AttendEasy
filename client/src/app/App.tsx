@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
-  X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
+  Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
   Sparkles, Star, Clock, Smartphone,
 } from "lucide-react";
@@ -2708,6 +2708,9 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const [showCurPw, setShowCurPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfPw, setShowConfPw] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
   const [pwError, setPwError] = useState<string|null>(null);
   const [pwSuccess, setPwSuccess] = useState(false);
@@ -2930,15 +2933,30 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
               <p style={{ fontSize:13, color:T.safe, marginBottom:4 }}>Password updated successfully.</p>
             ) : (
               <>
-                <input type="password" placeholder="Current password" value={currentPw}
-                  onFocus={() => setFocused("cur")} onBlur={() => setFocused(null)}
-                  onChange={e => setCurrentPw(e.target.value)} style={inputStyle("cur")} />
-                <input type="password" placeholder="New password" value={newPw}
-                  onFocus={() => setFocused("new")} onBlur={() => setFocused(null)}
-                  onChange={e => setNewPw(e.target.value)} style={inputStyle("new")} />
-                <input type="password" placeholder="Confirm new password" value={confirmPw}
-                  onFocus={() => setFocused("conf")} onBlur={() => setFocused(null)}
-                  onChange={e => setConfirmPw(e.target.value)} style={{ ...inputStyle("conf"), marginBottom:16 }} />
+                <div style={{ position:"relative" }}>
+                  <input type={showCurPw ? "text" : "password"} placeholder="Current password" value={currentPw}
+                    onFocus={() => setFocused("cur")} onBlur={() => setFocused(null)}
+                    onChange={e => setCurrentPw(e.target.value)} style={{ ...inputStyle("cur"), paddingRight:44 }} />
+                  <button type="button" onClick={() => setShowCurPw(v => !v)} style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.inkM, padding:4, display:"flex" }}>
+                    {showCurPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div style={{ position:"relative" }}>
+                  <input type={showNewPw ? "text" : "password"} placeholder="New password" value={newPw}
+                    onFocus={() => setFocused("new")} onBlur={() => setFocused(null)}
+                    onChange={e => setNewPw(e.target.value)} style={{ ...inputStyle("new"), paddingRight:44 }} />
+                  <button type="button" onClick={() => setShowNewPw(v => !v)} style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.inkM, padding:4, display:"flex" }}>
+                    {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div style={{ position:"relative", marginBottom:16 }}>
+                  <input type={showConfPw ? "text" : "password"} placeholder="Confirm new password" value={confirmPw}
+                    onFocus={() => setFocused("conf")} onBlur={() => setFocused(null)}
+                    onChange={e => setConfirmPw(e.target.value)} style={{ ...inputStyle("conf"), paddingRight:44 }} />
+                  <button type="button" onClick={() => setShowConfPw(v => !v)} style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.inkM, padding:4, display:"flex" }}>
+                    {showConfPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
                 {pwError && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{pwError}</p>}
                 <div style={{ display:"flex", gap:9 }}>
                   <button onClick={() => { setChangingPw(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(null); }} style={cancelBtn}>Cancel</button>
