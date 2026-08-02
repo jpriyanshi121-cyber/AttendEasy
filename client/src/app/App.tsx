@@ -187,8 +187,8 @@ function Icon({ name, size=18, color=T.accent }: { name:string; size?:number; co
 }
 
 /* The signature seal — an SVG progress ring showing overall % */
-function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
-  pct:number; size?:number; animate?:boolean; label?:string;
+function Seal({ pct, size=84, animate=false, label="OVERALL", flat=false }: {
+  pct:number; size?:number; animate?:boolean; label?:string; flat?:boolean;
 }) {
   const display = useCountUp(pct, 720, animate);
   const gradId = useId().replace(/:/g, "");
@@ -199,8 +199,8 @@ function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
   return (
     <div style={{
       width:size, height:size, borderRadius:"50%", flexShrink:0, position:"relative",
-      background:"#FFFFFF",
-      boxShadow:"0 10px 26px rgba(110,79,145,0.2), 0 2px 8px rgba(27,21,48,0.06), inset 0 1px 0 #fff",
+      background: flat ? "transparent" : "#FFFFFF",
+      boxShadow: flat ? "none" : "0 10px 26px rgba(110,79,145,0.2), 0 2px 8px rgba(27,21,48,0.06), inset 0 1px 0 #fff",
       display:"flex", alignItems:"center", justifyContent:"center",
     }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position:"absolute", inset:0 }}>
@@ -223,7 +223,7 @@ function Seal({ pct, size=84, animate=false, label="OVERALL" }: {
           {display}%
         </div>
         {label && (
-          <div style={{ fontFamily:F.mono, fontSize:size*0.078, letterSpacing:"0.09em", color:T.accent, marginTop:3, textTransform:"uppercase", fontWeight:600 }}>
+          <div style={{ fontFamily:F.mono, fontSize:size*0.078, letterSpacing:"0.09em", color: flat ? T.inkM : T.accent, marginTop:3, textTransform:"uppercase", fontWeight:600 }}>
             {label}
           </div>
         )}
@@ -249,8 +249,8 @@ function Pill({ status }: { status:Status }) {
   const { text, bg, label } = statusMeta(status);
   return (
     <span style={{
-      fontFamily:F.mono, fontSize:10, color:text, background:bg,
-      padding:"3px 10px", borderRadius:100, letterSpacing:"0.04em", whiteSpace:"nowrap", flexShrink:0,
+      fontFamily:F.sans, fontSize:11.5, fontWeight:700, color:text, background:bg,
+      padding:"6px 13px", borderRadius:100, whiteSpace:"nowrap", flexShrink:0,
     }}>{label}</span>
   );
 }
@@ -524,6 +524,13 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
   );
 }
 
+const HAIR = "#EFEAF6";
+const GOLD = "#C9A24B";
+const TYPE_DOT: Record<string,string> = { lecture:T.accent, tutorial:GOLD, practical:T.safe };
+const TYPE_TAG: Record<string,string> = { lecture:"LEC", tutorial:"TUT", practical:"PRAC" };
+const DAYS_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DAYS_FULL  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
 function SubjectSlotRow({ subject, index, semesterId }: {
   subject: {id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
   index: number;
@@ -540,8 +547,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     tutorial: String(subject.thresholdTutorial),
     practical: String(subject.thresholdPractical),
   });
-  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null; type?:string}[]>([]);
-  const [adding, setAdding] = useState(false);
+  const [slots, setSlots] = useState<{id:string; day:number; startTime:string; endTime:string; room:string|null; prof?:string|null; type?:string}[]>([]);
   const [classType, setClassType] = useState<"lecture"|"tutorial"|"practical">("lecture");
   const [day, setDay] = useState("0");
   const [startTime, setStartTime] = useState("09:00");
@@ -549,7 +555,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   const [room, setRoom] = useState("");
   const [prof, setProf] = useState("");
   const [loading, setLoading] = useState(false);
-  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -557,6 +563,11 @@ function SubjectSlotRow({ subject, index, semesterId }: {
       setSlots(fetched.filter((s:any) => s.subjectId === subject.id));
     })();
   }, [subject.id, semesterId]);
+
+  function resetForm() {
+    setClassType("lecture"); setDay("0"); setStartTime("09:00"); setEndTime("10:00");
+    setRoom(""); setProf("");
+  }
 
   async function addSlot() {
     setLoading(true);
@@ -567,9 +578,8 @@ function SubjectSlotRow({ subject, index, semesterId }: {
         day: parseInt(day, 10), startTime, endTime, room: room || undefined, prof: prof || undefined,
       });
       setSlots(prev => [...prev, slot]);
+      resetForm();
       setAdding(false);
-      setRoom("");
-      setProf("");
     } catch (e) {
       console.error(e);
     } finally {
@@ -590,19 +600,46 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     }
   }
 
+  const selectStyle: React.CSSProperties = {
+    width:"100%", padding:"12px 30px 12px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`,
+    background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)", fontFamily:F.sans, fontSize:13.5, color:T.inkH,
+    outline:"none", boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+    appearance:"none", WebkitAppearance:"none", MozAppearance:"none", cursor:"pointer", boxSizing:"border-box",
+  };
+  const inputStyle: React.CSSProperties = {
+    width:"100%", padding:"12px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`,
+    background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)", fontFamily:F.sans, fontSize:13.5, color:T.inkH,
+    outline:"none", boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+    boxSizing:"border-box",
+  };
+  const fieldLabelStyle: React.CSSProperties = {
+    display:"block", fontFamily:F.mono, fontSize:9, letterSpacing:"0.08em", textTransform:"uppercase",
+    color:T.inkM, marginBottom:6, paddingLeft:2, fontWeight:500,
+  };
+
   return (
     <div className={`ae${Math.min(index+1,5)}`} style={{
-      padding:"15px 16px", borderRadius:18, marginBottom:10, background:T.card,
-      boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
+      padding:20, borderRadius:22, marginBottom:14, background:T.card,
+      boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}`,
     }}>
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        <div style={{ width:44, height:44, borderRadius:14, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      {/* subject header */}
+      <div style={{ display:"flex", alignItems:"flex-start", gap:13 }}>
+        <div style={{ width:44, height:44, borderRadius:13, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <Icon name="BookOpen" size={19} color={subject.color} />
         </div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, marginBottom:3 }}>{subject.name}</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH }}>{subject.name}</div>
+            <button
+              onClick={() => setEditingThreshold(v => !v)}
+              style={{ width:26, height:26, borderRadius:8, background:T.aFill, border:"none", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}
+            >
+              <Edit2 size={12} color={T.accent} />
+            </button>
+          </div>
+
           {editingThreshold ? (
-            <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:4 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:9 }}>
               {(["lecture","tutorial","practical"] as const).map(t => (
                 <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
@@ -620,71 +657,114 @@ function SubjectSlotRow({ subject, index, semesterId }: {
               </div>
             </div>
           ) : (
-            <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-              L {thresholds.lecture}% · T {thresholds.tutorial}% · P {thresholds.practical}% · {slots.length} slot{slots.length===1?"":"s"}/wk
-              <button onClick={() => setEditingThreshold(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, padding:0, display:"flex" }}>
-                <Edit2 size={11} />
-              </button>
+            <div style={{ display:"flex", gap:6, marginTop:9, flexWrap:"wrap" }}>
+              {(["lecture","tutorial","practical"] as const).map(t => (
+                <div key={t} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.bg, border:`1px solid ${HAIR}` }}>
+                  <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.inkM, fontWeight:600 }}>{t[0].toUpperCase()}</span>
+                  <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkH, fontWeight:700 }}>{thresholds[t]}%</span>
+                </div>
+              ))}
+              <div style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.aFill }}>
+                <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.accent, fontWeight:700 }}>{slots.length}</span>
+                <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>slots/wk</span>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {slots.length > 0 && (
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-          {slots.map(sl => (
-            <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
-              {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
-            </span>
-          ))}
+      {/* slots grid */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:16 }}>
+        {slots.map(sl => (
+          <div key={sl.id} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 11px", borderRadius:12, background:T.aFill }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, background:TYPE_DOT[sl.type||"lecture"] }} />
+            <span style={{ fontFamily:F.sans, fontSize:11.5, color:T.inkB, fontWeight:600 }}>{DAYS_SHORT[sl.day]} {sl.startTime}</span>
+            <span style={{ marginLeft:"auto", fontFamily:F.mono, fontSize:7.5, color:T.accent, fontWeight:700, opacity:0.7 }}>{TYPE_TAG[sl.type||"lecture"]}</span>
+          </div>
+        ))}
+        <div
+          onClick={() => setAdding(true)}
+          style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"10px 11px", borderRadius:12, background:"transparent", border:`1.5px dashed ${T.inkL}`, cursor:"pointer" }}
+        >
+          <Plus size={13} color={T.inkL} />
         </div>
-      )}
+      </div>
 
-      {adding ? (
-        <div style={{ marginTop:12 }}>
-          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-            <select value={classType} onChange={e => setClassType(e.target.value as any)} style={{ ...miniField, flex:1 }}>
-              <option value="lecture">Lecture</option>
-              <option value="tutorial">Tutorial</option>
-              <option value="practical">Practical</option>
-            </select>
-            <select value={day} onChange={e => setDay(e.target.value)} style={{ ...miniField, flex:1 }}>
-              {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
-            </select>
+      {/* add / edit slot form — collapsed until opened via the + tile */}
+      {adding && (
+        <>
+          <div style={{ height:1, background:HAIR, margin:"20px 0 18px" }} />
+
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14 }}>
+              <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+              <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.13em", textTransform:"uppercase", color:T.accent, fontWeight:600 }}>Add / edit slot</span>
+            </div>
+
+            <div style={{ display:"flex", gap:9, marginBottom:11 }}>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Type</label>
+                <div style={{ position:"relative" }}>
+                  <select value={classType} onChange={e => setClassType(e.target.value as any)} style={selectStyle}>
+                    <option value="lecture">Lecture</option>
+                    <option value="tutorial">Tutorial</option>
+                    <option value="practical">Practical</option>
+                  </select>
+                  <ChevronDown size={13} color={T.inkM} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                </div>
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Day</label>
+                <div style={{ position:"relative" }}>
+                  <select value={day} onChange={e => setDay(e.target.value)} style={selectStyle}>
+                    {DAYS_FULL.map((d,i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                  <ChevronDown size={13} color={T.inkM} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:9, marginBottom:11 }}>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Starts</label>
+                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Ends</label>
+                <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:9, marginBottom:11 }}>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Room <span style={{ textTransform:"none", opacity:0.7 }}>(optional)</span></label>
+                <input placeholder="e.g. C-204" value={room} onChange={e => setRoom(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={fieldLabelStyle}>Professor <span style={{ textTransform:"none", opacity:0.7 }}>(optional)</span></label>
+                <input placeholder="e.g. Prof. Iyer" value={prof} onChange={e => setProf(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:9, marginTop:6 }}>
+              <button onClick={() => { resetForm(); setAdding(false); }} style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={addSlot} disabled={loading} style={{
+                flex:1.6, padding:13, borderRadius:13, border:"none",
+                background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
+                boxShadow:"0 10px 22px rgba(94,63,138,0.36), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
+                {loading ? "Saving..." : "Save slot"}
+              </button>
+            </div>
           </div>
-          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...miniField, flex:1 }} />
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...miniField, flex:1 }} />
-          </div>
-          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-            <input placeholder="Room (optional)" value={room} onChange={e => setRoom(e.target.value)} style={{ ...miniField, flex:1, boxSizing:"border-box" }} />
-            <input placeholder="Professor (optional)" value={prof} onChange={e => setProf(e.target.value)} style={{ ...miniField, flex:1, boxSizing:"border-box" }} />
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <button onClick={() => setAdding(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-            <button onClick={addSlot} disabled={loading} style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
-              {loading ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button onClick={() => setAdding(true)} style={{
-          marginTop:10, padding:"8px 12px", borderRadius:10, border:`1.5px dashed rgba(110,79,145,0.3)`,
-          background:"transparent", color:T.accent, fontFamily:F.sans, fontSize:12, fontWeight:500,
-          cursor:"pointer", display:"flex", alignItems:"center", gap:6,
-        }}>
-          <Plus size={13} /> Add Class Time
-        </button>
+        </>
       )}
     </div>
   );
 }
-
-const miniField: React.CSSProperties = {
-  padding:"9px 10px", borderRadius:10,
-  border:`1.5px solid rgba(110,79,145,0.18)`, background:"#FCFBFE",
-  fontFamily:"'Inter', system-ui, sans-serif", fontSize:12, outline:"none",
-};
 
 // ════════════════════════════════════════════════════════════════
 // SCREEN 2 — HOME DASHBOARD
@@ -1449,40 +1529,47 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:108 }}>
       {/* Header */}
-      <div style={{ padding:"56px 24px 0" }}>
-        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:6, color:T.accent, marginBottom:28, padding:0, fontFamily:F.sans, fontSize:14, fontWeight:500 }}>
-          <ChevronLeft size={17} /> Back
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
+        <button onClick={onBack} style={{
+          width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
+          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+          boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
+        }}>
+          <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
-          <div style={{ flex:1, paddingRight:16 }}>
-            <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:30, color:T.inkH, lineHeight:1.15, marginBottom:8 }}>{subject.name}</h2>
-            {slots[0]?.prof && <p style={{ fontSize:13, color:T.inkM, marginBottom:12 }}>{slots[0].prof}</p>}
-            <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-              {slots.map(sl => (
-                <span key={sl.id} style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"3px 10px", borderRadius:8 }}>
-                  {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
-                </span>
-              ))}
-            </div>
+        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+      </div>
+      <div style={{ padding:"18px 24px 0", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div>
+          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:T.inkH, letterSpacing:"-0.01em" }}>{subject.name}</div>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:9 }}>
+            {slots.map(sl => (
+              <span key={sl.id} style={{
+                display:"inline-flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:20,
+                background:T.aFill, fontFamily:F.mono, fontSize:10, color:T.accent, fontWeight:600,
+              }}>
+                {DAYS[sl.day]} {sl.startTime} · {(sl.type||"lecture").slice(0,3).toUpperCase()}
+              </span>
+            ))}
           </div>
-          <Seal pct={Math.round(overall.percentage)} size={84} animate={true} label="OVERALL" />
         </div>
+        <Seal pct={Math.round(overall.percentage)} size={66} animate={true} label="Overall" flat />
       </div>
 
       {/* Stats row */}
-      <div style={{ display:"flex", gap:8, padding:"24px 24px 0" }}>
+      <div style={{ display:"flex", gap:8, margin:"20px 24px 0" }}>
         {[
           { label:"Total",     v:overall.held,     c:T.inkH },
           { label:"Attended",  v:overall.attended, c:T.safe },
           { label:"Missed",    v:overall.missed,   c:T.danger },
-          { label:"Cancelled", v:overall.cancelled,c:T.inkM },
+          { label:"Cancelled", v:overall.cancelled,c:T.inkL },
         ].map(item => (
           <div key={item.label} style={{
-            flex:1, background:T.card, borderRadius:17, padding:"14px 8px",
-            textAlign:"center", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
+            flex:1, background:T.card, borderRadius:16, padding:"13px 6px",
+            textAlign:"center", boxShadow:"0 8px 20px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)", border:`1px solid ${HAIR}`,
           }}>
-            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:item.c }}>{item.v}</div>
-            <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.09em", marginTop:3 }}>{item.label}</div>
+            <div style={{ fontFamily:F.serif, fontWeight:700, fontSize:19, color:item.c, lineHeight:1 }}>{item.v}</div>
+            <div style={{ fontFamily:F.mono, fontSize:7.5, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.06em", marginTop:6, fontWeight:500 }}>{item.label}</div>
           </div>
         ))}
       </div>
@@ -1490,52 +1577,72 @@ function SubjectDetailScreen({ subjectId, onBack, onMark }: {
       {/* Per-type bunk calculators */}
       {Object.entries(breakdown).map(([type, stats]: [string, any]) => {
         const isGood = stats.canMissMore > 0;
-        const displayVal = isGood ? stats.canMissMore : stats.needToAttend;
+        const diff = Math.round(Math.abs(stats.percentage - stats.threshold));
         return (
-          <div key={type} style={{ margin:"20px 24px 0", background:T.card, borderRadius:24, padding:"22px 20px", boxShadow:S.md, border:`1px solid rgba(110,79,145,0.08)` }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-              <Eyebrow>{typeLabels[type]?.toUpperCase()} · {isGood ? "SAFE TO SKIP" : "RECOVERY PLAN"}</Eyebrow>
-              <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
+          <div key={type} style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+                <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600, whiteSpace:"nowrap" }}>
+                  {typeLabels[type]} Recovery Plan
+                </span>
+              </div>
+              <div style={{ padding:"5px 11px", borderRadius:20, background: isGood?T.safeFill:T.dangerFill, flexShrink:0 }}>
+                <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
+              </div>
             </div>
-            <div style={{ display:"flex", alignItems:"flex-end", gap:10, marginBottom:10 }}>
-              <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:56, color: isGood?T.safe:T.danger, lineHeight:1 }}>{displayVal}</span>
-              <span style={{ fontFamily:F.serif, fontSize:15, color:T.inkM, paddingBottom:8 }}>class{displayVal!==1?"es":""}</span>
+
+            <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+              <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:44, color: isGood?T.safe:T.danger, lineHeight:1 }}>{isGood ? 0 : stats.needToAttend}</span>
+              <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
             </div>
-            <p style={{ fontSize:13, color:T.inkM, lineHeight:1.6 }}>
+
+            <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
               {isGood
-                ? `You can miss ${stats.canMissMore} more ${typeLabels[type].toLowerCase()} class${stats.canMissMore!==1?"es":""} and still hold above ${stats.threshold}%.`
-                : `Attend the next ${stats.needToAttend} ${typeLabels[type].toLowerCase()} class${stats.needToAttend!==1?"es":""} in a row to recover to ${stats.threshold}%.`
+                ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
+                : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[type].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
               }
             </p>
-            {!isGood && (
-              <div style={{ marginTop:12, padding:"10px 14px", borderRadius:12, background:T.dangerFill, display:"flex", alignItems:"center", gap:10 }}>
-                <AlertCircle size={14} color={T.danger} />
-                <span style={{ fontSize:11, color:T.danger, fontWeight:600 }}>Currently at {Math.round(stats.percentage)}% — {Math.round(stats.threshold - stats.percentage)}pp below threshold</span>
-              </div>
-            )}
+
+            <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background: isGood?T.safeFill:T.dangerFill, alignItems:"flex-start" }}>
+              {isGood
+                ? <Check size={15} color={T.safe} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
+                : <AlertCircle size={15} color={T.danger} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
+              }
+              <span style={{ fontFamily:F.sans, fontSize:12.5, fontWeight:600, color: isGood?T.safe:T.danger, lineHeight:1.4 }}>
+                Currently at {Math.round(stats.percentage)}% — {diff}pp {isGood?"above":"below"} threshold
+              </span>
+            </div>
           </div>
         );
       })}
 
       {/* History */}
-      <div style={{ padding:"24px 24px 0" }}>
-        <div style={{ marginBottom:14 }}><Eyebrow>ATTENDANCE HISTORY</Eyebrow></div>
-        {history.length === 0 && <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No records yet.</p>}
+      <div style={{ margin:"26px 24px 0" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:13 }}>
+          <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+          <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Attendance History</span>
+        </div>
+        {history.length === 0 && (
+          <div style={{ padding:20, borderRadius:18, background:T.card, border:`1.5px dashed ${HAIR}`, textAlign:"center" }}>
+            <span style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:14, color:T.inkL }}>No records yet.</span>
+          </div>
+        )}
         {history.map((rec, i) => (
           <div key={rec.id} className={`ae${Math.min(i+1,5)}`} style={{
-            display:"flex", alignItems:"center", gap:14, padding:"14px 16px",
-            background:T.card, borderRadius:17, marginBottom:8,
-            boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.06)`,
+            display:"flex", justifyContent:"space-between", alignItems:"center",
+            background:T.card, borderRadius:17, padding:"14px 16px", marginBottom:9,
+            boxShadow:"0 6px 16px rgba(27,21,48,0.06), 0 1px 3px rgba(27,21,48,0.03)", border:`1px solid ${HAIR}`,
           }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontFamily:F.serif, fontSize:15, color:T.inkH, fontWeight:500, marginBottom:4 }}>
+            <div>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:14.5, color:T.inkH }}>
                 {new Date(rec.date).toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" })}
               </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot?.startTime}</span>
-                {rec.slot?.type && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6, textTransform:"capitalize" }}>{rec.slot.type}</span>}
-                {rec.slot?.room && <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, background:T.aFill, padding:"1px 7px", borderRadius:6 }}>{rec.slot.room}</span>}
-                {rec.tag && <span style={{ fontFamily:F.mono, fontSize:9, color:T.warn, background:T.warnFill, padding:"1px 7px", borderRadius:6 }}>{rec.tag}</span>}
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:5, flexWrap:"wrap" }}>
+                {rec.slot?.startTime && <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{rec.slot.startTime}</span>}
+                {rec.slot?.type && <span style={{ padding:"2px 8px", borderRadius:8, background:T.aFill, fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600, textTransform:"uppercase" }}>{rec.slot.type}</span>}
+                {rec.slot?.room && <span style={{ padding:"2px 8px", borderRadius:8, background:T.aFill, fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>{rec.slot.room}</span>}
+                {rec.tag && <span style={{ padding:"2px 8px", borderRadius:8, background:T.warnFill, fontFamily:F.mono, fontSize:8.5, color:T.warn, fontWeight:600 }}>{rec.tag}</span>}
               </div>
               {rec.note && <p style={{ fontSize:12, color:T.inkM, fontStyle:"italic", marginTop:5, lineHeight:1.45 }}>{rec.note}</p>}
             </div>
@@ -2072,7 +2179,7 @@ function CalendarScreen() {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 7 — SEMESTER MANAGEMENT
 // ════════════════════════════════════════════════════════════════
-function SemesterScreen({ onStartNew }: { onStartNew: () => void }) {
+function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [expand,  setExpand]  = useState<number|null>(null);
   const [current, setCurrent] = useState<{semester:any; overall:any; subjectCount:number}|null>(null);
@@ -2121,54 +2228,73 @@ function SemesterScreen({ onStartNew }: { onStartNew: () => void }) {
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
-      <div style={{ padding:"56px 24px 24px" }}>
-        <div style={{ marginBottom:8 }}><Eyebrow>SEMESTER MANAGEMENT</Eyebrow></div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
+        <button onClick={onBack} style={{
+          width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
+          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+          boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
+        }}>
+          <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
+        </button>
+        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+      </div>
+      <div style={{ padding:"18px 24px 20px" }}>
+        <div style={{ marginBottom:9 }}><Eyebrow>SEMESTER MANAGEMENT</Eyebrow></div>
         <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Semesters</h2>
       </div>
 
       {current && (
         <div style={{ margin:"0 24px 28px" }}>
           <div style={{
-            background:`linear-gradient(150deg, ${T.accent} 0%, #8B6FBB 100%)`,
-            borderRadius:28, padding:"28px 24px",
-            boxShadow:`0 12px 40px rgba(110,79,145,0.44), 0 4px 12px rgba(110,79,145,0.22)`,
+            background:"linear-gradient(160deg,#8A66B4 0%,#5A3D78 60%,#3C2757 100%)",
+            borderRadius:26, padding:"24px 22px",
+            boxShadow:"0 20px 44px rgba(58,38,80,0.4), 0 6px 16px rgba(58,38,80,0.22), inset 0 1px 0 rgba(255,255,255,0.15)",
             position:"relative", overflow:"hidden",
           }}>
-            <div style={{ position:"absolute", top:-24, right:-24, width:100, height:100, borderRadius:"50%", background:"rgba(255,255,255,0.1)", pointerEvents:"none" }} />
-            <div style={{ position:"absolute", bottom:-20, left:-12, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.06)", pointerEvents:"none" }} />
+            <div style={{ position:"absolute", top:-40, right:-40, width:150, height:150, borderRadius:"50%", background:"rgba(255,255,255,0.08)", pointerEvents:"none" }} />
 
             <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", position:"relative" }}>
               <div>
-                <Eyebrow><span style={{ color:"rgba(255,255,255,0.62)", fontFamily:F.mono }}>CURRENT</span></Eyebrow>
-                <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:28, color:"#fff", marginTop:8, marginBottom:5 }}>{current.semester.name}</h3>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9 }}>
+                  <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+                  <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(255,255,255,0.7)", fontWeight:500 }}>Current</span>
+                </div>
+                <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:25, color:"#fff", lineHeight:1.1, letterSpacing:"-0.01em", margin:0 }}>{current.semester.name}</h3>
               </div>
-              <Seal pct={Math.round(current.overall.percentage)} size={68} animate label="" />
+              <Seal pct={Math.round(current.overall.percentage)} size={64} animate label="" />
             </div>
 
-            <div style={{ display:"flex", gap:8, marginTop:22 }}>
+            <div style={{ display:"flex", gap:9, marginTop:20, position:"relative" }}>
               {[{l:"Subjects",v:current.subjectCount},{l:"Attended",v:current.overall.attended},{l:"Total",v:current.overall.held}].map(item => (
-                <div key={item.l} style={{ flex:1, background:"rgba(255,255,255,0.16)", borderRadius:15, padding:"12px 8px", textAlign:"center" }}>
-                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:22, color:"#fff" }}>{item.v}</div>
-                  <div style={{ fontFamily:F.mono, fontSize:8, color:"rgba(255,255,255,0.62)", textTransform:"uppercase", letterSpacing:"0.1em", marginTop:3 }}>{item.l}</div>
+                <div key={item.l} style={{ flex:1, background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.14)", borderRadius:15, padding:"12px 8px", textAlign:"center" }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:"#fff" }}>{item.v}</div>
+                  <div style={{ fontFamily:F.mono, fontSize:8, color:"rgba(255,255,255,0.65)", textTransform:"uppercase", letterSpacing:"0.07em", marginTop:4, fontWeight:500 }}>{item.l}</div>
                 </div>
               ))}
             </div>
 
             <button onClick={() => setConfirm(true)} style={{
-              marginTop:20, width:"100%", padding:"14px", borderRadius:16, border:"none",
-              background:"rgba(255,255,255,0.2)", color:"#fff",
-              fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+              marginTop:14, width:"100%", padding:13, borderRadius:15, border:"1px solid rgba(255,255,255,0.18)",
+              background:"rgba(255,255,255,0.14)", color:"#fff",
+              fontFamily:F.sans, fontSize:13, fontWeight:700, cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8, position:"relative",
             }}>
-              <Archive size={16} /> Archive & Start New Semester
+              <Archive size={14} /> Archive & start new semester
             </button>
           </div>
         </div>
       )}
 
       <div style={{ padding:"0 24px" }}>
-        <div style={{ marginBottom:14 }}><Eyebrow>ARCHIVED SEMESTERS</Eyebrow></div>
-        {archived.length === 0 && <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No archived semesters yet.</p>}
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14 }}>
+          <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
+          <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>Archived Semesters</span>
+        </div>
+        {archived.length === 0 && (
+          <div style={{ padding:20, borderRadius:18, background:T.card, border:`1.5px dashed ${HAIR}`, textAlign:"center" }}>
+            <span style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:14, color:T.inkL }}>No archived semesters yet.</span>
+          </div>
+        )}
         {archived.map((sem,i) => {
           const stats = expandStats[sem.id];
           return (
@@ -2302,11 +2428,18 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:60 }}>
-      <div style={{ padding:"56px 24px 20px" }}>
-        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:6, color:T.accent, marginBottom:20, padding:0, fontFamily:F.sans, fontSize:14, fontWeight:500 }}>
-          <ChevronLeft size={17} /> Back
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
+        <button onClick={onBack} style={{
+          width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
+          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+          boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
+        }}>
+          <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <div style={{ marginBottom:8 }}><Eyebrow>SUBJECTS & TIMETABLE</Eyebrow></div>
+        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+      </div>
+      <div style={{ padding:"18px 24px 20px" }}>
+        <div style={{ marginBottom:9 }}><Eyebrow>SUBJECTS & TIMETABLE</Eyebrow></div>
         <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Edit Timetable</h2>
       </div>
 
@@ -3054,7 +3187,10 @@ export default function App() {
           )}
           {screen==="calendar"  && <CalendarScreen />}
           {screen==="semester"  && (
-            <SemesterScreen onStartNew={() => { setSkipOnboardIntro(true); setScreen("onboarding"); setTab("home"); }} />
+            <SemesterScreen
+              onStartNew={() => { setSkipOnboardIntro(true); setScreen("onboarding"); setTab("home"); }}
+              onBack={() => setScreen("settings")}
+            />
           )}
           {screen==="settings"  && (
             <SettingsScreen
