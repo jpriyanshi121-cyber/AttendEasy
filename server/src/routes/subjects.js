@@ -34,6 +34,9 @@ router.post(
     body("semesterId").isString().notEmpty(),
     body("name").trim().isLength({ min: 1 }).withMessage("Subject name is required"),
     body("color").optional().isString(),
+    body("hasLecture").optional().isBoolean(),
+    body("hasTutorial").optional().isBoolean(),
+    body("hasPractical").optional().isBoolean(),
     body("thresholdLecture").optional().isInt({ min: 0, max: 100 }),
     body("thresholdTutorial").optional().isInt({ min: 0, max: 100 }),
     body("thresholdPractical").optional().isInt({ min: 0, max: 100 }),
@@ -41,6 +44,13 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    const hasLecture = req.body.hasLecture ?? true;
+    const hasTutorial = req.body.hasTutorial ?? false;
+    const hasPractical = req.body.hasPractical ?? false;
+    if (!hasLecture && !hasTutorial && !hasPractical) {
+      return res.status(400).json({ error: "Select at least one class type." });
+    }
 
     const semester = await getOwnedSemester(req.body.semesterId, req.userId);
     if (!semester) return res.status(404).json({ error: "Semester not found" });
@@ -51,6 +61,9 @@ router.post(
         name: req.body.name,
         code: req.body.code || null,
         color: req.body.color || "#6366f1",
+        hasLecture,
+        hasTutorial,
+        hasPractical,
         thresholdLecture: req.body.thresholdLecture || 75,
         thresholdTutorial: req.body.thresholdTutorial || 75,
         thresholdPractical: req.body.thresholdPractical || 75,

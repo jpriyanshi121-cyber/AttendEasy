@@ -59,6 +59,9 @@ model Subject {
   code               String?
   color              String     @default("#6366f1")
   icon               String?
+  hasLecture         Boolean    @default(true)
+  hasTutorial        Boolean    @default(false)
+  hasPractical       Boolean    @default(false)
   thresholdLecture   Int        @default(75)
   thresholdTutorial  Int        @default(75)
   thresholdPractical Int        @default(75)

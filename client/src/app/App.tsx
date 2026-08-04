@@ -300,7 +300,7 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
   const [pulse, setPulse] = useState(false);
 
   const [semesterId, setSemesterId] = useState<string|null>(null);
-  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; hasLecture:boolean; hasTutorial:boolean; hasPractical:boolean; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -343,6 +343,9 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
         semesterId,
         name: newName.trim(),
         color,
+        hasLecture: true,
+        hasTutorial: true,
+        hasPractical: true,
         thresholdLecture: parseInt(newThresholdLecture, 10) || 75,
         thresholdTutorial: parseInt(newThresholdTutorial, 10) || 75,
         thresholdPractical: parseInt(newThresholdPractical, 10) || 75,
@@ -537,7 +540,7 @@ type ClassType = typeof TYPE_ORDER[number];
 function timeToMin(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
 function SubjectSlotRow({ subject, index, semesterId }: {
-  subject: {id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
+  subject: {id:string; name:string; color:string; hasLecture:boolean; hasTutorial:boolean; hasPractical:boolean; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
   index: number;
   semesterId: string;
 }) {
@@ -559,19 +562,25 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   const [allSlots, setAllSlots] = useState<{id:string; subjectId:string; day:number; startTime:string; endTime:string; room:string|null; prof?:string|null; type?:string; isExtra?:boolean; subject?:{name:string}}[]>([]);
   const slots = allSlots.filter(s => s.subjectId === subject.id && !s.isExtra);
 
-  // Which class types this subject actually has slots for — thresholds and
-  // the add/edit form should only ever surface those, never an empty type.
+  // Which class types this subject was configured for at creation — used as
+  // the fallback before any slots exist yet, so a subject created with just
+  // Lecture + Practical never shows a Tutorial field it was never given.
+  const configuredTypes: ClassType[] = TYPE_ORDER.filter(t =>
+    t === "lecture" ? subject.hasLecture : t === "tutorial" ? subject.hasTutorial : subject.hasPractical
+  );
+  // Which class types this subject actually has slots for — once slots
+  // exist, they're the source of truth (a slot could only be created for
+  // a configured type in the first place).
   const presentTypes: ClassType[] = TYPE_ORDER.filter(t => slots.some(s => (s.type || "lecture") === t));
-  const visibleTypes: ClassType[] = presentTypes.length ? presentTypes : ["lecture"];
-  // Type field options: restricted to the subject's existing class types.
-  // A brand-new subject with no slots yet hasn't established a type, so all
-  // three stay open for its first slot.
-  const typeOptions: ClassType[] = presentTypes.length ? presentTypes : [...TYPE_ORDER];
+  // Everywhere the UI needs to know "this subject's types" — threshold
+  // display and the add/edit slot Type field — uses the same list.
+  const visibleTypes: ClassType[] = presentTypes.length ? presentTypes : (configuredTypes.length ? configuredTypes : ["lecture"]);
+  const typeOptions: ClassType[] = visibleTypes;
 
-  const [classType, setClassType] = useState<ClassType>("lecture");
-  const [day, setDay] = useState("0");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
+  const [classType, setClassType] = useState<ClassType | "">("");
+  const [day, setDay] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [room, setRoom] = useState("");
   const [prof, setProf] = useState("");
   const [loading, setLoading] = useState(false);
@@ -588,12 +597,14 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   }, [semesterId]);
 
   function resetForm() {
-    setClassType("lecture"); setDay("0"); setStartTime("09:00"); setEndTime("10:00");
+    setClassType(""); setDay(""); setStartTime(""); setEndTime("");
     setRoom(""); setProf(""); setEditingSlotId(null); setFormError(null);
   }
 
   function openAddForm() {
     resetForm();
+    // Only skip the choice when there's truly nothing to choose from —
+    // every other field is left blank for the user to fill in intentionally.
     if (typeOptions.length === 1) setClassType(typeOptions[0]);
     setAdding(true);
   }
@@ -624,7 +635,9 @@ function SubjectSlotRow({ subject, index, semesterId }: {
 
   async function saveSlot() {
     setFormError(null);
-    if (!startTime || !endTime) { setFormError("Start and end time are required."); return; }
+    if (!classType) { setFormError("Please select a class type."); return; }
+    if (day === "") { setFormError("Please select a day."); return; }
+    if (!startTime || !endTime) { setFormError("Please set a start and end time."); return; }
     if (timeToMin(endTime) <= timeToMin(startTime)) { setFormError("End time must be after start time."); return; }
     const conflict = findConflict(day, startTime, endTime, editingSlotId);
     if (conflict) {
@@ -719,8 +732,13 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     }}>
       {/* subject header */}
       <div style={{ display:"flex", alignItems:"flex-start", gap:13 }}>
-        <div style={{ width:44, height:44, borderRadius:13, background:T.aFill, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <Icon name="BookOpen" size={19} color={subject.color} />
+        <div style={{
+          width:44, height:44, borderRadius:13, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
+          background:`${subject.color}1F`, border:`1px solid ${subject.color}33`,
+        }}>
+          <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:16, color:subject.color, letterSpacing:"-0.02em" }}>
+            {subject.name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?"}
+          </span>
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -828,7 +846,8 @@ function SubjectSlotRow({ subject, index, semesterId }: {
                 <label style={fieldLabelStyle}>Type</label>
                 {typeOptions.length > 1 ? (
                   <div style={{ position:"relative" }}>
-                    <select value={classType} onChange={e => setClassType(e.target.value as ClassType)} style={selectStyle}>
+                    <select value={classType} onChange={e => setClassType(e.target.value as ClassType)} style={{ ...selectStyle, color: classType ? T.inkH : T.inkL }}>
+                      <option value="" disabled>Select Type</option>
                       {typeOptions.map(t => (
                         <option key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</option>
                       ))}
@@ -844,7 +863,8 @@ function SubjectSlotRow({ subject, index, semesterId }: {
               <div style={{ flex:1 }}>
                 <label style={fieldLabelStyle}>Day</label>
                 <div style={{ position:"relative" }}>
-                  <select value={day} onChange={e => setDay(e.target.value)} style={selectStyle}>
+                  <select value={day} onChange={e => setDay(e.target.value)} style={{ ...selectStyle, color: day !== "" ? T.inkH : T.inkL }}>
+                    <option value="" disabled>Select Day</option>
                     {DAYS_FULL.map((d,i) => <option key={i} value={i}>{d}</option>)}
                   </select>
                   <ChevronDown size={13} color={T.inkM} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
@@ -854,12 +874,12 @@ function SubjectSlotRow({ subject, index, semesterId }: {
 
             <div style={{ display:"flex", gap:9, marginBottom:11 }}>
               <div style={{ flex:1 }}>
-                <label style={fieldLabelStyle}>Starts</label>
-                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+                <label style={fieldLabelStyle}>Start Time</label>
+                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...inputStyle, color: startTime ? T.inkH : T.inkL }} />
               </div>
               <div style={{ flex:1 }}>
-                <label style={fieldLabelStyle}>Ends</label>
-                <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
+                <label style={fieldLabelStyle}>End Time</label>
+                <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...inputStyle, color: endTime ? T.inkH : T.inkL }} />
               </div>
             </div>
 
@@ -2802,11 +2822,13 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
 
 function EditTimetableScreen({ onBack }: { onBack: () => void }) {
   const [semesterId, setSemesterId] = useState<string|null>(null);
-  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
+  const [subjects, setSubjects] = useState<{id:string; name:string; color:string; hasLecture:boolean; hasTutorial:boolean; hasPractical:boolean; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number}[]>([]);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newThreshold, setNewThreshold] = useState("75");
+  const [newTypes, setNewTypes] = useState<Record<ClassType, boolean>>({ lecture:false, tutorial:false, practical:false });
+  const [newThresholds, setNewThresholds] = useState<Record<ClassType, string>>({ lecture:"75", tutorial:"75", practical:"75" });
   const [loading, setLoading] = useState(false);
+  const [addError, setAddError] = useState<string|null>(null);
   const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
 
   async function load() {
@@ -2820,26 +2842,52 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 
   useEffect(() => { load(); }, []);
 
+  function resetAddForm() {
+    setNewName("");
+    setNewTypes({ lecture:false, tutorial:false, practical:false });
+    setNewThresholds({ lecture:"75", tutorial:"75", practical:"75" });
+    setAddError(null);
+  }
+
   async function addSubject() {
-    if (!newName.trim() || !semesterId) return;
+    setAddError(null);
+    if (!newName.trim() || !semesterId) { setAddError("Subject name is required."); return; }
+    const selected = TYPE_ORDER.filter(t => newTypes[t]);
+    if (!selected.length) { setAddError("Select at least one class type."); return; }
+    for (const t of selected) {
+      const raw = newThresholds[t].trim();
+      const n = parseInt(raw, 10);
+      if (raw === "" || isNaN(n) || n < 0 || n > 100) {
+        setAddError(`${t[0].toUpperCase()+t.slice(1)} threshold must be between 0–100%.`);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const color = PALETTE[subjects.length % PALETTE.length];
-      const { subject } = await api.post("/subjects", {
+      const body: any = {
         semesterId, name: newName.trim(), color,
-        threshold: parseInt(newThreshold, 10) || 75,
-      });
+        hasLecture: selected.includes("lecture"),
+        hasTutorial: selected.includes("tutorial"),
+        hasPractical: selected.includes("practical"),
+      };
+      if (selected.includes("lecture"))   body.thresholdLecture   = parseInt(newThresholds.lecture, 10);
+      if (selected.includes("tutorial"))  body.thresholdTutorial  = parseInt(newThresholds.tutorial, 10);
+      if (selected.includes("practical")) body.thresholdPractical = parseInt(newThresholds.practical, 10);
+
+      const { subject } = await api.post("/subjects", body);
       setSubjects(prev => [...prev, subject]);
-      setNewName(""); setNewThreshold("75"); setAdding(false);
-    } catch (e) {
-      console.error(e);
+      resetAddForm();
+      setAdding(false);
+    } catch (e: any) {
+      setAddError(e.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:60 }}>
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
         <button onClick={onBack} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
@@ -2861,21 +2909,65 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
         ))}
 
         {adding ? (
-          <div style={{ padding:"16px", borderRadius:18, marginBottom:10, background:T.card, boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
+          <div style={{ padding:"18px", borderRadius:18, marginBottom:10, background:T.card, boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
             <input
               value={newName} onChange={e => setNewName(e.target.value)} placeholder="Subject name"
-              style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+              style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:14, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
             />
-            <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12 }}>
-              <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Threshold %</span>
-              <input
-                value={newThreshold} onChange={e => setNewThreshold(e.target.value.replace(/\D/g, ""))}
-                style={{ width:60, padding:"8px 10px", borderRadius:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center" }}
-              />
+
+            <div style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, fontWeight:500, marginBottom:9, paddingLeft:2 }}>
+              Class types
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={() => setAdding(false)} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-              <button onClick={addSubject} disabled={loading} style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:6 }}>
+              {TYPE_ORDER.map(t => {
+                const checked = newTypes[t];
+                return (
+                  <div key={t} style={{
+                    borderRadius:13, border:`1.5px solid ${checked ? "rgba(110,79,145,0.3)" : HAIR}`,
+                    background: checked ? T.aFill : T.bg, padding:"11px 13px", transition:"background 0.15s",
+                  }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+                      <input
+                        type="checkbox" checked={checked}
+                        onChange={e => setNewTypes(prev => ({ ...prev, [t]: e.target.checked }))}
+                        style={{ width:17, height:17, accentColor:T.accent, cursor:"pointer", flexShrink:0 }}
+                      />
+                      <span style={{ fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.inkH }}>{t[0].toUpperCase()+t.slice(1)}</span>
+                    </label>
+                    {checked && (
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:9, paddingLeft:27 }}>
+                        <span style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM }}>Threshold</span>
+                        <input
+                          value={newThresholds[t]}
+                          onChange={e => setNewThresholds(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
+                          style={{ width:52, padding:"6px 8px", borderRadius:9, border:`1.5px solid rgba(110,79,145,0.25)`, background:"#fff", fontFamily:F.sans, fontSize:12.5, color:T.inkH, outline:"none", textAlign:"center" }}
+                        />
+                        <span style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM }}>%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {addError && (
+              <div style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"10px 12px", borderRadius:12, background:T.dangerFill, marginTop:10 }}>
+                <AlertTriangle size={13} color={T.danger} style={{ flexShrink:0, marginTop:1 }} />
+                <span style={{ fontFamily:F.sans, fontSize:12, color:T.danger, fontWeight:600, lineHeight:1.4 }}>{addError}</span>
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:9, marginTop:16 }}>
+              <button onClick={() => { resetAddForm(); setAdding(false); }} style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={addSubject} disabled={loading} style={{
+                flex:1.6, padding:13, borderRadius:13, border:"none",
+                background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
+                boxShadow:"0 10px 22px rgba(94,63,138,0.36), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
                 {loading ? "Saving..." : "Save"}
               </button>
             </div>
