@@ -727,105 +727,113 @@ function SubjectSlotRow({ subject, index, semesterId }: {
 
   return (
     <div className={`ae${Math.min(index+1,5)}`} style={{
-      padding:20, borderRadius:22, marginBottom:14, background:T.card,
+      position:"relative", padding:"18px 20px 20px", borderRadius:22, marginBottom:14, background:T.card,
       boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}`,
+      overflow:"hidden",
     }}>
-      {/* subject header */}
-      <div style={{ display:"flex", alignItems:"flex-start", gap:13 }}>
+      {/* per-subject accent strip — keeps each card visually distinct without touching subject.color logic */}
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:subject.color, opacity:0.55 }} />
+
+      {/* subject header — name leads, avatar is a small identity mark, edit sits inline */}
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         <div style={{
-          width:44, height:44, borderRadius:13, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
-          background:`${subject.color}1F`, border:`1px solid ${subject.color}33`,
+          width:30, height:30, borderRadius:9, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
+          background:`${subject.color}17`, border:`1px solid ${subject.color}2E`,
         }}>
-          <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:16, color:subject.color, letterSpacing:"-0.02em" }}>
+          <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:11.5, color:subject.color, letterSpacing:"-0.02em" }}>
             {subject.name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?"}
           </span>
         </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH }}>{subject.name}</div>
-            <button
-              onClick={() => { setEditingThreshold(v => !v); setThresholdError(null); }}
-              style={{ width:26, height:26, borderRadius:8, background:T.aFill, border:"none", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}
-            >
-              <Edit2 size={12} color={T.accent} />
-            </button>
-          </div>
-
-          {editingThreshold ? (
-            <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:9 }}>
-              {/* only the class types this subject actually runs get a threshold field */}
-              {visibleTypes.map(t => (
-                <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
-                  <input
-                    value={thresholdInputs[t]}
-                    onChange={e => setThresholdInputs(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
-                    style={{ width:40, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
-                  />
-                  <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
-                </div>
-              ))}
-              {thresholdError && (
-                <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:2 }}>
-                  <AlertTriangle size={10} color={T.danger} />
-                  <span style={{ fontFamily:F.sans, fontSize:10, color:T.danger, fontWeight:600 }}>{thresholdError}</span>
-                </div>
-              )}
-              <div style={{ display:"flex", gap:10, marginTop:2 }}>
-                <button onClick={saveThresholds} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
-                <button onClick={() => { setEditingThreshold(false); setThresholdError(null); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display:"flex", gap:6, marginTop:9, flexWrap:"wrap" }}>
-              {/* only the class types that exist for this subject are shown — no empty Tutorial/Practical badges */}
-              {visibleTypes.map(t => (
-                <div key={t} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.bg, border:`1px solid ${HAIR}` }}>
-                  <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.inkM, fontWeight:600 }}>{t[0].toUpperCase()}</span>
-                  <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkH, fontWeight:700 }}>{thresholds[t]}%</span>
-                </div>
-              ))}
-              {/* per-type slot counts — "2 Lecture slots" instead of an ambiguous combined total,
-                  since a subject can run Lecture + Tutorial + Practical as separate tracks */}
-              {presentTypes.map(t => {
-                const count = slots.filter(s => (s.type || "lecture") === t).length;
-                return (
-                  <div key={t} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:8, background:T.aFill }}>
-                    <span style={{ fontFamily:F.sans, fontSize:10.5, color:T.accent, fontWeight:700 }}>{count}</span>
-                    <span style={{ fontFamily:F.mono, fontSize:8.5, color:T.accent, fontWeight:600 }}>
-                      {t[0].toUpperCase()+t.slice(1)} slot{count !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19.5, color:T.inkH, letterSpacing:"-0.01em", flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {subject.name}
         </div>
+        <button
+          onClick={() => { setEditingThreshold(v => !v); setThresholdError(null); }}
+          style={{ width:26, height:26, borderRadius:8, background:T.aFill, border:"none", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}
+        >
+          <Edit2 size={12} color={T.accent} />
+        </button>
       </div>
 
-      {/* slots grid — tap a slot to edit it, the + tile always starts a fresh one */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:16 }}>
+      {/* thresholds + slot counts — one aligned row directly under the name, avatar-width indented */}
+      <div style={{ marginLeft:40 }}>
+        {editingThreshold ? (
+          <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:10 }}>
+            {/* only the class types this subject actually runs get a threshold field */}
+            {visibleTypes.map(t => (
+              <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
+                <input
+                  value={thresholdInputs[t]}
+                  onChange={e => setThresholdInputs(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
+                  style={{ width:40, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
+                />
+                <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
+              </div>
+            ))}
+            {thresholdError && (
+              <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:2 }}>
+                <AlertTriangle size={10} color={T.danger} />
+                <span style={{ fontFamily:F.sans, fontSize:10, color:T.danger, fontWeight:600 }}>{thresholdError}</span>
+              </div>
+            )}
+            <div style={{ display:"flex", gap:10, marginTop:2 }}>
+              <button onClick={saveThresholds} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
+              <button onClick={() => { setEditingThreshold(false); setThresholdError(null); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
+            {/* one pill per type — threshold and slot count merged, so a 3-type subject
+                shows 3 chips instead of 6 near-duplicate ones */}
+            {visibleTypes.map(t => {
+              const count = slots.filter(s => (s.type || "lecture") === t).length;
+              const isPresent = presentTypes.includes(t);
+              return (
+                <div key={t} style={{
+                  display:"flex", alignItems:"center", gap:6, padding:"5px 10px 5px 8px", borderRadius:9,
+                  background:T.bg, border:`1px solid ${HAIR}`,
+                }}>
+                  <div style={{ width:5, height:5, borderRadius:"50%", flexShrink:0, background:TYPE_DOT[t] }} />
+                  <span style={{ fontFamily:F.sans, fontSize:11, color:T.inkH, fontWeight:700 }}>{thresholds[t]}%</span>
+                  <span style={{ width:1, height:10, background:HAIR, flexShrink:0 }} />
+                  <span style={{ fontFamily:F.mono, fontSize:8.5, color: isPresent ? T.accent : T.inkL, fontWeight:600 }}>
+                    {count} {TYPE_TAG[t]}{count !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* slots grid — tap a slot to edit it, the add tile is styled as one of the grid cells */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginTop:14 }}>
         {slots.map(sl => (
           <button
             key={sl.id}
             onClick={() => openEditForm(sl)}
             style={{
-              display:"flex", alignItems:"center", gap:7, padding:"10px 11px", borderRadius:12,
+              display:"flex", alignItems:"center", gap:6, padding:"9px 10px", borderRadius:11,
               background:T.aFill, border: sl.id === editingSlotId ? `1.5px solid ${T.accent}` : "1.5px solid transparent",
               cursor:"pointer", textAlign:"left", font:"inherit",
             }}
           >
-            <div style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, background:TYPE_DOT[sl.type||"lecture"] }} />
-            <span style={{ fontFamily:F.sans, fontSize:11.5, color:T.inkB, fontWeight:600 }}>{DAYS_SHORT[sl.day]} {sl.startTime}</span>
-            <span style={{ marginLeft:"auto", fontFamily:F.mono, fontSize:7.5, color:T.accent, fontWeight:700, opacity:0.7 }}>{TYPE_TAG[sl.type||"lecture"]}</span>
+            <div style={{ width:5, height:5, borderRadius:"50%", flexShrink:0, background:TYPE_DOT[sl.type||"lecture"] }} />
+            <span style={{ fontFamily:F.sans, fontSize:11, color:T.inkB, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{DAYS_SHORT[sl.day]} {sl.startTime}</span>
+            <span style={{ marginLeft:"auto", flexShrink:0, fontFamily:F.mono, fontSize:7.5, color:T.accent, fontWeight:700, opacity:0.7 }}>{TYPE_TAG[sl.type||"lecture"]}</span>
           </button>
         ))}
-        <div
+        <button
           onClick={openAddForm}
-          style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"10px 11px", borderRadius:12, background:"transparent", border:`1.5px dashed ${T.inkL}`, cursor:"pointer" }}
+          style={{
+            display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"9px 10px", borderRadius:11,
+            background:T.bg, border:`1px solid ${HAIR}`, cursor:"pointer", font:"inherit",
+          }}
         >
-          <Plus size={13} color={T.inkL} />
-        </div>
+          <Plus size={12} color={T.accent} />
+          <span style={{ fontFamily:F.sans, fontSize:11, color:T.accent, fontWeight:600 }}>Add slot</span>
+        </button>
       </div>
 
       {/* add / edit slot form — collapsed until opened via a slot card or the + tile */}
