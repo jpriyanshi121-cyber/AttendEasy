@@ -2563,7 +2563,7 @@ function CalendarScreen() {
   const [semesterId, setSemesterId] = useState<string|null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
-  const [days, setDays] = useState<{date:string; color:string; classCount:number; present:number; absent:number}[]>([]);
+  const [days, setDays] = useState<{date:string; color:{bg:string;fg:string}; classCount:number; present:number; absent:number}[]>([]);
   const [allSlots, setAllSlots] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<string|null>(null);
   const [expRecs, setExpRecs] = useState<any[]>([]);
@@ -2644,14 +2644,6 @@ function CalendarScreen() {
   const todayStr = new Date().toISOString().slice(0,10);
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
 
-  function cs(color: string) {
-    if (color === "green")  return { bg:T.safeFill,   fg:T.safe   };
-    if (color === "red")    return { bg:T.dangerFill, fg:T.danger };
-    if (color === "yellow") return { bg:"#F5EBD5",     fg:"#9C7A2E" };
-    if (color === "grey")   return { bg:T.cancelFill, fg:T.inkM   };
-    return { bg:"transparent", fg:T.inkL };
-  }
-
   const expandedClasses = expanded ? slotsForDate(expanded).map(slot => ({
     slot, rec: expRecs.find((r:any) => r.slotId === slot.id) || null,
   })) : [];
@@ -2722,7 +2714,7 @@ function CalendarScreen() {
             const entry = dayMap.get(dateStr);
             const isToday = dateStr === todayStr;
             const isSel = expanded === dateStr;
-            const { bg, fg } = entry ? cs(entry.color) : cs("none");
+            const { bg, fg } = entry ? entry.color : { bg: "transparent", fg: T.inkL };
             return (
               <button key={day}
                 onClick={() => openDay(dateStr)}

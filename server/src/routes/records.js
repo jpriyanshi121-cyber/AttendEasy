@@ -6,6 +6,18 @@ const { getOwnedSemester } = require("../lib/ownership");
 const { computeStats, thresholdForType } = require("../lib/stats");
 const PDFDocument = require("pdfkit");
 
+// Converts a hue (0-360), saturation (%), lightness (%) into a pastel hex
+// color, so the calendar can compute a smooth green→red gradient per day
+// instead of picking from a fixed set of colors.
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (x) => Math.round(255 * x).toString(16).padStart(2, "0");
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+
 const router = express.Router();
 router.use(requireAuth);
 
@@ -13,6 +25,17 @@ function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// Builds a "YYYY-MM-DD" key using the server's LOCAL calendar date —
+// matching how startOfDay() stores records — instead of toISOString(),
+// which converts to UTC first and can land on the wrong day (e.g. IST
+// midnight becomes the previous day in UTC).
+function localDateKey(d) {
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${yr}-${mo}-${da}`;
 }
 
 const VALID_STATUSES = ["present", "absent", "cancelled", "rescheduled"];
@@ -165,7 +188,7 @@ router.get("/calendar", async (req, res) => {
 
   const byDay = new Map();
   for (const r of records) {
-    const key = r.date.toISOString().slice(0, 10);
+    const key = localDateKey(r.date);
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key).push(r);
   }
@@ -173,12 +196,21 @@ router.get("/calendar", async (req, res) => {
   const days = Array.from(byDay.entries()).map(([date, dayRecords]) => {
     const present = dayRecords.filter((r) => r.status === "present").length;
     const absent = dayRecords.filter((r) => r.status === "absent").length;
-    const allCancelled = dayRecords.every((r) => r.status === "cancelled");
+    const held = present + absent; // cancelled classes never affect the ratio
+
     let color;
-    if (allCancelled) color = "grey";
-    else if (absent === 0) color = "green";
-    else if (present === 0) color = "red";
-    else color = "yellow";
+    if (held === 0) {
+      // Every class that day was cancelled.
+      color = { bg: "#EFEDF2", fg: "#8A8194" };
+    } else {
+      const ratio = present / held; // 1 = all present, 0 = all absent
+      // Hue endpoints matched to the app's actual green/red tones (150° and
+      // ~355°) instead of pure spectral 120°/0°, so the gradient stays in
+      // the same soft palette as the rest of the UI instead of looking neon.
+      const hue = -5 + ratio * 155;
+      color = { bg: hslToHex(hue, 40, 92), fg: hslToHex(hue, 42, 38) };
+    }
+
     return { date, color, classCount: dayRecords.length, present, absent };
   });
 
