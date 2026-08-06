@@ -10,12 +10,27 @@ const PDFDocument = require("pdfkit");
 // color, so the calendar can compute a smooth green→red gradient per day
 // instead of picking from a fixed set of colors.
 function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360; // normalize, handles negative hues safely
   s /= 100; l /= 100;
   const k = (n) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
   const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
   const toHex = (x) => Math.round(255 * x).toString(16).padStart(2, "0");
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+
+// Smooth continuous gradient through 3 anchors: green (all present) →
+// yellow (exactly balanced, 50/50) → red (all absent). A pure straight
+// line across the whole range can't hit true yellow at the midpoint
+// without this, since green and red aren't equidistant in hue-degrees.
+function ratioToHue(ratio) {
+  const GREEN = 150, YELLOW = 48, RED = -5;
+  if (ratio >= 0.5) {
+    const t = (ratio - 0.5) / 0.5; // 0 at balanced, 1 at all-present
+    return YELLOW + (GREEN - YELLOW) * t;
+  }
+  const t = ratio / 0.5; // 0 at all-absent, 1 at balanced
+  return RED + (YELLOW - RED) * t;
 }
 
 const router = express.Router();
@@ -204,10 +219,7 @@ router.get("/calendar", async (req, res) => {
       color = { bg: "#EFEDF2", fg: "#8A8194" };
     } else {
       const ratio = present / held; // 1 = all present, 0 = all absent
-      // Hue endpoints matched to the app's actual green/red tones (150° and
-      // ~355°) instead of pure spectral 120°/0°, so the gradient stays in
-      // the same soft palette as the rest of the UI instead of looking neon.
-      const hue = -5 + ratio * 155;
+      const hue = ratioToHue(ratio);
       color = { bg: hslToHex(hue, 40, 92), fg: hslToHex(hue, 42, 38) };
     }
 
