@@ -3,7 +3,7 @@ import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle,
+  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle, LogOut,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -277,15 +277,16 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       onClick={() => onChange(!checked)}
       style={{
-        width:44, height:26, borderRadius:100, border:"none", cursor:"pointer",
-        background: checked ? T.accent : "rgba(110,79,145,0.2)",
+        width:42, height:24, borderRadius:100, border:"none", cursor:"pointer",
+        background: checked ? "linear-gradient(135deg,#8E6BB8,#6E4F91)" : "#E4E0EA",
+        boxShadow: checked ? "0 3px 8px rgba(110,79,145,0.35)" : "none",
         position:"relative", transition:"background 0.2s ease", flexShrink:0, padding:0,
       }}
     >
       <div style={{
-        position:"absolute", top:3, left: checked ? 21 : 3,
+        position:"absolute", top:2, left: checked ? 20 : 2,
         width:20, height:20, borderRadius:"50%", background:"#fff",
-        boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+        boxShadow:"0 2px 5px rgba(27,21,48,0.2)", transition:"left 0.2s cubic-bezier(0.34,1.56,0.64,1)",
       }} />
     </button>
   );
@@ -1047,25 +1048,26 @@ function SubjectSlotRow({ subject, index, semesterId, onRenamed, onDeleted }: {
           <div style={{
             position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
             width:"calc(100% - 48px)", maxWidth:320,
-            background:T.card, borderRadius:22, padding:"22px 20px",
-            boxShadow:S.lg, zIndex:51,
+            background:T.card, borderRadius:24, padding:"26px 24px 22px",
+            boxShadow:"0 30px 70px rgba(15,8,28,0.4), 0 10px 24px rgba(15,8,28,0.2), inset 0 1px 0 #fff",
+            zIndex:51,
           }}>
-            <div style={{ width:38, height:38, borderRadius:12, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:14 }}>
-              <Trash2 size={16} color={T.danger} />
+            <div style={{ width:48, height:48, borderRadius:15, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:"0 8px 18px rgba(176,58,69,0.18)" }}>
+              <Trash2 size={21} color={T.danger} strokeWidth={2} />
             </div>
-            <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH, marginBottom:7 }}>Delete {name}?</h3>
-            <p style={{ fontSize:12.5, color:T.inkM, lineHeight:1.55, marginBottom:20 }}>
-              This will also delete all {slots.length} timetable slot{slots.length !== 1 ? "s" : ""}. This can't be undone.
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:22, color:T.inkH, letterSpacing:"-0.01em", marginBottom:9 }}>Delete {name}?</h3>
+            <p style={{ fontSize:14, color:T.inkM, lineHeight:1.55, marginBottom:22 }}>
+              This will also delete all <b style={{ color:T.inkB, fontWeight:600 }}>{slots.length} timetable slot{slots.length !== 1 ? "s" : ""}</b>. This can't be undone.
             </p>
-            <div style={{ display:"flex", gap:9 }}>
-              <button onClick={() => setConfirmDelete(false)} disabled={deletingSubject} style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setConfirmDelete(false)} disabled={deletingSubject} style={{ flex:1, padding:14, borderRadius:14, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}>
                 Cancel
               </button>
               <button onClick={deleteSubject} disabled={deletingSubject} style={{
-                flex:1, padding:13, borderRadius:13, border:"none",
-                background:T.danger, color:"#fff",
-                fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
-                boxShadow:"0 10px 22px rgba(176,58,69,0.32), inset 0 1px 0 rgba(255,255,255,0.15)",
+                flex:1, padding:14, borderRadius:14, border:"none", cursor:"pointer",
+                background:"linear-gradient(155deg,#C24A57,#B03A45 55%,#7A2530)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:14,
+                boxShadow:"0 14px 28px rgba(176,58,69,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
               }}>
                 {deletingSubject ? "Deleting..." : "Delete"}
               </button>
@@ -2405,6 +2407,77 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
           {OPTS.map(({ s, desc, icon }) => {
             const { text, bg, label } = statusMeta(s);
             const on = sel===s;
+
+            if (s === "rescheduled" && on) {
+              const rInputStyle: React.CSSProperties = {
+                width:"100%", padding:"12px 13px", borderRadius:13, border:"1.5px solid rgba(255,255,255,0.7)",
+                background:"rgba(255,255,255,0.75)", fontFamily:F.sans, fontSize:13.5, color:T.inkH,
+                outline:"none", boxSizing:"border-box", appearance:"none", WebkitAppearance:"none",
+              };
+              const rDateLabel = rDate ? new Date(rDate + "T12:00:00").toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "Pick date";
+              return (
+                <div key={s} style={{
+                  borderRadius:18, padding:16, marginBottom:9,
+                  background:"linear-gradient(155deg,#FBF1DC,#F7EAC8)",
+                  border:"1.5px solid #E8CE8F",
+                  boxShadow:"0 10px 24px rgba(201,162,75,0.18)",
+                  animation:"ae0 0.24s ease both",
+                }}>
+                  <button onClick={() => { setSel(s); setCTag(null); }} style={{
+                    width:"100%", background:"none", border:"none", padding:0, cursor:"pointer",
+                    display:"flex", alignItems:"center", gap:12, textAlign:"left",
+                  }}>
+                    <div style={{ width:38, height:38, borderRadius:12, background:"rgba(255,255,255,0.6)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <RotateCcw size={17} color="#9C7A2E" />
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:"#9C7A2E" }}>Rescheduled</div>
+                      <div style={{ fontFamily:F.sans, fontSize:12, color:"#A6863F", marginTop:2 }}>Moving to another time</div>
+                    </div>
+                    <div style={{ width:24, height:24, borderRadius:"50%", background:"#C9A24B", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 10px rgba(201,162,75,0.4)" }}>
+                      <Check size={12} color="#fff" strokeWidth={3} />
+                    </div>
+                  </button>
+
+                  <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid rgba(201,162,75,0.28)" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                      <span style={{ width:4, height:4, borderRadius:"50%", background:"#9C7A2E", flexShrink:0 }} />
+                      <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.12em", textTransform:"uppercase", color:"#9C7A2E", fontWeight:600 }}>Moving to</span>
+                    </div>
+
+                    <div style={{ display:"flex", gap:9, marginBottom:9 }}>
+                      <div style={{ flex:1, minWidth:0, position:"relative" }}>
+                        <div style={{ ...rInputStyle, display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+                          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{rDateLabel}</span>
+                          <CalendarDays size={14} color="#9C7A2E" style={{ flexShrink:0 }} />
+                        </div>
+                        <input type="date" value={rDate} onChange={e => setRDate(e.target.value)}
+                          style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer" }} />
+                      </div>
+                      <div style={{ flex:0.75, position:"relative" }}>
+                        <div style={{ ...rInputStyle, display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+                          <span>{rStart}</span>
+                          <Clock size={14} color="#9C7A2E" style={{ flexShrink:0 }} />
+                        </div>
+                        <input type="time" value={rStart} onChange={e => setRStart(e.target.value)}
+                          style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer" }} />
+                      </div>
+                      <div style={{ flex:0.75, position:"relative" }}>
+                        <div style={{ ...rInputStyle, display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+                          <span>{rEnd}</span>
+                          <Clock size={14} color="#9C7A2E" style={{ flexShrink:0 }} />
+                        </div>
+                        <input type="time" value={rEnd} onChange={e => setREnd(e.target.value)}
+                          style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer" }} />
+                      </div>
+                    </div>
+
+                    <input placeholder="Room (optional)" value={rRoom} onChange={e => setRRoom(e.target.value)} style={rInputStyle} />
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <button key={s} onClick={() => { setSel(s); setCTag(null); }} style={{
                 width:"100%", padding:"15px 16px", borderRadius:19,
@@ -2457,20 +2530,6 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
             </div>
           )}
 
-          {sel==="rescheduled" && (
-            <div style={{ marginBottom:12, padding:"16px", background:T.warnFill, borderRadius:18, animation:"ae0 0.28s ease both" }}>
-              <div style={{ marginBottom:14 }}>
-                <Eyebrow>MOVING TO</Eyebrow>
-              </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <input type="date" value={rDate} onChange={e => setRDate(e.target.value)} style={fieldStyle} />
-                <input type="time" value={rStart} onChange={e => setRStart(e.target.value)} style={{ ...fieldStyle, width:80 }} />
-                <input type="time" value={rEnd} onChange={e => setREnd(e.target.value)} style={{ ...fieldStyle, width:80 }} />
-              </div>
-              <input placeholder="Room (optional)" value={rRoom} onChange={e => setRRoom(e.target.value)} style={{ ...fieldStyle, width:"100%", marginTop:8, boxSizing:"border-box" }} />
-            </div>
-          )}
-
           <input
             placeholder="Add a note (optional)"
             value={note}
@@ -2483,12 +2542,12 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
             onClick={handleSave}
             style={{
               width:"100%", padding:"17px", borderRadius:20, border:"none",
-              background: sel ? T.accent : "rgba(110,79,145,0.12)",
+              background: sel ? "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)" : "rgba(110,79,145,0.12)",
               color: sel ? "#fff" : T.inkM,
-              fontFamily:F.sans, fontSize:16, fontWeight:600,
+              fontFamily:F.sans, fontSize:16, fontWeight:700,
               cursor: sel ? "pointer" : "not-allowed",
               marginTop:14, marginBottom:10,
-              boxShadow: sel ? S.acc : "none",
+              boxShadow: sel ? "0 14px 28px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
               transition:"all 0.22s ease",
             }}
           >
@@ -3183,6 +3242,7 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePct, setProfilePct] = useState(0);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -3194,7 +3254,7 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
         const active = semesters.find((s:any) => s.isActive) || semesters[0];
         if (active) {
           const { overall } = await api.get(`/records/stats/overview?semesterId=${active.id}`);
-          setProfilePct(Math.round(overall.percentage));
+          setProfilePct(Math.round(overall?.percentage || 0));
         }
       } catch (e) {
         console.error(e);
@@ -3289,57 +3349,66 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
   }, []);
 
   const groups = [
-    { title:"SUBJECTS & TIMETABLE", items:[
-      { I:Edit2,       l:"Subjects & Timetable",   s:"Add subjects, weekly slots & thresholds", c:"#6E4F91", fn:onEditTimetable as (()=>void)|undefined },
-      { I:AlertCircle, l:"Attendance Thresholds",  s:thresholdSummary,             c:"#5A3D78", fn:onEditTimetable },
+    { title:"Subjects & Timetable", items:[
+      { I:Edit2, l:"Subjects & Timetable", s:thresholdSummary === "Loading..." ? "Add subjects, weekly slots & thresholds" : `Thresholds ${thresholdSummary}`, c:T.accent, fn:onEditTimetable as (()=>void)|undefined },
     ]},
-    { title:"DATA & EXPORT", items:[
-      { I:Archive,  l:"Manage Semesters",   s:"View, archive & start new",  c:"#6E4F91", fn:onSemesters },
+    { title:"Data & Export", items:[
+      { I:Archive,  l:"Manage Semesters",   s:"View, archive & start new",  c:T.accent, fn:onSemesters },
       { I:Download, l:"Export PDF Report",  s:"Full attendance report",    c:"#8B6FBB", fn:downloadReport },
-    ]},
-    { title:"ACCOUNT", items:[
-      { I:FileText, l:"Log Out",   s:"Sign out of this device",   c:"#B03A45", fn:onLogout },
     ]},
   ];
 
+  const eyebrow = (text: string) => (
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
+      <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
+      <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase", color:T.accent, fontWeight:500 }}>{text}</span>
+    </div>
+  );
+
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
-      <div style={{ padding:"56px 24px 24px" }}>
-        <div style={{ marginBottom:8 }}><Eyebrow>PREFERENCES</Eyebrow></div>
-        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:27, color:T.inkH }}>Settings</h2>
+      <div style={{ padding:"52px 24px 0" }}>
+        {eyebrow("Preferences")}
+        <h2 style={{ fontFamily:F.serif, fontWeight:600, fontSize:29, color:T.inkH, letterSpacing:"-0.01em", marginBottom:18 }}>Settings</h2>
       </div>
 
       {/* Profile card */}
-      <button onClick={onProfile} style={{ textAlign:"left", cursor:"pointer", margin:"0 24px 26px", background:T.card, borderRadius:22, padding:"18px 20px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.08)`, display:"flex", alignItems:"center", gap:16, boxSizing:"border-box", width:"calc(100% - 48px)" }}>
+      <button onClick={onProfile} style={{
+        textAlign:"left", cursor:"pointer", margin:"0 24px 22px", background:T.card, borderRadius:22,
+        padding:18, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)",
+        border:"1px solid #EFEAF6", display:"flex", alignItems:"center", gap:13,
+        boxSizing:"border-box", width:"calc(100% - 48px)",
+      }}>
         <div style={{
-          width:56, height:56, borderRadius:"50%",
-          background:"linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
-          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-          boxShadow:S.acc,
+          width:50, height:50, borderRadius:"50%", flexShrink:0,
+          background:"radial-gradient(circle at 30% 25%, #A98CD1 0%, #6E4F91 55%, #4A2F6E 100%)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          boxShadow:"0 8px 18px rgba(94,63,138,0.4), inset 0 2px 3px rgba(255,255,255,0.35)",
         }}>
-          <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:"#fff" }}>{profileName ? profileName[0].toUpperCase() : "?"}</span>
+          <span style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:"#fff" }}>{profileName ? profileName[0].toUpperCase() : "?"}</span>
         </div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19, color:T.inkH, marginBottom:3 }}>{profileName || "..."}</div>
-          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.09em" }}>{profileEmail}</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16, color:T.inkH, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{profileName || "..."}</div>
+          <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{profileEmail}</div>
         </div>
         <Seal pct={profilePct} size={50} label="" />
       </button>
-      
+
+      {/* Notifications */}
       <div style={{ padding:"0 24px", marginBottom:22 }}>
-        <div style={{ marginBottom:10 }}><Eyebrow>NOTIFICATIONS</Eyebrow></div>
-        <div style={{ background:T.card, borderRadius:19, boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
-          <div style={{ padding:"15px 18px", display:"flex", alignItems:"center", gap:14, borderBottom:`1px solid rgba(110,79,145,0.06)` }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:15, color:T.inkH, fontWeight:500, marginBottom:2 }}>Class Reminders</div>
-              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>15 min before class</div>
+        {eyebrow("Notifications")}
+        <div style={{ background:T.card, borderRadius:20, boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6", overflow:"hidden" }}>
+          <div style={{ padding:"16px 18px", display:"flex", alignItems:"center", gap:12, justifyContent:"space-between", borderBottom:"1px solid #EFEAF6" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH, lineHeight:1.3 }}>Class Reminders</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:4 }}>15 min before class</div>
             </div>
             <Switch checked={remindersEnabled} onChange={toggleReminders} />
           </div>
-          <div style={{ padding:"15px 18px", display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:15, color:T.inkH, fontWeight:500, marginBottom:2 }}>Low Attendance Alerts</div>
-              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Daily check at 8 AM</div>
+          <div style={{ padding:"16px 18px", display:"flex", alignItems:"center", gap:12, justifyContent:"space-between" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH, lineHeight:1.3 }}>Low Attendance Alerts</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:4 }}>Daily check at 8 AM</div>
             </div>
             <Switch checked={lowAlertsEnabled} onChange={toggleLowAlerts} />
           </div>
@@ -3348,37 +3417,92 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
 
       {groups.map(grp => (
         <div key={grp.title} style={{ padding:"0 24px", marginBottom:22 }}>
-          <div style={{ marginBottom:10 }}><Eyebrow>{grp.title}</Eyebrow></div>
-          <div style={{ background:T.card, borderRadius:19, overflow:"hidden", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)` }}>
+          {eyebrow(grp.title)}
+          <div style={{ background:T.card, borderRadius:20, overflow:"hidden", boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6" }}>
             {grp.items.map((item,idx) => (
               <button key={idx} onClick={item.fn} style={{
-                width:"100%", padding:"15px 18px", border:"none", background:"transparent",
-                display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left",
-                borderBottom: idx<grp.items.length-1 ? `1px solid rgba(110,79,145,0.06)` : "none",
+                width:"100%", padding:"16px 18px", border:"none", background:"transparent",
+                display:"flex", alignItems:"center", gap:13, cursor:"pointer", textAlign:"left",
+                borderBottom: idx<grp.items.length-1 ? "1px solid #EFEAF6" : "none",
                 transition:"background 0.12s ease",
               }}
                 onMouseEnter={e=>(e.currentTarget.style.background="rgba(110,79,145,0.03)")}
                 onMouseLeave={e=>(e.currentTarget.style.background="transparent")}
-                onMouseDown={e=>(e.currentTarget.style.background="rgba(110,79,145,0.07)")}
-                onMouseUp={e=>(e.currentTarget.style.background="rgba(110,79,145,0.03)")}
               >
-                <div style={{ width:38, height:38, borderRadius:11, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <item.I size={16} color={item.c} />
+                <div style={{ width:38, height:38, borderRadius:12, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <item.I size={17} color={item.c} strokeWidth={2} />
                 </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:15, color:T.inkH, fontWeight:500, marginBottom:2 }}>{item.l}</div>
-                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>{item.s}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH }}>{item.l}</div>
+                  <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.s}</div>
                 </div>
-                <ChevronRight size={15} color={T.inkL} />
+                <ChevronRight size={16} color={T.inkL} style={{ flexShrink:0 }} />
               </button>
             ))}
           </div>
         </div>
       ))}
 
+      {/* Account — logout card */}
+      <div style={{ padding:"0 24px", marginBottom:22 }}>
+        {eyebrow("Account")}
+        <div style={{
+          background:"linear-gradient(155deg,#FCF1F2,#FBE7EA)", borderRadius:20, overflow:"hidden",
+          border:"1px solid rgba(176,58,69,0.16)",
+          boxShadow:"0 10px 26px rgba(176,58,69,0.1), 0 2px 8px rgba(176,58,69,0.05)",
+        }}>
+          <button onClick={() => setConfirmLogout(true)} style={{
+            width:"100%", padding:"17px 18px", border:"none", background:"transparent",
+            display:"flex", alignItems:"center", gap:13, cursor:"pointer", textAlign:"left",
+          }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:"#F6DBDF", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 6px 14px rgba(176,58,69,0.16)" }}>
+              <LogOut size={19} color="#A82F3D" strokeWidth={2.2} />
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:"#A82F3D" }}>Log Out</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:"#B85D68", marginTop:3 }}>You'll need to sign in again.</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
       <div style={{ padding:"0 24px 8px", textAlign:"center" }}>
         <p style={{ fontFamily:F.mono, fontSize:10, color:T.inkL, letterSpacing:"0.1em" }}>ATTENDEASY v2.0 · MONSOON 2026</p>
       </div>
+
+      {confirmLogout && (
+        <>
+          <div onClick={() => setConfirmLogout(false)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
+          <div style={{
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            width:"calc(100% - 48px)", maxWidth:300,
+            background:T.card, borderRadius:22, padding:"24px 22px 20px", textAlign:"center",
+            boxShadow:"0 26px 60px rgba(15,8,28,0.38), 0 8px 20px rgba(15,8,28,0.18), inset 0 1px 0 #fff",
+            zIndex:51,
+          }}>
+            <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:15, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 18px rgba(176,58,69,0.18)" }}>
+              <LogOut size={21} color={T.danger} strokeWidth={2.2} />
+            </div>
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:19, color:T.inkH, letterSpacing:"-0.01em", marginBottom:8 }}>Log out of AttendEasy?</h3>
+            <p style={{ fontSize:13, color:T.inkM, lineHeight:1.5, marginBottom:20 }}>
+              You'll need to sign in again to access your subjects and attendance.
+            </p>
+            <div style={{ display:"flex", gap:9 }}>
+              <button onClick={() => setConfirmLogout(false)} style={{ flex:1, padding:13, borderRadius:13, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={onLogout} style={{
+                flex:1, padding:13, borderRadius:13, border:"none", cursor:"pointer",
+                background:"linear-gradient(155deg,#C24A57,#B03A45 55%,#7A2530)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:13.5,
+                boxShadow:"0 12px 24px rgba(176,58,69,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
+                Log Out
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
