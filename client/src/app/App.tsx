@@ -2133,19 +2133,36 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         </div>
       </div>
 
-      {/* Theory / Lab tabs */}
+      {/* Theory / Lab switch — a segmented control, not two separate action buttons:
+          one continuous track with a sliding indicator so it reads as "pick a view",
+          not "trigger something". */}
       {typesPresent.length > 1 && (
-        <div style={{ display:"flex", gap:8, margin:"20px 24px 0" }}>
+        <div style={{
+          position:"relative", display:"flex", margin:"20px 24px 0", height:40,
+          borderRadius:13, background:T.bg, border:`1px solid ${HAIR}`,
+        }}>
+          <motion.div
+            animate={{
+              left: `calc(3px + (100% - 6px) * ${typesPresent.indexOf(activeType) / typesPresent.length})`,
+              width: `calc((100% - 6px) / ${typesPresent.length})`,
+            }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            style={{
+              position:"absolute", top:3, bottom:3, borderRadius:10,
+              background:T.card, boxShadow:S.xs,
+            }}
+          />
           {typesPresent.map(type => {
             const on = activeType === type;
             return (
               <button key={type} onClick={() => setActiveType(type)} style={{
-                flex:1, padding:"10px 0", borderRadius:14, cursor:"pointer",
-                background: on ? T.accent : T.card,
-                boxShadow: on ? S.acc : `0 2px 6px rgba(27,21,48,0.05)`,
-                border: on ? "none" : `1px solid ${HAIR}`,
+                flex:1, position:"relative", zIndex:1, padding:"0", background:"transparent",
+                border:"none", cursor:"pointer",
               }}>
-                <span style={{ fontFamily:F.sans, fontWeight:600, fontSize:13, color: on ? "#fff" : T.inkM }}>
+                <span style={{
+                  fontFamily:F.sans, fontWeight: on ? 700 : 500, fontSize:13,
+                  color: on ? T.inkH : T.inkM, transition:"color 0.2s, font-weight 0.2s",
+                }}>
                   {typeLabels[type]}
                 </span>
               </button>
