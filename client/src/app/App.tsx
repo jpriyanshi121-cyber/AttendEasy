@@ -2311,8 +2311,9 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
 // ════════════════════════════════════════════════════════════════
 // SCREEN 5 — MARK ATTENDANCE SHEET
 // ════════════════════════════════════════════════════════════════
-function AttendanceSheet({ slotId, onClose, onSaved }: {
-  slotId:string|null; onClose:()=>void; onSaved:()=>void;
+function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
+  slotId:string|null; date?:string; initialRecord?: { status:Status; note?:string|null; tag?:string|null } | null;
+  onClose:()=>void; onSaved:()=>void;
 }) {
   const [sel,    setSel]    = useState<Status|null>(null);
   const [cTag,   setCTag]   = useState<string|null>(null);
@@ -2325,9 +2326,16 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
   const [slotInfo, setSlotInfo] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
+  const todayStr = new Date().toISOString().slice(0,10);
+  const targetDate = date || todayStr;
+  const isFutureDate = targetDate > todayStr;
+
   useEffect(() => {
     if (!slotId) return;
-    setSel(null); setCTag(null); setNote(""); setVisible(false);
+    setSel(initialRecord?.status ?? null);
+    setCTag(initialRecord?.tag ? initialRecord.tag.split("_").map(w => w[0].toUpperCase()+w.slice(1)).join(" ") : null);
+    setNote(initialRecord?.note ?? "");
+    setVisible(false);
     setSlotInfo(null);
     requestAnimationFrame(() => setVisible(true));
 
@@ -2335,7 +2343,7 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
       try {
         const { slot } = await api.get(`/slots/${slotId}`);
         setSlotInfo(slot);
-        setRDate(new Date().toISOString().slice(0,10));
+        setRDate(targetDate);
         setRStart(slot.startTime);
         setREnd(slot.endTime);
         setRRoom(slot.room || "");
@@ -2343,17 +2351,20 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
         console.error(e);
       }
     })();
-  }, [slotId]);
+  }, [slotId, date]);
 
   if (!slotId) return null;
 
   const TAGS = ["Holiday","Prof Absent","Exam","Other"];
-  const OPTS: { s:Status; desc:string; icon:React.ReactNode }[] = [
+  const ALL_OPTS: { s:Status; desc:string; icon:React.ReactNode }[] = [
     { s:"present",     desc:"I attended this class",     icon:<Check size={18}/> },
     { s:"absent",      desc:"I missed this class",        icon:<X size={18}/> },
     { s:"cancelled",   desc:"Class was called off",       icon:<Ban size={18}/> },
     { s:"rescheduled", desc:"Moving to another time",     icon:<RotateCcw size={18}/> },
   ];
+  // A class that hasn't happened yet can only be pre-marked as cancelled or
+  // rescheduled — "I attended" / "I missed" don't make sense ahead of time.
+  const OPTS = isFutureDate ? ALL_OPTS.filter(o => o.s === "cancelled" || o.s === "rescheduled") : ALL_OPTS;
 
   async function handleSave() {
     if (!sel || !slotId) return;
@@ -2367,7 +2378,7 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
       }
 
       await api.post("/records/mark", {
-        slotId, date: new Date().toISOString(), status: sel,
+        slotId, date: targetDate, status: sel,
         note: note || undefined,
         tag: sel === "cancelled" && cTag ? cTag.toLowerCase().replace(/\s+/g, "_") : undefined,
       });
@@ -2434,7 +2445,9 @@ function AttendanceSheet({ slotId, onClose, onSaved }: {
           </h3>
           {slotInfo && (
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-              <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>Today · {slotInfo.startTime}–{slotInfo.endTime}</span>
+              <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>
+                {targetDate === todayStr ? "Today" : new Date(targetDate + "T12:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"short" })} · {slotInfo.startTime}–{slotInfo.endTime}
+              </span>
               {slotInfo.room && <span style={{ fontFamily:F.mono, fontSize:10, color:T.accent, background:T.aFill, padding:"2px 9px", borderRadius:7 }}>{slotInfo.room}</span>}
             </div>
           )}
@@ -2615,6 +2628,7 @@ function CalendarScreen() {
   const [expRecs, setExpRecs] = useState<any[]>([]);
   const [expRecsDate, setExpRecsDate] = useState<string|null>(null);
   const [backfillBusy, setBackfillBusy] = useState<string|null>(null);
+  const [sheetSlotId, setSheetSlotId] = useState<string|null>(null);
 
   useEffect(() => {
     (async () => {
@@ -2650,18 +2664,23 @@ function CalendarScreen() {
     setExpRecsDate(dateStr);
   }
 
+  async function refreshDay(dateStr: string) {
+    if (!semesterId) return;
+    const [{ records }, { days: fetched }] = await Promise.all([
+      api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`),
+      api.get(`/records/calendar?semesterId=${semesterId}&year=${year}&month=${month}`),
+    ]);
+    setExpRecs(records);
+    setExpRecsDate(dateStr);
+    setDays(fetched);
+  }
+
   async function backfillMark(slotId: string, status: Status, dateStr: string) {
     if (!semesterId) return;
     setBackfillBusy(slotId);
     try {
       await api.post("/records/mark", { slotId, date: dateStr, status });
-      const [{ records }, { days: fetched }] = await Promise.all([
-        api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`),
-        api.get(`/records/calendar?semesterId=${semesterId}&year=${year}&month=${month}`),
-      ]);
-      setExpRecs(records);
-      setExpRecsDate(dateStr);
-      setDays(fetched);
+      await refreshDay(dateStr);
     } catch (e) {
       console.error(e);
     } finally {
@@ -2823,17 +2842,36 @@ function CalendarScreen() {
                       {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
                     </div>
                   </div>
-                  {rec && (
-                    <span style={{
-                      padding:"5px 12px", borderRadius:100, fontFamily:F.sans, fontWeight:700, fontSize:11,
-                      display:"inline-flex", alignItems:"center", gap:5,
-                      background:statusMeta(rec.status).bg, color:statusMeta(rec.status).text,
-                    }}>
-                      {rec.status==="present" && <Check size={9} strokeWidth={3} />}
-                      {statusMeta(rec.status).label}
-                    </span>
-                  )}
+                  {rec ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <span style={{
+                        padding:"5px 12px", borderRadius:100, fontFamily:F.sans, fontWeight:700, fontSize:11,
+                        display:"inline-flex", alignItems:"center", gap:5,
+                        background:statusMeta(rec.status).bg, color:statusMeta(rec.status).text,
+                      }}>
+                        {rec.status==="present" && <Check size={9} strokeWidth={3} />}
+                        {statusMeta(rec.status).label}
+                      </span>
+                      <button
+                        onClick={() => setSheetSlotId(slot.id)}
+                        title="Edit"
+                        aria-label="Edit"
+                        style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                      ><PenLine size={12.5} strokeWidth={2} /></button>
+                    </div>
+                  ) : canBackfill ? (
+                    <button
+                      onClick={() => setSheetSlotId(slot.id)}
+                      title="Add note"
+                      aria-label="Add note"
+                      style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    ><PenLine size={12.5} strokeWidth={2} /></button>
+                  ) : null}
                 </div>
+
+                {rec?.note && (
+                  <p style={{ fontSize:11.5, color:T.inkM, fontStyle:"italic", margin:"3px 0 0" }}>“{rec.note}”</p>
+                )}
 
                 {!rec && (
                   canBackfill ? (
@@ -2849,24 +2887,24 @@ function CalendarScreen() {
                           return (
                             <button key={s}
                               disabled={backfillBusy===slot.id}
-                              onClick={() => backfillMark(slot.id, s, expanded)}
+                              onClick={() => backfillMark(slot.id, s, expanded!)}
                               style={{
-                                flex:1, padding:"9px 6px", borderRadius:11,
+                                flex:1, padding:"7px 6px", borderRadius:10,
                                 border:`1.5px solid ${text}2e`, background:bg, color:text,
                                 fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
                                 display:"flex", alignItems:"center", justifyContent:"center", gap:4,
                               }}
                             >
-                              {s==="present" ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
+                              {s==="present" ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
                               {label}
                             </button>
                           );
                         })}
                         <button
                           disabled={backfillBusy===slot.id}
-                          onClick={() => backfillMark(slot.id, "cancelled", expanded)}
+                          onClick={() => backfillMark(slot.id, "cancelled", expanded!)}
                           style={{
-                            flex:1, padding:"9px 6px", borderRadius:11,
+                            flex:1, padding:"7px 6px", borderRadius:10,
                             border:"1.5px solid rgba(138,129,148,0.12)", background:T.cancelFill, color:T.inkM,
                             fontFamily:F.sans, fontWeight:600, fontSize:11.5, cursor:"pointer",
                           }}
@@ -2874,7 +2912,12 @@ function CalendarScreen() {
                       </div>
                     </>
                   ) : (
-                    <p style={{ fontSize:12, color:T.inkL, fontStyle:"italic" }}>Upcoming class</p>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <p style={{ fontSize:12, color:T.inkL, fontStyle:"italic", margin:0 }}>Upcoming class</p>
+                      <button onClick={() => setSheetSlotId(slot.id)} style={{ fontFamily:F.sans, fontSize:10.5, fontWeight:600, color:T.accent, background:"none", border:"none", cursor:"pointer" }}>
+                        Plan ahead
+                      </button>
+                    </div>
                   )
                 )}
               </div>
@@ -2882,6 +2925,14 @@ function CalendarScreen() {
           </div>
         )}
       </div>
+
+      <AttendanceSheet
+        slotId={sheetSlotId}
+        date={expanded || undefined}
+        initialRecord={expRecs.find((r:any) => r.slotId === sheetSlotId) || null}
+        onClose={() => setSheetSlotId(null)}
+        onSaved={() => { setSheetSlotId(null); if (expanded) refreshDay(expanded); }}
+      />
     </div>
   );
 }
