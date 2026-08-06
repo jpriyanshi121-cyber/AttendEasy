@@ -151,13 +151,16 @@ router.get("/stats/overview", async (req, res) => {
     where: { semesterId, archived: false },
   });
 
-  const perSubject = await Promise.all(
+  // One card per class-component (Theory/Tutorial/Lab) instead of one
+  // combined card per subject — a subject with both Theory and Lab slots
+  // gets two entries here, each with its own stats/status; a subject with
+  // only one component still gets just one entry.
+  const cardLists = await Promise.all(
     subjects.map(async (subject) => {
       const records = await prisma.attendanceRecord.findMany({
         where: { subjectId: subject.id },
         include: { slot: true },
       });
-      const stats = computeStats(records, 75);
 
       const byType = { lecture: [], tutorial: [], practical: [] };
       for (const r of records) {
@@ -165,18 +168,35 @@ router.get("/stats/overview", async (req, res) => {
         if (byType[t]) byType[t].push(r);
       }
 
-      let status = "green";
-      for (const type of ["lecture", "tutorial", "practical"]) {
-        if (byType[type].length === 0) continue;
-        const threshold = thresholdForType(subject, type);
-        const typeStats = computeStats(byType[type], threshold);
-        if (typeStats.percentage < threshold - 10) { status = "red"; break; }
-        if (typeStats.percentage < threshold) status = "amber";
-      }
+      const existingTypes = await prisma.slot.findMany({
+        where: { subjectId: subject.id },
+        distinct: ["type"],
+        select: { type: true },
+      });
+      const typesWithSlots = existingTypes.map((t) => t.type);
+      // Before any slots exist yet, fall back to whichever components the
+      // subject was configured with at creation, so it still shows a card.
+      const configuredTypes = ["lecture", "tutorial", "practical"].filter((t) =>
+        t === "lecture" ? subject.hasLecture : t === "tutorial" ? subject.hasTutorial : subject.hasPractical
+      );
+      const components = (typesWithSlots.length ? typesWithSlots : configuredTypes).filter((t) =>
+        ["lecture", "tutorial", "practical"].includes(t)
+      );
+      if (components.length === 0) components.push("lecture");
 
-      return { subject, stats, status };
+      return components.map((type) => {
+        const threshold = thresholdForType(subject, type);
+        const stats = computeStats(byType[type], threshold);
+        let status = "green";
+        if (byType[type].length > 0) {
+          if (stats.percentage < threshold - 10) status = "red";
+          else if (stats.percentage < threshold) status = "amber";
+        }
+        return { subject, type, stats, status };
+      });
     })
   );
+  const perSubject = cardLists.flat();
 
   const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
   const overall = computeStats(allRecords, 75);

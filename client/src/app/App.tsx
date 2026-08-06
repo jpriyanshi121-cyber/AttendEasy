@@ -1119,8 +1119,12 @@ function SubjectSlotRow({ subject, index, semesterId, onRenamed, onDeleted }: {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 2 — HOME DASHBOARD
 // ════════════════════════════════════════════════════════════════
+// Same labels used on the Subject Details screen's Theory/Lab toggle, so a
+// card here and the tab it opens always read the same way.
+const HOME_TYPE_LABELS: Record<string,string> = { lecture:"Theory", tutorial:"Tutorial", practical:"Lab" };
+
 function HomeScreen({ onSubject, onMark, refreshKey }: {
-  onSubject:(id:string)=>void;
+  onSubject:(id:string, type?:string)=>void;
   onMark:(slotId:string)=>void;
   refreshKey: number;
 }) {
@@ -1128,7 +1132,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
   const [userName, setUserName] = useState("");
   const [semesterName, setSemesterName] = useState("");
   const [overall, setOverall] = useState<{percentage:number}|null>(null);
-  const [subjectCards, setSubjectCards] = useState<{subject:any; stats:any; status:string}[]>([]);
+  const [subjectCards, setSubjectCards] = useState<{subject:any; type:string; stats:any; status:string}[]>([]);
   const [todayClasses, setTodayClasses] = useState<{slot:any; record:any}[]>([]);
   const [quickBusy, setQuickBusy] = useState<string|null>(null);
 
@@ -1233,14 +1237,15 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
           {subjectCards.length === 0 && (
             <p style={{ fontSize:13, color:T.inkM, fontStyle:"italic" }}>No subjects yet — add some from onboarding.</p>
           )}
-          {subjectCards.map(({ subject, stats, status }, i) => {
+          {subjectCards.map(({ subject, type, stats, status }, i) => {
             const warn = status !== "green";
             const mid  = shadeHex(subject.color, -0.22);
             const dark = shadeHex(subject.color, -0.48);
+            const typeLabel = HOME_TYPE_LABELS[type] || "Theory";
             return (
               <button
-                key={subject.id}
-                onClick={() => onSubject(subject.id)}
+                key={`${subject.id}-${type}`}
+                onClick={() => onSubject(subject.id, type)}
                 className={`ae${Math.min(i+1,5)}`}
                 style={{
                   flexShrink:0, width:136, height:154, padding:16, borderRadius:22, border:"none",
@@ -1268,11 +1273,11 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                     <span style={{ fontSize:12, color:"rgba(255,255,255,0.75)", fontWeight:600 }}>%</span>
                   </div>
                   <div style={{ fontFamily:F.mono, fontSize:9, color:"rgba(255,255,255,0.68)", letterSpacing:"0.08em", textTransform:"uppercase", marginTop:5, position:"relative", zIndex:1 }}>
-                    {subject.name}
+                    {subject.name} <span style={{ color:"rgba(255,255,255,0.5)" }}>•</span> {typeLabel}
                   </div>
                   {warn && (
                     <div style={{ marginTop:8, fontFamily:F.mono, fontSize:9, color:"rgba(255,224,188,1)", background:"rgba(0,0,0,0.24)", padding:"3px 8px", borderRadius:100, display:"inline-block" }}>
-                      Below {subject.threshold}%
+                      Below {stats.threshold}%
                     </div>
                   )}
                 </div>
@@ -2021,8 +2026,8 @@ function Sparkline({ points, color }: { points:number[]; color:string }) {
   );
 }
 
-function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
-  subjectId:string; onBack:()=>void; onMark:(slotId:string)=>void; onEditTimetable:()=>void;
+function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTimetable }: {
+  subjectId:string; initialType?:string|null; onBack:()=>void; onMark:(slotId:string)=>void; onEditTimetable:()=>void;
 }) {
   const [data, setData] = useState<{subject:any; overall:any; breakdown:Record<string,any>}|null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -2041,7 +2046,10 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
         ]);
         setData(statsRes);
         setHistory(recordsRes.records);
-        setActiveType(Object.keys(statsRes.breakdown)[0] || "lecture");
+        // Honor the tab the user tapped from the dashboard (e.g. the "Lab"
+        // card), falling back to the first available component otherwise.
+        const preselect = initialType && statsRes.breakdown[initialType] ? initialType : null;
+        setActiveType(preselect || Object.keys(statsRes.breakdown)[0] || "lecture");
 
         const active = semRes.semesters.find((s:any) => s.isActive) || semRes.semesters[0];
         if (active) {
@@ -3866,6 +3874,7 @@ export default function App() {
   const [screen,  setScreen]  = useState<Screen>("onboarding");
   const [tab,     setTab]     = useState<TabId>("home");
   const [subjId,  setSubjId]  = useState<string|null>(null);
+  const [subjInitialType, setSubjInitialType] = useState<string|null>(null);
   const [markSlot,setMarkSlot]= useState<string|null>(null);
   const [homeRefresh, setHomeRefresh] = useState(0);
   const [skipOnboardIntro, setSkipOnboardIntro] = useState(false);
@@ -4027,7 +4036,7 @@ export default function App() {
           {screen==="home" && (
             <HomeScreen
               refreshKey={homeRefresh}
-              onSubject={id => { setSubjId(id); setScreen("subject"); }}
+              onSubject={(id, type) => { setSubjId(id); setSubjInitialType(type ?? null); setScreen("subject"); }}
               onMark={id => setMarkSlot(id)}
             />
           )}
@@ -4042,7 +4051,8 @@ export default function App() {
           {screen==="subject" && subjId && (
             <SubjectDetailScreen
               subjectId={subjId}
-              onBack={() => { setScreen("home"); setTab("home"); setSubjId(null); }}
+              initialType={subjInitialType}
+              onBack={() => { setScreen("home"); setTab("home"); setSubjId(null); setSubjInitialType(null); }}
               onMark={id => setMarkSlot(id)}
               onEditTimetable={() => setScreen("edit-timetable")}
             />
