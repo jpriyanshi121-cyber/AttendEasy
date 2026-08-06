@@ -2111,15 +2111,36 @@ function SubjectDetailScreen({ subjectId, onBack, onMark, onEditTimetable }: {
 
       <div style={{ padding:"18px 24px 0", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
         <div style={{ flex:1, paddingRight:14 }}>
-          <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:T.inkH, letterSpacing:"-0.01em" }}>{subject.name}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:26, color:T.inkH, letterSpacing:"-0.01em" }}>{subject.name}</div>
+            {/* Contextual label — same pill used for "Lab" on the timetable screen,
+                sized up to actually read at a glance, colored with this subject's own
+                dashboard color instead of the generic type color. */}
+            {activeType === "practical" && (
+              <span style={{
+                fontFamily:F.mono, fontSize:11, fontWeight:700, letterSpacing:"0.03em",
+                color:"#fff", background:subject.color, lineHeight:1.5,
+                borderRadius:999, padding:"3px 10px", flexShrink:0, textTransform:"uppercase",
+              }}>
+                Lab
+              </span>
+            )}
+          </div>
           {subject.code && (
             <div style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM, marginTop:3, letterSpacing:"0.04em" }}>{subject.code}</div>
           )}
-          <div style={{ marginTop:9 }}>
-            {scheduleLines.map((line, i) => (
-              <div key={i} style={{ fontFamily:F.mono, fontSize:10.5, color:T.accent, fontWeight:600, marginBottom:3 }}>{line}</div>
-            ))}
-          </div>
+          {/* Timings for the active type only, grouped under the label above as a compact
+              list — one row per distinct slot, rather than one run-on sentence. */}
+          {scheduleLines.length > 0 && (
+            <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:3 }}>
+              {scheduleLines.map((line, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <Clock size={10} color={T.accent} strokeWidth={2.2} style={{ flexShrink:0 }} />
+                  <span style={{ fontFamily:F.mono, fontSize:10.5, color:T.accent, fontWeight:600 }}>{line}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:10 }}>
           <Seal pct={Math.round(stats.percentage)} size={66} animate={true} label={stats.threshold !== 75 ? `${stats.threshold}% min` : "Overall"} flat />
