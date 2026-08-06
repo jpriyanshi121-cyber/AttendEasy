@@ -2567,6 +2567,7 @@ function CalendarScreen() {
   const [allSlots, setAllSlots] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<string|null>(null);
   const [expRecs, setExpRecs] = useState<any[]>([]);
+  const [expRecsDate, setExpRecsDate] = useState<string|null>(null);
   const [backfillBusy, setBackfillBusy] = useState<string|null>(null);
 
   useEffect(() => {
@@ -2596,9 +2597,11 @@ function CalendarScreen() {
   async function openDay(dateStr: string) {
     if (expanded === dateStr) { setExpanded(null); return; }
     setExpanded(dateStr);
+    setExpRecsDate(null); // mark as "loading" so stale records from the previous day don't flash
     if (!semesterId) return;
     const { records } = await api.get(`/records/day?semesterId=${semesterId}&date=${dateStr}`);
     setExpRecs(records);
+    setExpRecsDate(dateStr);
   }
 
   async function backfillMark(slotId: string, status: Status, dateStr: string) {
@@ -2611,6 +2614,7 @@ function CalendarScreen() {
         api.get(`/records/calendar?semesterId=${semesterId}&year=${year}&month=${month}`),
       ]);
       setExpRecs(records);
+      setExpRecsDate(dateStr);
       setDays(fetched);
     } catch (e) {
       console.error(e);
@@ -2644,7 +2648,8 @@ function CalendarScreen() {
   const todayStr = new Date().toISOString().slice(0,10);
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
 
-  const expandedClasses = expanded ? slotsForDate(expanded).map(slot => ({
+  const expLoading = expanded !== null && expRecsDate !== expanded;
+  const expandedClasses = (expanded && !expLoading) ? slotsForDate(expanded).map(slot => ({
     slot, rec: expRecs.find((r:any) => r.slotId === slot.id) || null,
   })) : [];
   const canBackfill = expanded ? expanded <= todayStr : false;
@@ -2756,7 +2761,9 @@ function CalendarScreen() {
               }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
 
-            {expandedClasses.length === 0 ? (
+            {expLoading ? (
+              <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
+            ) : expandedClasses.length === 0 ? (
               <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No classes on this day.</p>
             ) : expandedClasses.map(({ slot, rec }, i) => (
               <div key={slot.id} style={{
