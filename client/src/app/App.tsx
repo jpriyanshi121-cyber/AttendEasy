@@ -539,11 +539,27 @@ type ClassType = typeof TYPE_ORDER[number];
 
 function timeToMin(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
-function SubjectSlotRow({ subject, index, semesterId }: {
+function SubjectSlotRow({ subject, index, semesterId, onRenamed, onDeleted }: {
   subject: {id:string; name:string; color:string; hasLecture:boolean; hasTutorial:boolean; hasPractical:boolean; thresholdLecture:number; thresholdTutorial:number; thresholdPractical:number};
   index: number;
   semesterId: string;
+  onRenamed?: (id: string, name: string) => void;
+  onDeleted?: (id: string) => void;
 }) {
+  const [name, setName] = useState(subject.name);
+  const [nameInput, setNameInput] = useState(subject.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingSubject, setDeletingSubject] = useState(false);
+  // Local mirror of which class types the subject has — lets the Add Slot
+  // Type field pick up a newly added/removed type immediately after Save,
+  // without waiting on the parent list to re-fetch.
+  const [typeFlags, setTypeFlags] = useState({
+    lecture: subject.hasLecture,
+    tutorial: subject.hasTutorial,
+    practical: subject.hasPractical,
+  });
+  const [editTypes, setEditTypes] = useState<Record<ClassType, boolean>>({ ...typeFlags });
+  const [pendingRemoveType, setPendingRemoveType] = useState<ClassType | null>(null);
   const [thresholds, setThresholds] = useState({
     lecture: subject.thresholdLecture,
     tutorial: subject.thresholdTutorial,
@@ -566,7 +582,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
   // the fallback before any slots exist yet, so a subject created with just
   // Lecture + Practical never shows a Tutorial field it was never given.
   const configuredTypes: ClassType[] = TYPE_ORDER.filter(t =>
-    t === "lecture" ? subject.hasLecture : t === "tutorial" ? subject.hasTutorial : subject.hasPractical
+    t === "lecture" ? typeFlags.lecture : t === "tutorial" ? typeFlags.tutorial : typeFlags.practical
   );
   // Which class types this subject actually has slots for — once slots
   // exist, they're the source of truth (a slot could only be created for
@@ -641,7 +657,7 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     if (timeToMin(endTime) <= timeToMin(startTime)) { setFormError("End time must be after start time."); return; }
     const conflict = findConflict(day, startTime, endTime, editingSlotId);
     if (conflict) {
-      const withName = conflict.subject?.name || (conflict.subjectId === subject.id ? subject.name : "another class");
+      const withName = conflict.subject?.name || (conflict.subjectId === subject.id ? name : "another class");
       setFormError(`This time slot conflicts with ${withName} (${conflict.startTime}\u2013${conflict.endTime}). Please choose another time.`);
       return;
     }
@@ -683,10 +699,53 @@ function SubjectSlotRow({ subject, index, semesterId }: {
     }
   }
 
+  async function deleteSubject() {
+    setDeletingSubject(true);
+    try {
+      await api.del(`/subjects/${subject.id}`);
+      onDeleted?.(subject.id);
+    } catch (e: any) {
+      setThresholdError(e.message || "Couldn't delete this subject. Please try again.");
+      setConfirmDelete(false);
+    } finally {
+      setDeletingSubject(false);
+    }
+  }
+
+  // Adding a type is instant — its threshold field just appears. Removing one
+  // that already has slots needs confirmation first, since it deletes them.
+  function toggleType(t: ClassType, checked: boolean) {
+    setThresholdError(null);
+    if (checked) {
+      setEditTypes(prev => ({ ...prev, [t]: true }));
+      return;
+    }
+    const stillChecked = TYPE_ORDER.filter(x => x !== t && editTypes[x]);
+    if (!stillChecked.length) {
+      setThresholdError("A subject needs at least one class type.");
+      return;
+    }
+    const count = slots.filter(s => (s.type || "lecture") === t).length;
+    if (count > 0) {
+      setPendingRemoveType(t);
+    } else {
+      setEditTypes(prev => ({ ...prev, [t]: false }));
+    }
+  }
+
   async function saveThresholds() {
     setThresholdError(null);
+    if (!nameInput.trim()) {
+      setThresholdError("Subject name is required.");
+      return;
+    }
+    const selectedTypes = TYPE_ORDER.filter(t => editTypes[t]);
+    if (!selectedTypes.length) {
+      setThresholdError("Select at least one class type.");
+      return;
+    }
     const parsed: Partial<Record<ClassType, number>> = {};
-    for (const t of visibleTypes) {
+    for (const t of selectedTypes) {
       const raw = thresholdInputs[t].trim();
       const n = parseInt(raw, 10);
       if (raw === "" || isNaN(n) || n < 0 || n > 100) {
@@ -695,16 +754,27 @@ function SubjectSlotRow({ subject, index, semesterId }: {
       }
       parsed[t] = n;
     }
+    const removedTypes = visibleTypes.filter(t => !editTypes[t]);
     try {
       await api.patch(`/subjects/${subject.id}`, {
+        name: nameInput.trim(),
+        hasLecture: editTypes.lecture,
+        hasTutorial: editTypes.tutorial,
+        hasPractical: editTypes.practical,
         thresholdLecture: parsed.lecture ?? thresholds.lecture,
         thresholdTutorial: parsed.tutorial ?? thresholds.tutorial,
         thresholdPractical: parsed.practical ?? thresholds.practical,
       });
+      setName(nameInput.trim());
+      onRenamed?.(subject.id, nameInput.trim());
       setThresholds(prev => ({ ...prev, ...parsed }));
+      setTypeFlags({ ...editTypes });
+      if (removedTypes.length) {
+        setAllSlots(prev => prev.filter(s => !(s.subjectId === subject.id && removedTypes.includes((s.type || "lecture") as ClassType))));
+      }
       setEditingThreshold(false);
     } catch (e: any) {
-      setThresholdError(e.message || "Couldn't save thresholds. Please try again.");
+      setThresholdError(e.message || "Couldn't save changes. Please try again.");
     }
   }
 
@@ -741,14 +811,17 @@ function SubjectSlotRow({ subject, index, semesterId }: {
           background:`${subject.color}17`, border:`1px solid ${subject.color}2E`,
         }}>
           <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:11.5, color:subject.color, letterSpacing:"-0.02em" }}>
-            {subject.name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?"}
+            {name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?"}
           </span>
         </div>
         <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:19.5, color:T.inkH, letterSpacing:"-0.01em", flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-          {subject.name}
+          {name}
         </div>
         <button
-          onClick={() => { setEditingThreshold(v => !v); setThresholdError(null); }}
+          onClick={() => {
+            setEditingThreshold(v => !v); setThresholdError(null); setNameInput(name);
+            setEditTypes({ lecture: visibleTypes.includes("lecture"), tutorial: visibleTypes.includes("tutorial"), practical: visibleTypes.includes("practical") });
+          }}
           style={{ width:26, height:26, borderRadius:8, background:T.aFill, border:"none", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}
         >
           <Edit2 size={12} color={T.accent} />
@@ -759,16 +832,39 @@ function SubjectSlotRow({ subject, index, semesterId }: {
       <div style={{ marginLeft:40 }}>
         {editingThreshold ? (
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:10 }}>
-            {/* only the class types this subject actually runs get a threshold field */}
-            {visibleTypes.map(t => (
+            <div style={{ marginBottom:2 }}>
+              <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.06em" }}>Subject Name</span>
+              <input
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                placeholder="Subject name"
+                style={{ width:"100%", marginTop:5, padding:"7px 9px", borderRadius:8, border:`1.5px solid rgba(110,79,145,0.3)`, fontFamily:F.sans, fontSize:12.5, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+              />
+            </div>
+            {/* class types — check to add (threshold field appears), uncheck to remove
+                (confirms first if that type already has slots) */}
+            <div style={{ marginBottom:2 }}>
+              <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.06em" }}>Class Types</span>
+            </div>
+            {TYPE_ORDER.map(t => (
               <div key={t} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, width:56, textTransform:"capitalize" }}>{t}</span>
                 <input
-                  value={thresholdInputs[t]}
-                  onChange={e => setThresholdInputs(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
-                  style={{ width:40, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
+                  type="checkbox"
+                  checked={editTypes[t]}
+                  onChange={e => toggleType(t, e.target.checked)}
+                  style={{ width:14, height:14, accentColor:T.accent, cursor:"pointer", flexShrink:0 }}
                 />
-                <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
+                <span style={{ fontFamily:F.sans, fontSize:11, color:T.inkH, fontWeight:600, width:56, textTransform:"capitalize" }}>{t}</span>
+                {editTypes[t] && (
+                  <>
+                    <input
+                      value={thresholdInputs[t]}
+                      onChange={e => setThresholdInputs(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
+                      style={{ width:40, padding:"3px 6px", borderRadius:6, border:`1.5px solid rgba(110,79,145,0.3)`, fontSize:11, textAlign:"center" }}
+                    />
+                    <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM }}>%</span>
+                  </>
+                )}
               </div>
             ))}
             {thresholdError && (
@@ -779,8 +875,18 @@ function SubjectSlotRow({ subject, index, semesterId }: {
             )}
             <div style={{ display:"flex", gap:10, marginTop:2 }}>
               <button onClick={saveThresholds} style={{ fontSize:10, color:T.accent, fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Save</button>
-              <button onClick={() => { setEditingThreshold(false); setThresholdError(null); }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
+              <button onClick={() => {
+                setEditingThreshold(false); setThresholdError(null); setNameInput(name);
+                setEditTypes({ lecture: visibleTypes.includes("lecture"), tutorial: visibleTypes.includes("tutorial"), practical: visibleTypes.includes("practical") });
+              }} style={{ fontSize:10, color:T.inkM, background:"none", border:"none", cursor:"pointer" }}>Cancel</button>
             </div>
+            <div style={{ height:1, background:HAIR, margin:"10px 0 2px" }} />
+            <button
+              onClick={() => setConfirmDelete(true)}
+              style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:600, color:T.danger, background:"none", border:"none", cursor:"pointer", padding:0, alignSelf:"flex-start" }}
+            >
+              <Trash2 size={11} /> Delete Subject
+            </button>
           </div>
         ) : (
           <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
@@ -934,6 +1040,75 @@ function SubjectSlotRow({ subject, index, semesterId }: {
           </div>
         </>
       )}
+
+      {confirmDelete && (
+        <>
+          <div onClick={() => !deletingSubject && setConfirmDelete(false)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
+          <div style={{
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            width:"calc(100% - 48px)", maxWidth:320,
+            background:T.card, borderRadius:22, padding:"22px 20px",
+            boxShadow:S.lg, zIndex:51,
+          }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:14 }}>
+              <Trash2 size={16} color={T.danger} />
+            </div>
+            <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:18, color:T.inkH, marginBottom:7 }}>Delete {name}?</h3>
+            <p style={{ fontSize:12.5, color:T.inkM, lineHeight:1.55, marginBottom:20 }}>
+              This will also delete all {slots.length} timetable slot{slots.length !== 1 ? "s" : ""}. This can't be undone.
+            </p>
+            <div style={{ display:"flex", gap:9 }}>
+              <button onClick={() => setConfirmDelete(false)} disabled={deletingSubject} style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={deleteSubject} disabled={deletingSubject} style={{
+                flex:1, padding:13, borderRadius:13, border:"none",
+                background:T.danger, color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
+                boxShadow:"0 10px 22px rgba(176,58,69,0.32), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}>
+                {deletingSubject ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {pendingRemoveType && (() => {
+        const removeCount = slots.filter(s => (s.type || "lecture") === pendingRemoveType).length;
+        return (
+          <>
+            <div onClick={() => setPendingRemoveType(null)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
+            <div style={{
+              position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+              width:"calc(100% - 48px)", maxWidth:350,
+              background:T.card, borderRadius:28, padding:"30px 26px",
+              boxShadow:S.lg, zIndex:51,
+            }}>
+              <div style={{ width:52, height:52, borderRadius:16, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:18 }}>
+                <AlertTriangle size={22} color={T.danger} />
+              </div>
+              <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:22, color:T.inkH, marginBottom:10 }}>
+                Remove {pendingRemoveType[0].toUpperCase()+pendingRemoveType.slice(1)}?
+              </h3>
+              <p style={{ fontSize:14, color:T.inkM, lineHeight:1.68, marginBottom:26 }}>
+                This will delete {removeCount} {pendingRemoveType} slot{removeCount !== 1 ? "s" : ""} from the timetable once you save. This can't be undone.
+              </p>
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={() => setPendingRemoveType(null)} style={{ flex:1, padding:"15px", borderRadius:15, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setEditTypes(prev => ({ ...prev, [pendingRemoveType]: false })); setPendingRemoveType(null); }}
+                  style={{ flex:1, padding:"15px", borderRadius:15, border:"none", background:T.danger, color:"#fff", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer" }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -2913,7 +3088,11 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
 
       <div style={{ padding:"0 24px" }}>
         {semesterId && subjects.map((s, i) => (
-          <SubjectSlotRow key={s.id} subject={s} index={i} semesterId={semesterId} />
+          <SubjectSlotRow
+            key={s.id} subject={s} index={i} semesterId={semesterId}
+            onRenamed={(id, newName) => setSubjects(prev => prev.map(sub => sub.id === id ? { ...sub, name: newName } : sub))}
+            onDeleted={(id) => setSubjects(prev => prev.filter(sub => sub.id !== id))}
+          />
         ))}
 
         {adding ? (

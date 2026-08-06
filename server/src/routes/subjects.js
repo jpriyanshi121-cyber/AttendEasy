@@ -78,6 +78,9 @@ router.patch(
   [
     body("name").optional().trim().isLength({ min: 1 }),
     body("color").optional().isString(),
+    body("hasLecture").optional().isBoolean(),
+    body("hasTutorial").optional().isBoolean(),
+    body("hasPractical").optional().isBoolean(),
     body("thresholdLecture").optional().isInt({ min: 0, max: 100 }),
     body("thresholdTutorial").optional().isInt({ min: 0, max: 100 }),
     body("thresholdPractical").optional().isInt({ min: 0, max: 100 }),
@@ -91,17 +94,41 @@ router.patch(
     const semester = await getOwnedSemester(subject.semesterId, req.userId);
     if (!semester) return res.status(404).json({ error: "Subject not found" });
 
-    const updated = await prisma.subject.update({
-      where: { id: subject.id },
-      data: {
-        name: req.body.name ?? subject.name,
-        code: req.body.code ?? subject.code,
-        color: req.body.color ?? subject.color,
-        thresholdLecture: req.body.thresholdLecture ?? subject.thresholdLecture,
-        thresholdTutorial: req.body.thresholdTutorial ?? subject.thresholdTutorial,
-        thresholdPractical: req.body.thresholdPractical ?? subject.thresholdPractical,
-      },
-    });
+    const hasLecture = req.body.hasLecture ?? subject.hasLecture;
+    const hasTutorial = req.body.hasTutorial ?? subject.hasTutorial;
+    const hasPractical = req.body.hasPractical ?? subject.hasPractical;
+    if (!hasLecture && !hasTutorial && !hasPractical) {
+      return res.status(400).json({ error: "A subject needs at least one class type." });
+    }
+
+    // Any type being turned off takes its slots (and their attendance records) with it.
+    const removedTypes = [];
+    if (subject.hasLecture && !hasLecture) removedTypes.push("lecture");
+    if (subject.hasTutorial && !hasTutorial) removedTypes.push("tutorial");
+    if (subject.hasPractical && !hasPractical) removedTypes.push("practical");
+
+    const ops = [];
+    if (removedTypes.length) {
+      ops.push(prisma.slot.deleteMany({ where: { subjectId: subject.id, type: { in: removedTypes } } }));
+    }
+    ops.push(
+      prisma.subject.update({
+        where: { id: subject.id },
+        data: {
+          name: req.body.name ?? subject.name,
+          color: req.body.color ?? subject.color,
+          hasLecture,
+          hasTutorial,
+          hasPractical,
+          thresholdLecture: req.body.thresholdLecture ?? subject.thresholdLecture,
+          thresholdTutorial: req.body.thresholdTutorial ?? subject.thresholdTutorial,
+          thresholdPractical: req.body.thresholdPractical ?? subject.thresholdPractical,
+        },
+      })
+    );
+
+    const results = await prisma.$transaction(ops);
+    const updated = results[results.length - 1];
     res.json({ subject: updated });
   }
 );
@@ -112,7 +139,10 @@ router.delete("/:id", async (req, res) => {
   const semester = await getOwnedSemester(subject.semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Subject not found" });
 
-  await prisma.subject.update({ where: { id: subject.id }, data: { archived: true } });
+  await prisma.$transaction([
+    prisma.slot.deleteMany({ where: { subjectId: subject.id } }),
+    prisma.subject.update({ where: { id: subject.id }, data: { archived: true } }),
+  ]);
   res.json({ success: true });
 });
 
