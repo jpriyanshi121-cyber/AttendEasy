@@ -2011,16 +2011,25 @@ function Sparkline({ points, color }: { points:number[]; color:string }) {
   if (points.length < 2) return null;
   const w = 280, h = 56, pad = 4;
   const stepX = (w - pad*2) / (points.length - 1);
-  const coords = points.map((p, i) => {
-    const x = pad + i*stepX;
-    const y = pad + (h - pad*2) * (1 - p/100);
-    return `${x},${y}`;
-  }).join(" ");
-  const lastX = pad + (points.length-1)*stepX;
-  const lastY = pad + (h - pad*2) * (1 - points[points.length-1]/100);
+  const xy = (i:number, p:number) => [pad + i*stepX, pad + (h - pad*2) * (1 - p/100)] as const;
+  const coords = points.map((p, i) => xy(i, p).join(",")).join(" ");
+  const [lastX, lastY] = xy(points.length-1, points[points.length-1]);
+  const [firstX, firstY] = xy(0, points[0]);
+  // closed path along the baseline so the trend reads as a light filled area, not just a line —
+  // a bit more visual weight than a bare sparkline while staying a single glanceable shape
+  const areaPath = `M${firstX},${h-pad} L${coords.split(" ").join(" L")} L${lastX},${h-pad} Z`;
+  const gradId = `sparkfill-${color.replace(/[^a-zA-Z0-9]/g,"")}`;
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{ display:"block" }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.16} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
       <polyline points={coords} fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={firstX} cy={firstY} r={2.5} fill={color} opacity={0.5} />
       <circle cx={lastX} cy={lastY} r={4} fill={color} />
     </svg>
   );
@@ -2033,6 +2042,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
   const [history, setHistory] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
   const [activeType, setActiveType] = useState<string|null>(null);
+  const [historyFilter, setHistoryFilter] = useState<"all"|Status>("all");
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const typeLabels: Record<string,string> = { lecture:"Theory", tutorial:"Tutorial", practical:"Lab" };
 
@@ -2087,6 +2097,15 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
   });
 
   const activeHistory = history.filter(r => (r.slot?.type || "lecture") === activeType);
+  const historyCounts = {
+    all: activeHistory.length,
+    present: activeHistory.filter(r => r.status === "present").length,
+    absent: activeHistory.filter(r => r.status === "absent").length,
+    cancelled: activeHistory.filter(r => r.status === "cancelled").length,
+  };
+  const filteredHistory = historyFilter === "all"
+    ? activeHistory
+    : activeHistory.filter(r => r.status === historyFilter);
 
   const held = [...activeHistory]
     .filter(r => r.status === "present" || r.status === "absent")
@@ -2184,7 +2203,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           {typesPresent.map(type => {
             const on = activeType === type;
             return (
-              <button key={type} onClick={() => setActiveType(type)} style={{
+              <button key={type} onClick={() => { setActiveType(type); setHistoryFilter("all"); }} style={{
                 flex:1, position:"relative", zIndex:1, padding:"0", background:"transparent",
                 border:"none", cursor:"pointer",
               }}>
@@ -2259,9 +2278,14 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
       {trendPoints.length >= 2 && (
         <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-            <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
-              Recent Trend
-            </span>
+            <div>
+              <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
+                Attendance Trend
+              </span>
+              <div style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkL, marginTop:2 }}>
+                Last {trendPoints.length} {typeLabels[activeType].toLowerCase()} classes
+              </div>
+            </div>
             <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color:trendColor }}>
               {trendDelta >= 0 ? "+" : ""}{trendDelta}pp
             </span>
@@ -2278,12 +2302,42 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
             {typeLabels[activeType]} History
           </span>
         </div>
-        {activeHistory.length === 0 && (
+
+        {/* Filter chips — same rounded-pill / purple-accent language as the rest of the app.
+            Purely client-side: swaps which records render, no refetch. */}
+        <div style={{ display:"flex", gap:7, marginBottom:14, overflowX:"auto" }}>
+          {([
+            { key:"all",       label:"All" },
+            { key:"present",   label:"Present" },
+            { key:"absent",    label:"Absent" },
+            { key:"cancelled", label:"Cancelled" },
+          ] as const).map(({ key, label }) => {
+            const on = historyFilter === key;
+            return (
+              <button key={key} onClick={() => setHistoryFilter(key)} style={{
+                padding:"7px 14px", borderRadius:100, border:"none", flexShrink:0,
+                background: on ? T.accent : T.card,
+                color: on ? "#fff" : T.accent,
+                fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer",
+                boxShadow: on ? S.acc : S.xs,
+                transform: on ? "scale(1.04)" : "scale(1)",
+                transition:"all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
+              }}>
+                {label}
+                <span style={{ marginLeft:5, fontFamily:F.mono, fontSize:10, opacity:0.75 }}>{historyCounts[key]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {filteredHistory.length === 0 && (
           <div style={{ padding:20, borderRadius:18, background:T.card, border:`1.5px dashed ${HAIR}`, textAlign:"center" }}>
-            <span style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:14, color:T.inkL }}>No records yet.</span>
+            <span style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:14, color:T.inkL }}>
+              {historyFilter === "all" ? "No records yet." : `No ${historyFilter} records.`}
+            </span>
           </div>
         )}
-        {activeHistory.map((rec, i) => (
+        {filteredHistory.map((rec, i) => (
           <div key={rec.id} className={`ae${Math.min(i+1,5)}`} style={{
             display:"flex", justifyContent:"space-between", alignItems:"center",
             background:T.card, borderRadius:17, padding:"14px 16px", marginBottom:9,
