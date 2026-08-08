@@ -61,4 +61,23 @@ router.post(
   }
 );
 
+// Rename a semester (current or archived).
+router.patch(
+  "/:id",
+  [body("name").trim().isLength({ min: 1 }).withMessage("Name cannot be empty")],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+    const semester = await getOwnedSemester(req.params.id, req.userId);
+    if (!semester) return res.status(404).json({ error: "Semester not found" });
+
+    const updated = await prisma.semester.update({
+      where: { id: semester.id },
+      data: { name: req.body.name },
+    });
+    res.json({ semester: updated });
+  }
+);
+
 module.exports = router;

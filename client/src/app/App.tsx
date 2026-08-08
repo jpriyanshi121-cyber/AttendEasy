@@ -3019,8 +3019,8 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
     if (expand === i) { setExpand(null); return; }
     setExpand(i);
     if (!expandStats[sem.id]) {
-      const { overall } = await api.get(`/records/stats/overview?semesterId=${sem.id}`);
-      setExpandStats(prev => ({ ...prev, [sem.id]: overall }));
+      const { overall, subjects } = await api.get(`/records/stats/overview?semesterId=${sem.id}`);
+      setExpandStats(prev => ({ ...prev, [sem.id]: { overall, subjects } }));
     }
   }
 
@@ -3146,15 +3146,42 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
                 }}>
                   {stats ? (
                     <>
-                      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-                        {[{l:"Attended",v:stats.attended},{l:"Total",v:stats.held}].map(item=>(
-                          <div key={item.l} style={{ flex:1, background:T.bg, borderRadius:13, padding:"10px 8px", textAlign:"center" }}>
-                            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:20, color:T.inkH }}>{item.v}</div>
-                            <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.09em", marginTop:2 }}>{item.l}</div>
+                      <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+                        {[
+                          { l:"Attended",  v:stats.overall.attended,  c:T.inkH },
+                          { l:"Missed",    v:stats.overall.missed,    c:T.danger },
+                          { l:"Cancelled", v:stats.overall.cancelled, c:T.inkM },
+                          { l:"Total",     v:stats.overall.held,      c:T.inkH },
+                        ].map(item=>(
+                          <div key={item.l} style={{ flex:1, background:T.bg, borderRadius:13, padding:"10px 6px", textAlign:"center" }}>
+                            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:17, color:item.c }}>{item.v}</div>
+                            <div style={{ fontFamily:F.mono, fontSize:7, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.06em", marginTop:3 }}>{item.l}</div>
                           </div>
                         ))}
                       </div>
-                      <div style={{ padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
+
+                      <div style={{ marginBottom:10 }}>
+                        <span style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>Subject-wise</span>
+                      </div>
+                      {stats.subjects.length === 0 ? (
+                        <p style={{ fontSize:12, color:T.inkL, fontStyle:"italic", marginBottom:12 }}>No subjects recorded.</p>
+                      ) : stats.subjects.map(({ subject, stats: subjStats }: any) => (
+                        <div key={subject.id} style={{
+                          display:"flex", alignItems:"center", justifyContent:"space-between",
+                          padding:"9px 10px", borderRadius:11, background:T.bg, marginBottom:6,
+                        }}>
+                          <span style={{ fontFamily:F.sans, fontSize:12.5, color:T.inkH, fontWeight:500 }}>{subject.name}</span>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ fontFamily:F.mono, fontSize:9.5, color:T.inkL }}>{subjStats.attended}/{subjStats.held}</span>
+                            <span style={{
+                              fontFamily:F.sans, fontSize:12, fontWeight:700,
+                              color: subjStats.percentage >= 75 ? T.safe : T.danger,
+                            }}>{Math.round(subjStats.percentage)}%</span>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div style={{ marginTop:10, padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Read-only · Archived</span>
                       </div>
                     </>
@@ -3666,7 +3693,11 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
   const [overallPct, setOverallPct] = useState(0);
+  const [semesterId, setSemesterId] = useState<string|null>(null);
   const [semesterName, setSemesterName] = useState("");
+  const [editingSemester, setEditingSemester] = useState(false);
+  const [semesterInput, setSemesterInput] = useState("");
+  const [savingSemester, setSavingSemester] = useState(false);
   const [subjectCount, setSubjectCount] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
 
@@ -3698,7 +3729,9 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
         const { semesters } = await api.get("/semesters");
         const active = semesters.find((s:any) => s.isActive) || semesters[0];
         if (active) {
+          setSemesterId(active.id);
           setSemesterName(active.name);
+          setSemesterInput(active.name);
           const [{ overall }, { subjects }] = await Promise.all([
             api.get(`/records/stats/overview?semesterId=${active.id}`),
             api.get(`/subjects?semesterId=${active.id}`),
@@ -3829,8 +3862,49 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
 
         {/* Quick stats */}
         <div style={{ display:"flex", gap:10, marginTop:14 }}>
+          <div style={{
+            flex:1, background:T.card, borderRadius:18, padding:"15px 10px", textAlign:"center",
+            boxShadow:"0 8px 20px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
+          }}>
+            {editingSemester ? (
+              <>
+                <input
+                  value={semesterInput}
+                  onChange={e => setSemesterInput(e.target.value)}
+                  autoFocus
+                  style={{ width:"100%", padding:"6px 8px", borderRadius:8, border:`1.5px solid ${T.accent}`, fontFamily:F.serif, fontSize:13, color:T.inkH, outline:"none", textAlign:"center", boxSizing:"border-box", marginBottom:6 }}
+                />
+                <div style={{ display:"flex", gap:5, justifyContent:"center" }}>
+                  <button onClick={() => { setEditingSemester(false); setSemesterInput(semesterName); }} style={{ fontSize:9, color:T.inkM, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Cancel</button>
+                  <button
+                    onClick={async () => {
+                      if (!semesterId || !semesterInput.trim()) return;
+                      setSavingSemester(true);
+                      try {
+                        await api.renameSemester(semesterId, semesterInput.trim());
+                        setSemesterName(semesterInput.trim());
+                        setEditingSemester(false);
+                      } catch (e) { console.error(e); } finally { setSavingSemester(false); }
+                    }}
+                    style={{ fontSize:9, color:T.accent, background:"none", border:"none", cursor:"pointer", fontWeight:700 }}
+                  >
+                    {savingSemester ? "..." : "Save"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{semesterName || "—"}</div>
+                  <button onClick={() => { setEditingSemester(true); setSemesterInput(semesterName); }} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, padding:0, display:"flex", flexShrink:0 }}>
+                    <Edit2 size={10} />
+                  </button>
+                </div>
+                <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:5, fontWeight:500 }}>Current Semester</div>
+              </>
+            )}
+          </div>
           {[
-            { label:"Current Semester", v: semesterName || "—" },
             { label:"Subjects", v: subjectCount },
             { label:"Classes Held", v: totalClasses },
           ].map(item => (
@@ -3838,7 +3912,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
               flex:1, background:T.card, borderRadius:18, padding:"15px 12px", textAlign:"center",
               boxShadow:"0 8px 20px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
             }}>
-              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.v}</div>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15 }}>{item.v}</div>
               <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:5, fontWeight:500 }}>{item.label}</div>
             </div>
           ))}
