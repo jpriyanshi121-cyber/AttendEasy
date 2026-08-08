@@ -414,19 +414,23 @@ router.get("/report/pdf", async (req, res) => {
   const belowThreshold = [];
 
   perSubject.forEach(({ subject, components }) => {
+    const groupH = components.length * ROW_H;
+    if (doc.y + groupH > doc.page.height - doc.page.margins.bottom - 40) {
+      doc.addPage();
+      doc.y = doc.page.margins.top;
+      tableHeader();
+    }
+    const groupY = doc.y;
+    const nameFontSize = 9.5;
+    doc.fontSize(nameFontSize).fillColor(INK).font("Helvetica-Bold").text(
+      subject.name, colX.subject, groupY + (groupH - nameFontSize) / 2 - 1,
+      { width: colX.component - colX.subject - 8, lineBreak: false }
+    );
+
     components.forEach(({ type, stats }, idx) => {
-      if (doc.y > doc.page.height - doc.page.margins.bottom - 60) {
-        doc.addPage();
-        doc.y = doc.page.margins.top;
-        tableHeader();
-      }
-      const rowY = doc.y;
+      const rowY = groupY + idx * ROW_H;
       const rowColor = tierColor(stats.percentage);
 
-      if (idx === 0) {
-        doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold")
-          .text(subject.name, colX.subject, rowY, { width: colX.component - colX.subject - 8, lineBreak: false });
-      }
       doc.fontSize(9).fillColor(MUTE).font("Helvetica").text(typeLabels[type], colX.component, rowY, { lineBreak: false });
       doc.fontSize(9.5).fillColor(rowColor).font("Helvetica-Bold").text(fmtPct(stats.percentage), colX.pct, rowY, { lineBreak: false });
       doc.fontSize(9).fillColor(INK).font("Helvetica");
@@ -437,9 +441,9 @@ router.get("/report/pdf", async (req, res) => {
       if (stats.percentage < stats.threshold) {
         belowThreshold.push({ label: `${subject.name} · ${typeLabels[type]}`, pct: fmtPct(stats.percentage) });
       }
-
-      doc.y = rowY + ROW_H;
     });
+
+    doc.y = groupY + groupH;
   });
 
   if (perSubject.length === 0) {
@@ -475,20 +479,27 @@ router.get("/report/pdf", async (req, res) => {
     const colGap = 16;
     const colW = (pageWidth - colGap) / 2;
     const rowH = 16;
+    let baseY = doc.y;
+    let pageStartIndex = 0;
     belowThreshold.forEach((item, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      if (col === 0 && doc.y + rowH > doc.page.height - doc.page.margins.bottom - 30) {
+      const col = (i - pageStartIndex) % 2;
+      const row = Math.floor((i - pageStartIndex) / 2);
+      if (col === 0 && baseY + row * rowH + rowH > doc.page.height - doc.page.margins.bottom - 30) {
         doc.addPage();
-        doc.y = doc.page.margins.top;
+        baseY = doc.page.margins.top;
+        pageStartIndex = i;
       }
-      const x = doc.page.margins.left + col * (colW + colGap);
-      const y = doc.y + row * rowH;
-      doc.fontSize(9).fillColor(INK).font("Helvetica").text(item.label, x, y, { continued: true, lineBreak: false });
-      doc.fillColor(DANGER).font("Helvetica-Bold").text(`  ${item.pct}`, { lineBreak: false });
+      const thisRow = Math.floor((i - pageStartIndex) / 2);
+      const thisCol = (i - pageStartIndex) % 2;
+      const x = doc.page.margins.left + thisCol * (colW + colGap);
+      const y = baseY + thisRow * rowH;
+      doc.fontSize(9).font("Helvetica");
+      const labelW = doc.widthOfString(item.label);
+      doc.fillColor(INK).text(item.label, x, y, { lineBreak: false });
+      doc.fillColor(DANGER).font("Helvetica-Bold").text(`  ${item.pct}`, x + labelW, y, { lineBreak: false });
     });
-    const rowsUsed = Math.ceil(belowThreshold.length / 2);
-    doc.y += rowsUsed * rowH + 4;
+    const rowsOnLastPage = Math.ceil((belowThreshold.length - pageStartIndex) / 2);
+    doc.y = baseY + rowsOnLastPage * rowH + 4;
   }
 
   footer();
