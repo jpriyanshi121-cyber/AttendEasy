@@ -3654,6 +3654,12 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
 function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [college, setCollege] = useState("");
+  const [course, setCourse] = useState("");
+  const [editingAcademic, setEditingAcademic] = useState(false);
+  const [collegeInput, setCollegeInput] = useState("");
+  const [courseInput, setCourseInput] = useState("");
+  const [savingAcademic, setSavingAcademic] = useState(false);
   const [createdAt, setCreatedAt] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [editing, setEditing] = useState(false);
@@ -3681,6 +3687,10 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
       try {
         const { user } = await api.me();
         setName(user.name);
+        setCollege(user.college || "");
+        setCourse(user.course || "");
+        setCollegeInput(user.college || "");
+        setCourseInput(user.course || "");
         setEmail(user.email);
         setNameInput(user.name);
         setCreatedAt(user.createdAt);
@@ -3867,6 +3877,56 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:15, color:T.inkH }}>{name}</span>
               {nameSaved && <span style={{ fontSize:12, color:T.safe }}>Saved!</span>}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`, marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <Eyebrow>ACADEMIC INFO</Eyebrow>
+            {!editingAcademic && (
+              <button onClick={() => setEditingAcademic(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
+                <Edit2 size={13} /> Edit
+              </button>
+            )}
+          </div>
+          {editingAcademic ? (
+            <>
+              <input
+                value={collegeInput}
+                onChange={e => setCollegeInput(e.target.value)}
+                placeholder="College name"
+                style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+              />
+              <input
+                value={courseInput}
+                onChange={e => setCourseInput(e.target.value)}
+                placeholder="Course (e.g. B.Tech CSE)"
+                style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+              />
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => { setEditingAcademic(false); setCollegeInput(college); setCourseInput(course); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+                <button
+                  onClick={async () => {
+                    setSavingAcademic(true);
+                    try {
+                      await api.updateProfile({ college: collegeInput.trim(), course: courseInput.trim() });
+                      setCollege(collegeInput.trim());
+                      setCourse(courseInput.trim());
+                      setEditingAcademic(false);
+                    } catch (e) { console.error(e); } finally { setSavingAcademic(false); }
+                  }}
+                  disabled={savingAcademic}
+                  style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                >
+                  {savingAcademic ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div>
+              <div style={{ fontSize:15, color: college ? T.inkH : T.inkL, fontStyle: college ? "normal" : "italic", marginBottom:4 }}>{college || "No college set"}</div>
+              <div style={{ fontSize:13, color: course ? T.inkM : T.inkL, fontStyle: course ? "normal" : "italic" }}>{course || "No course set"}</div>
             </div>
           )}
         </div>

@@ -86,7 +86,7 @@ router.post(
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
-    select: { id: true, email: true, name: true, createdAt: true },
+    select: { id: true, email: true, name: true, college: true, course: true, createdAt: true },
   });
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({ user });
@@ -119,20 +119,28 @@ router.patch(
 router.patch(
   "/me",
   requireAuth,
-  [body("name").trim().isLength({ min: 1 }).withMessage("Name cannot be empty")],
+  [
+    body("name").optional().trim().isLength({ min: 1 }).withMessage("Name cannot be empty"),
+    body("college").optional().trim(),
+    body("course").optional().trim(),
+  ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
 
+    const data = {};
+    if (req.body.name !== undefined) data.name = req.body.name;
+    if (req.body.college !== undefined) data.college = req.body.college || null;
+    if (req.body.course !== undefined) data.course = req.body.course || null;
+
     const user = await prisma.user.update({
       where: { id: req.userId },
-      data: { name: req.body.name },
-      select: { id: true, email: true, name: true },
+      data,
+      select: { id: true, email: true, name: true, college: true, course: true },
     });
     res.json({ user });
   }
 );
-
 
 router.post(
   "/forgot-password",

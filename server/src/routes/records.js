@@ -277,12 +277,15 @@ router.get("/report/pdf", async (req, res) => {
   const semester = await getOwnedSemester(semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Semester not found" });
 
-  const subjects = await prisma.subject.findMany({ where: { semesterId, archived: false } });
+  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { name: true, email: true, college: true, course: true } });
+
+  const subjects = await prisma.subject.findMany({ where: { semesterId, archived: false }, orderBy: { createdAt: "asc" } });
   const perSubject = await Promise.all(
     subjects.map(async (subject) => {
       const records = await prisma.attendanceRecord.findMany({
         where: { subjectId: subject.id },
         include: { slot: true },
+        orderBy: { date: "asc" },
       });
       const byType = { lecture: [], tutorial: [], practical: [] };
       for (const r of records) {
@@ -292,7 +295,7 @@ router.get("/report/pdf", async (req, res) => {
       const components = ["lecture", "tutorial", "practical"]
         .filter((t) => (t === "lecture" ? subject.hasLecture : t === "tutorial" ? subject.hasTutorial : subject.hasPractical))
         .map((type) => ({ type, stats: computeStats(byType[type], thresholdForType(subject, type)) }));
-      return { subject, components };
+      return { subject, components, recordCount: records.length };
     })
   );
   const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
@@ -301,35 +304,132 @@ router.get("/report/pdf", async (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="attendance-report-${semester.name.replace(/\s+/g, "-")}.pdf"`);
 
-  const doc = new PDFDocument({ margin: 50 });
+  const doc = new PDFDocument({ margin: 44, size: "A4" });
   doc.pipe(res);
 
-  doc.fontSize(20).text("AttendEasy — Attendance Report", { align: "center" });
-  doc.moveDown(0.3);
-  doc.fontSize(12).fillColor("#666").text(semester.name, { align: "center" });
-  doc.moveDown(1.5);
+  const PURPLE = "#6E4F91";
+  const INK = "#1B1530";
+  const MUTE = "#8A8194";
+  const LINE = "#E7E0F0";
+  const SAFE = "#2F7A5C";
+  const DANGER = "#B03A45";
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const typeLabels = { lecture: "Theory", tutorial: "Tutorial", practical: "Lab" };
 
-  doc.fillColor("#000").fontSize(14).text(`Overall Attendance: ${overall.percentage}%`);
-  doc.fontSize(11).fillColor("#444").text(`Attended ${overall.attended} of ${overall.held} held classes`);
-  doc.moveDown(1);
+  function footer() {
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(i);
+      doc.fontSize(8).fillColor(MUTE).text(
+        `Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}  ·  Page ${i + 1} of ${range.count}`,
+        doc.page.margins.left, doc.page.height - 34,
+        { width: pageWidth, align: "center" }
+      );
+    }
+  }
 
-  doc.fillColor("#000").fontSize(14).text("Subject-wise Breakdown");
+  // ── Header ──
+  doc.fontSize(22).fillColor(PURPLE).font("Helvetica-Bold").text("AttendEasy", { align: "left" });
+  doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("Attendance Report", { align: "left" });
   doc.moveDown(0.5);
 
-  const typeLabels = { lecture: "Theory", tutorial: "Tutorial", practical: "Lab" };
+  const collegeCourseLine = [user?.college, user?.course].filter(Boolean).join("  ·  ");
+  if (collegeCourseLine) {
+    doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(collegeCourseLine);
+  }
+  doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(semester.name);
+  doc.moveDown(0.7);
+  doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(0.75).stroke();
+  doc.moveDown(0.6);
+
+  doc.fontSize(9).fillColor(INK).font("Helvetica-Bold").text(user?.name || "", { continued: !!user?.email });
+  if (user?.email) {
+    doc.font("Helvetica").fillColor(MUTE).text(`   ·   ${user.email}`);
+  }
+  doc.moveDown(1);
+  doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(1).stroke();
+  doc.moveDown(1.2);
+
+  // ── Overall summary card ──
+  const cardY = doc.y;
+  const cardH = 74;
+  doc.roundedRect(doc.page.margins.left, cardY, pageWidth, cardH, 8).fillAndStroke("#F7F2FC", LINE);
+  const pct = overall.percentage;
+  const pctColor = pct >= 75 ? SAFE : DANGER;
+  doc.fontSize(26).fillColor(pctColor).font("Helvetica-Bold").text(`${pct}%`, doc.page.margins.left + 20, cardY + 22, { continued: false });
+  doc.fontSize(8.5).fillColor(MUTE).font("Helvetica").text("OVERALL", doc.page.margins.left + 20, cardY + 54);
+
+  const statBoxes = [
+    { label: "Held", v: overall.held },
+    { label: "Attended", v: overall.attended },
+    { label: "Missed", v: overall.missed },
+    { label: "Cancelled", v: overall.cancelled },
+  ];
+  const statAreaX = doc.page.margins.left + 190;
+  const statAreaW = pageWidth - 190 - 20;
+  const boxW = statAreaW / statBoxes.length;
+  statBoxes.forEach((s, i) => {
+    const bx = statAreaX + i * boxW;
+    doc.fontSize(18).fillColor(INK).font("Helvetica-Bold").text(String(s.v), bx, cardY + 18, { width: boxW, align: "center" });
+    doc.fontSize(8).fillColor(MUTE).font("Helvetica").text(s.label.toUpperCase(), bx, cardY + 42, { width: boxW, align: "center" });
+  });
+  doc.y = cardY + cardH + 24;
+
+  // ── Per-subject table ──
+  doc.fontSize(13).fillColor(INK).font("Helvetica-Bold").text("Subject-wise Breakdown");
+  doc.moveDown(0.6);
+
+  const colX = {
+    subject: doc.page.margins.left,
+    component: doc.page.margins.left + 150,
+    pct: doc.page.margins.left + 250,
+    attended: doc.page.margins.left + 310,
+    missed: doc.page.margins.left + 370,
+    cancelled: doc.page.margins.left + 430,
+  };
+
+  function tableHeader() {
+    const y = doc.y;
+    doc.fontSize(8.5).fillColor(MUTE).font("Helvetica-Bold");
+    doc.text("SUBJECT", colX.subject, y);
+    doc.text("COMPONENT", colX.component, y);
+    doc.text("ATT %", colX.pct, y);
+    doc.text("PRES", colX.attended, y);
+    doc.text("MISS", colX.missed, y);
+    doc.text("CANC", colX.cancelled, y);
+    doc.moveDown(0.5);
+    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(1).stroke();
+    doc.moveDown(0.4);
+  }
+
+  tableHeader();
+
   perSubject.forEach(({ subject, components }) => {
-    doc.fontSize(12).fillColor("#000").text(subject.name);
-    components.forEach(({ type, stats }) => {
-      doc.fontSize(10).fillColor("#444").text(
-        `  ${typeLabels[type]} (min ${stats.threshold}%): ${stats.percentage}% — Attended ${stats.attended}, Missed ${stats.missed}, Cancelled ${stats.cancelled}, Total ${stats.total}`
-      );
+    components.forEach(({ type, stats }, idx) => {
+      if (doc.y > doc.page.height - 90) {
+        doc.addPage();
+        tableHeader();
+      }
+      const rowY = doc.y;
+      const rowColor = stats.percentage >= stats.threshold ? SAFE : DANGER;
+
+      doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold");
+      if (idx === 0) doc.text(subject.name, colX.subject, rowY, { width: 140 });
+      doc.fontSize(9).fillColor(MUTE).font("Helvetica").text(typeLabels[type], colX.component, rowY);
+      doc.fillColor(rowColor).font("Helvetica-Bold").text(`${stats.percentage}%`, colX.pct, rowY);
+      doc.fillColor(INK).font("Helvetica").text(String(stats.attended), colX.attended, rowY);
+      doc.text(String(stats.missed), colX.missed, rowY);
+      doc.text(String(stats.cancelled), colX.cancelled, rowY);
+      doc.moveDown(0.65);
     });
-    doc.moveDown(0.6);
+    doc.moveDown(0.25);
   });
 
-  doc.moveDown(1);
-  doc.fontSize(9).fillColor("#999").text(`Generated on ${new Date().toLocaleDateString("en-IN")}`, { align: "right" });
+  if (perSubject.length === 0) {
+    doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("No subjects added yet.");
+  }
 
+  footer();
   doc.end();
 });
 
