@@ -4151,9 +4151,15 @@ export default function App() {
     let cancelled = false;
     setCheckingOnboard(true);
     api.get("/semesters")
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return;
-        if (data.semesters && data.semesters.length > 0) {
+        const active = data.semesters?.find((s:any) => s.isActive) || data.semesters?.[0];
+        if (!active) { setScreen("onboarding"); return; }
+
+        const { subjects } = await api.get(`/subjects?semesterId=${active.id}`);
+        if (cancelled) return;
+
+        if (subjects && subjects.length > 0) {
           setScreen("home");
           setTab("home");
         } else {
