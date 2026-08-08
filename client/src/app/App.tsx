@@ -3,7 +3,7 @@ import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
   Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle, LogOut,
+  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle, LogOut, ArrowRight,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -382,28 +382,29 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
 
           <div style={{ flex:1 }}>
             <div className="ae1" style={{ marginBottom:10 }}><Eyebrow>MONSOON SEMESTER · 2026</Eyebrow></div>
-            <h1 className="ae2" style={{ fontFamily:F.serif, fontWeight:600, fontSize:36, color:T.inkH, lineHeight:1.16, marginBottom:18 }}>
-              Never guess<br />your attendance<br />again.
+            <h1 className="ae2" style={{ fontFamily:F.serif, fontWeight:500, fontSize:31, color:T.inkH, lineHeight:1.18, letterSpacing:"-0.01em", marginBottom:16 }}>
+              Never guess your attendance again.
             </h1>
-            <p className="ae3" style={{ fontSize:15, color:T.inkM, lineHeight:1.7, marginBottom:48 }}>
-              AttendEasy tracks every class so you always know exactly where you stand — before it's too late.
+            <p className="ae3" style={{ fontSize:14.5, color:T.inkM, lineHeight:1.6, marginBottom:34, maxWidth:310 }}>
+              AttendEasy tracks every class so you always know exactly where you stand — <b style={{ color:T.inkB, fontWeight:600 }}>before it's too late</b>.
             </p>
             <div className="ae4">
-              <label style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.16em", textTransform:"uppercase", display:"block", marginBottom:10 }}>
-                YOUR NAME
+              <label style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:600, display:"block", marginBottom:9 }}>
+                Your Name
               </label>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Enter your name"
                 style={{
-                  width:"100%", padding:"16px 18px", borderRadius:16,
-                  border:`1.5px solid rgba(110,79,145,0.22)`, background:T.card,
-                  fontFamily:F.sans, fontSize:16, color:T.inkH, outline:"none",
-                  boxShadow:S.sm, transition:"border-color 0.2s",
+                  width:"100%", padding:"15px 17px", borderRadius:15,
+                  border:"1.5px solid #EFEAF6", background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                  fontFamily:F.sans, fontSize:15, color:T.inkH, outline:"none",
+                  boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                  boxSizing:"border-box", transition:"border-color 0.2s, box-shadow 0.2s",
                 }}
-                onFocus={e => (e.currentTarget.style.borderColor = T.accent)}
-                onBlur={e  => (e.currentTarget.style.borderColor = "rgba(110,79,145,0.22)")}
+                onFocus={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(110,79,145,0.12)"; }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "#EFEAF6"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)"; }}
               />
             </div>
           </div>
@@ -412,16 +413,17 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
             className="ae5"
             onClick={() => setStep(1)}
             style={{
-              width:"100%", padding:"18px", borderRadius:20, border:"none",
-              background:T.accent, color:"#fff",
-              fontFamily:F.sans, fontSize:16, fontWeight:600, cursor:"pointer",
-              boxShadow:S.acc, letterSpacing:"0.01em",
-              transition:"transform 0.14s ease, box-shadow 0.14s ease",
+              width:"100%", padding:17, borderRadius:16, border:"none", cursor:"pointer",
+              background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+              fontFamily:F.sans, fontSize:15.5, fontWeight:700,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+              boxShadow:"0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+              transition:"transform 0.14s ease",
             }}
-            onMouseDown={e => { e.currentTarget.style.transform="scale(0.98)"; e.currentTarget.style.boxShadow=S.sm; }}
-            onMouseUp={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.boxShadow=S.acc; }}
+            onMouseDown={e => { e.currentTarget.style.transform="scale(0.98)"; }}
+            onMouseUp={e => { e.currentTarget.style.transform="scale(1)"; }}
           >
-            Continue →
+            Continue <ArrowRight size={15} strokeWidth={2.5} />
           </button>
         </div>
       ) : (

@@ -304,7 +304,7 @@ router.get("/report/pdf", async (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="attendance-report-${semester.name.replace(/\s+/g, "-")}.pdf"`);
 
-  const doc = new PDFDocument({ margin: 44, size: "A4" });
+  const doc = new PDFDocument({ margin: 44, size: "A4", bufferPages: true });
   doc.pipe(res);
 
   const PURPLE = "#6E4F91";
@@ -312,15 +312,18 @@ router.get("/report/pdf", async (req, res) => {
   const MUTE = "#8A8194";
   const LINE = "#E7E0F0";
   const SAFE = "#2F7A5C";
+  const WARN = "#B8823A";
   const DANGER = "#B03A45";
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const typeLabels = { lecture: "Theory", tutorial: "Tutorial", practical: "Lab" };
+  const tierColor = (pct) => (pct >= 75 ? SAFE : pct >= 50 ? WARN : DANGER);
+  const fmtPct = (n) => (Number.isInteger(n) ? `${n}%` : `${n.toFixed(2).replace(/\.?0+$/, "")}%`);
 
   function footer() {
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);
-      doc.fontSize(8).fillColor(MUTE).text(
+      doc.fontSize(8).fillColor(MUTE).font("Helvetica").text(
         `Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}  ·  Page ${i + 1} of ${range.count}`,
         doc.page.margins.left, doc.page.height - 34,
         { width: pageWidth, align: "center" }
@@ -329,35 +332,36 @@ router.get("/report/pdf", async (req, res) => {
   }
 
   // ── Header ──
-  doc.fontSize(22).fillColor(PURPLE).font("Helvetica-Bold").text("AttendEasy", { align: "left" });
-  doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("Attendance Report", { align: "left" });
-  doc.moveDown(0.5);
+  doc.fontSize(22).fillColor(PURPLE).font("Helvetica-Bold").text("AttendEasy", doc.page.margins.left, doc.y, { lineBreak: false });
+  doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("Attendance Report", doc.page.margins.left, doc.y + 26, { lineBreak: false });
+  doc.y += 26 + 14;
 
   const collegeCourseLine = [user?.college, user?.course].filter(Boolean).join("  ·  ");
   if (collegeCourseLine) {
-    doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(collegeCourseLine);
+    doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(collegeCourseLine, doc.page.margins.left, doc.y, { lineBreak: false });
+    doc.y += 13;
   }
-  doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(semester.name);
-  doc.moveDown(0.7);
+  doc.fontSize(9.5).fillColor(MUTE).font("Helvetica").text(semester.name, doc.page.margins.left, doc.y, { lineBreak: false });
+  doc.y += 20;
   doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(0.75).stroke();
-  doc.moveDown(0.6);
+  doc.y += 14;
 
-  doc.fontSize(9).fillColor(INK).font("Helvetica-Bold").text(user?.name || "", { continued: !!user?.email });
+  doc.fontSize(9).fillColor(INK).font("Helvetica-Bold").text(user?.name || "", doc.page.margins.left, doc.y, { lineBreak: false, continued: !!user?.email });
   if (user?.email) {
-    doc.font("Helvetica").fillColor(MUTE).text(`   ·   ${user.email}`);
+    doc.font("Helvetica").fillColor(MUTE).text(`   ·   ${user.email}`, { lineBreak: false });
   }
-  doc.moveDown(1);
+  doc.y += 20;
   doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(1).stroke();
-  doc.moveDown(1.2);
+  doc.y += 22;
 
   // ── Overall summary card ──
   const cardY = doc.y;
   const cardH = 74;
   doc.roundedRect(doc.page.margins.left, cardY, pageWidth, cardH, 8).fillAndStroke("#F7F2FC", LINE);
   const pct = overall.percentage;
-  const pctColor = pct >= 75 ? SAFE : DANGER;
-  doc.fontSize(26).fillColor(pctColor).font("Helvetica-Bold").text(`${pct}%`, doc.page.margins.left + 20, cardY + 22, { continued: false });
-  doc.fontSize(8.5).fillColor(MUTE).font("Helvetica").text("OVERALL", doc.page.margins.left + 20, cardY + 54);
+  const pctColor = tierColor(pct);
+  doc.fontSize(26).fillColor(pctColor).font("Helvetica-Bold").text(fmtPct(pct), doc.page.margins.left + 20, cardY + 22, { lineBreak: false });
+  doc.fontSize(8.5).fillColor(MUTE).font("Helvetica").text("OVERALL", doc.page.margins.left + 20, cardY + 54, { lineBreak: false });
 
   const statBoxes = [
     { label: "Held", v: overall.held },
@@ -370,63 +374,121 @@ router.get("/report/pdf", async (req, res) => {
   const boxW = statAreaW / statBoxes.length;
   statBoxes.forEach((s, i) => {
     const bx = statAreaX + i * boxW;
-    doc.fontSize(18).fillColor(INK).font("Helvetica-Bold").text(String(s.v), bx, cardY + 18, { width: boxW, align: "center" });
-    doc.fontSize(8).fillColor(MUTE).font("Helvetica").text(s.label.toUpperCase(), bx, cardY + 42, { width: boxW, align: "center" });
+    doc.fontSize(18).fillColor(INK).font("Helvetica-Bold").text(String(s.v), bx, cardY + 18, { width: boxW, align: "center", lineBreak: false });
+    doc.fontSize(8).fillColor(MUTE).font("Helvetica").text(s.label.toUpperCase(), bx, cardY + 42, { width: boxW, align: "center", lineBreak: false });
   });
   doc.y = cardY + cardH + 24;
 
   // ── Per-subject table ──
-  doc.fontSize(13).fillColor(INK).font("Helvetica-Bold").text("Subject-wise Breakdown");
-  doc.moveDown(0.6);
+  doc.fontSize(13).fillColor(INK).font("Helvetica-Bold").text("Subject-wise Breakdown", doc.page.margins.left, doc.y, { lineBreak: false });
+  doc.y += 22;
 
   const colX = {
     subject: doc.page.margins.left,
-    component: doc.page.margins.left + 150,
-    pct: doc.page.margins.left + 250,
-    attended: doc.page.margins.left + 310,
-    missed: doc.page.margins.left + 370,
-    cancelled: doc.page.margins.left + 430,
+    component: doc.page.margins.left + 145,
+    pct: doc.page.margins.left + 235,
+    attended: doc.page.margins.left + 305,
+    missed: doc.page.margins.left + 375,
+    cancelled: doc.page.margins.left + 445,
   };
+  const ROW_H = 19;
 
   function tableHeader() {
     const y = doc.y;
     doc.fontSize(8.5).fillColor(MUTE).font("Helvetica-Bold");
-    doc.text("SUBJECT", colX.subject, y);
-    doc.text("COMPONENT", colX.component, y);
-    doc.text("ATT %", colX.pct, y);
-    doc.text("PRES", colX.attended, y);
-    doc.text("MISS", colX.missed, y);
-    doc.text("CANC", colX.cancelled, y);
-    doc.moveDown(0.5);
+    doc.text("SUBJECT", colX.subject, y, { lineBreak: false });
+    doc.text("COMPONENT", colX.component, y, { lineBreak: false });
+    doc.text("ATTENDANCE", colX.pct, y, { lineBreak: false });
+    doc.text("PRESENT", colX.attended, y, { lineBreak: false });
+    doc.text("ABSENT", colX.missed, y, { lineBreak: false });
+    doc.text("CANCELLED", colX.cancelled, y, { lineBreak: false });
+    doc.y = y + 14;
     doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + pageWidth, doc.y).strokeColor(LINE).lineWidth(1).stroke();
-    doc.moveDown(0.4);
+    doc.y += 10;
   }
 
   tableHeader();
 
+  // Every (subject, component) pairing that's below its own threshold —
+  // collected once here, rendered once in the section below the table.
+  const belowThreshold = [];
+
   perSubject.forEach(({ subject, components }) => {
     components.forEach(({ type, stats }, idx) => {
-      if (doc.y > doc.page.height - 90) {
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 60) {
         doc.addPage();
+        doc.y = doc.page.margins.top;
         tableHeader();
       }
       const rowY = doc.y;
-      const rowColor = stats.percentage >= stats.threshold ? SAFE : DANGER;
+      const rowColor = tierColor(stats.percentage);
 
-      doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold");
-      if (idx === 0) doc.text(subject.name, colX.subject, rowY, { width: 140 });
-      doc.fontSize(9).fillColor(MUTE).font("Helvetica").text(typeLabels[type], colX.component, rowY);
-      doc.fillColor(rowColor).font("Helvetica-Bold").text(`${stats.percentage}%`, colX.pct, rowY);
-      doc.fillColor(INK).font("Helvetica").text(String(stats.attended), colX.attended, rowY);
-      doc.text(String(stats.missed), colX.missed, rowY);
-      doc.text(String(stats.cancelled), colX.cancelled, rowY);
-      doc.moveDown(0.65);
+      if (idx === 0) {
+        doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold")
+          .text(subject.name, colX.subject, rowY, { width: colX.component - colX.subject - 8, lineBreak: false });
+      }
+      doc.fontSize(9).fillColor(MUTE).font("Helvetica").text(typeLabels[type], colX.component, rowY, { lineBreak: false });
+      doc.fontSize(9.5).fillColor(rowColor).font("Helvetica-Bold").text(fmtPct(stats.percentage), colX.pct, rowY, { lineBreak: false });
+      doc.fontSize(9).fillColor(INK).font("Helvetica");
+      doc.text(String(stats.attended), colX.attended, rowY, { lineBreak: false });
+      doc.text(String(stats.missed), colX.missed, rowY, { lineBreak: false });
+      doc.text(String(stats.cancelled), colX.cancelled, rowY, { lineBreak: false });
+
+      if (stats.percentage < stats.threshold) {
+        belowThreshold.push({ label: `${subject.name} · ${typeLabels[type]}`, pct: fmtPct(stats.percentage) });
+      }
+
+      doc.y = rowY + ROW_H;
     });
-    doc.moveDown(0.25);
   });
 
   if (perSubject.length === 0) {
-    doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("No subjects added yet.");
+    doc.fontSize(10).fillColor(MUTE).font("Helvetica").text("No subjects added yet.", doc.page.margins.left, doc.y, { lineBreak: false });
+    doc.y += 16;
+  }
+
+  // ── Color-tier legend ──
+  doc.y += 12;
+  if (doc.y > doc.page.height - doc.page.margins.bottom - 40) { doc.addPage(); doc.y = doc.page.margins.top; }
+  {
+    const legendY = doc.y;
+    const legend = [
+      { c: SAFE,   l: "≥ 75%" },
+      { c: WARN,   l: "50–74%" },
+      { c: DANGER, l: "< 50%" },
+    ];
+    let lx = doc.page.margins.left;
+    legend.forEach(item => {
+      doc.circle(lx + 4, legendY + 5, 4).fill(item.c);
+      doc.fontSize(8.5).fillColor(MUTE).font("Helvetica").text(item.l, lx + 13, legendY, { lineBreak: false });
+      lx += 13 + doc.widthOfString(item.l) + 18;
+    });
+    doc.y = legendY + 22;
+  }
+
+  // ── Subjects below threshold ──
+  if (belowThreshold.length > 0) {
+    if (doc.y > doc.page.height - doc.page.margins.bottom - 80) { doc.addPage(); doc.y = doc.page.margins.top; }
+    doc.fontSize(11).fillColor(INK).font("Helvetica-Bold").text("Subjects Below 75% Threshold", doc.page.margins.left, doc.y, { lineBreak: false });
+    doc.y += 20;
+
+    const colGap = 16;
+    const colW = (pageWidth - colGap) / 2;
+    const rowH = 16;
+    belowThreshold.forEach((item, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      if (col === 0 && doc.y + rowH > doc.page.height - doc.page.margins.bottom - 30) {
+        doc.addPage();
+        doc.y = doc.page.margins.top;
+      }
+      const x = doc.page.margins.left + col * (colW + colGap);
+      const y = doc.y + row * rowH;
+      doc.fontSize(9).fillColor(INK).font("Helvetica").text(item.label, x, y, { continued: true, lineBreak: false });
+      doc.fillColor(DANGER).font("Helvetica-Bold").text(`  ${item.pct}`, { lineBreak: false });
+    });
+    const rowsUsed = Math.ceil(belowThreshold.length / 2);
+    doc.y += rowsUsed * rowH + 4;
   }
 
   footer();
