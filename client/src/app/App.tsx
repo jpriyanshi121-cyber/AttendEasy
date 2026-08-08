@@ -1874,7 +1874,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
       </div>
 
       {/* ── Main: time-axis grid ── */}
-      <div ref={gridAreaRef} style={{ flex:1, display:"flex", flexDirection:"column", padding:"14px 16px 12px 14px", overflow:"hidden", minWidth:0 }}>
+      <div ref={gridAreaRef} style={{ flex:1, display:"flex", flexDirection:"column", padding:"14px 16px 12px 14px", overflow:"auto", minWidth:0 }}>
         {/* time header (X-axis) */}
         <div style={{ display:"flex", marginBottom:4, flexShrink:0 }}>
           <div style={{ width:46, flexShrink:0 }} />
