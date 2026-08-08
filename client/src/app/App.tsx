@@ -3129,7 +3129,7 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
                 </div>
                 {stats && (
                   <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:stats.percentage>=75?T.safe:T.danger }}>{Math.round(stats.percentage)}%</div>
+                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:stats.overall.percentage>=75?T.safe:T.danger }}>{Math.round(stats.overall.percentage)}%</div>
                     <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, letterSpacing:"0.09em" }}>OVERALL</div>
                   </div>
                 )}
