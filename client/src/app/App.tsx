@@ -441,7 +441,19 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
         </div>
       ) : (
         <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
-          <div style={{ padding:"60px 28px 28px" }}>
+          <div style={{ padding:"56px 28px 0" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }} className="ae0">
+              <button onClick={() => setStep(0)} style={{
+                width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
+              }}>
+                <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
+              </button>
+              <span onClick={() => setStep(0)} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+            </div>
+          </div>
+          <div style={{ padding:"0 28px 28px" }}>
             <div className="ae0" style={{ marginBottom:8 }}><Eyebrow>STEP 2 OF 2 · SUBJECTS</Eyebrow></div>
             <h2 className="ae1" style={{ fontFamily:F.serif, fontWeight:600, fontSize:30, color:T.inkH, lineHeight:1.15, marginBottom:8 }}>
               Your enrolled<br />courses
