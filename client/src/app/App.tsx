@@ -3881,11 +3881,17 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
           )}
         </div>
 
-        <div style={{ background:T.card, borderRadius:19, padding:"18px", boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`, marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-            <Eyebrow>ACADEMIC INFO</Eyebrow>
+        <div style={{
+          marginTop:18, background:T.card, borderRadius:22, padding:20,
+          boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: editingAcademic ? 14 : 0 }}>
+            {label("Academic Info")}
             {!editingAcademic && (
-              <button onClick={() => setEditingAcademic(true)} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600 }}>
+              <button onClick={() => { setEditingAcademic(true); setCollegeInput(college); setCourseInput(course); }} style={{
+                background:"none", border:"none", cursor:"pointer", color:T.accent,
+                display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600, marginBottom:14,
+              }}>
                 <Edit2 size={13} /> Edit
               </button>
             )}
@@ -3894,18 +3900,20 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
             <>
               <input
                 value={collegeInput}
+                onFocus={() => setFocused("college")} onBlur={() => setFocused(null)}
                 onChange={e => setCollegeInput(e.target.value)}
                 placeholder="College name"
-                style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+                style={inputStyle("college")}
               />
               <input
                 value={courseInput}
+                onFocus={() => setFocused("course")} onBlur={() => setFocused(null)}
                 onChange={e => setCourseInput(e.target.value)}
                 placeholder="Course (e.g. B.Tech CSE)"
-                style={{ width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10, border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg, fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box" }}
+                style={{ ...inputStyle("course"), marginBottom:4 }}
               />
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={() => { setEditingAcademic(false); setCollegeInput(college); setCourseInput(course); }} style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              <div style={{ display:"flex", gap:9, marginTop:4 }}>
+                <button onClick={() => { setEditingAcademic(false); setCollegeInput(college); setCourseInput(course); }} style={cancelBtn}>Cancel</button>
                 <button
                   onClick={async () => {
                     setSavingAcademic(true);
@@ -3917,7 +3925,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
                     } catch (e) { console.error(e); } finally { setSavingAcademic(false); }
                   }}
                   disabled={savingAcademic}
-                  style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                  style={saveBtn}
                 >
                   {savingAcademic ? "Saving..." : "Save"}
                 </button>
