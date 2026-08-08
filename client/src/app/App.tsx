@@ -566,15 +566,17 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
               onClick={onDone}
               disabled={subjects.length === 0}
               style={{
-                width:"100%", padding:"18px", borderRadius:20, border:"none",
-                background: subjects.length === 0 ? "rgba(110,79,145,0.25)" : T.accent, color:"#fff",
-                fontFamily:F.sans, fontSize:16, fontWeight:600, cursor: subjects.length === 0 ? "not-allowed" : "pointer",
-                boxShadow: subjects.length === 0 ? "none" : S.acc,
-                transform: pulse ? "scale(1.022)" : "scale(1)",
+                width:"100%", padding:17, borderRadius:16, border:"none",
+                cursor: subjects.length === 0 ? "not-allowed" : "pointer",
+                background: subjects.length === 0 ? "rgba(110,79,145,0.25)" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+                color:"#fff", fontFamily:F.sans, fontSize:15.5, fontWeight:700,
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                boxShadow: subjects.length === 0 ? "none" : "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+                transform: pulse && subjects.length > 0 ? "scale(1.022)" : "scale(1)",
                 transition:"transform 0.55s cubic-bezier(0.34,1.56,0.64,1)",
               }}
             >
-              Get Started
+              Get Started <ArrowRight size={15} strokeWidth={2.5} />
             </button>
           </div>
         </div>
