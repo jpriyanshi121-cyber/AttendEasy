@@ -1638,21 +1638,28 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   // columns / row heights to fit it exactly — so the full week always fits
   // on screen with no scrollbar, instead of a fixed px size that overflows.
   const HOUR_HEADER_H = 20; // x-axis hour label row + its bottom margin
-  const gridAreaRef = useRef<HTMLDivElement>(null);
+  const [gridAreaEl, setGridAreaEl] = useState<HTMLDivElement | null>(null);
+  // A callback ref (not a plain useRef) so this re-fires whenever the grid div
+  // actually mounts — crucially including the moment the user rotates out of
+  // the portrait "please rotate" placeholder into the real landscape layout.
+  // A useRef + useEffect([]) pattern only ever sees the very first mount,
+  // which is the portrait placeholder (no grid div at all), so the observer
+  // never got attached — the grid stayed unmeasured (disoriented) until a
+  // full page refresh remounted the component already in landscape.
+  const gridAreaRef = useCallback((node: HTMLDivElement | null) => setGridAreaEl(node), []);
   const [gridAreaW, setGridAreaW] = useState(0);
   const [gridAreaH, setGridAreaH] = useState(0);
   useEffect(() => {
-    const el = gridAreaRef.current;
-    if (!el) return;
+    if (!gridAreaEl) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setGridAreaW(entry.contentRect.width);
         setGridAreaH(entry.contentRect.height);
       }
     });
-    ro.observe(el);
+    ro.observe(gridAreaEl);
     return () => ro.disconnect();
-  }, []);
+  }, [gridAreaEl]);
   const availableForHours = Math.max(0, gridAreaW - DAY_LABEL_W);
   // No fixed minimum here — if width is tight, columns shrink to fit rather
   // than forcing a horizontal scrollbar.
@@ -1819,7 +1826,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   }
 
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, height:"100dvh", display:"flex", overflow:"hidden", maxWidth:900, margin:"0 auto" }}>
+    <div style={{ fontFamily:F.sans, background:T.bg, height:"100dvh", display:"flex", overflow:"hidden" }}>
       {/* ── Sidebar ── */}
       <div style={{
         width:150, flexShrink:0, padding:"26px 20px",
