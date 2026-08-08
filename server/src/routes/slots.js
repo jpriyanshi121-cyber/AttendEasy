@@ -129,11 +129,12 @@ router.post(
     const conflict = await findConflictingSlot(semester.id, req.body.day, req.body.startTime, req.body.endTime);
     if (conflict) return res.status(409).json({ error: conflictMessage(conflict) });
 
+    const slotType = req.body.type || "lecture";
     const slot = await prisma.slot.create({
       data: {
         semesterId: semester.id,
         subjectId: subject.id,
-        type: req.body.type || "lecture",
+        type: slotType,
         day: req.body.day,
         startTime: req.body.startTime,
         endTime: req.body.endTime,
@@ -142,6 +143,13 @@ router.post(
       },
       include: { subject: true },
     });
+
+    const flagField = slotType === "practical" ? "hasPractical" : slotType === "tutorial" ? "hasTutorial" : "hasLecture";
+    if (!subject[flagField]) {
+      await prisma.subject.update({ where: { id: subject.id }, data: { [flagField]: true } });
+      slot.subject[flagField] = true;
+    }
+
     res.status(201).json({ slot });
   }
 );
