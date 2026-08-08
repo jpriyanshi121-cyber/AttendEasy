@@ -19,9 +19,16 @@ function computeStats(records, threshold) {
     const maxHeld = Math.floor(present / thresholdFraction);
     canMissMore = Math.max(0, maxHeld - held);
   } else {
-    const numerator = thresholdFraction * held - present;
     const denominator = 1 - thresholdFraction;
-    needToAttend = Math.max(0, Math.ceil(numerator / denominator));
+    if (denominator <= 0) {
+      // Threshold is 100% and at least one class was missed — mathematically
+      // impossible to ever recover to 100% again, no matter how many more
+      // classes are attended.
+      needToAttend = null;
+    } else {
+      const numerator = thresholdFraction * held - present;
+      needToAttend = Math.max(0, Math.ceil(numerator / denominator));
+    }
   }
 
   return {
@@ -34,6 +41,7 @@ function computeStats(records, threshold) {
     threshold,
     canMissMore,
     needToAttend,
+    impossible: needToAttend === null,
   };
 }
 

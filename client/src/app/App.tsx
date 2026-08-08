@@ -2249,17 +2249,25 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           </div>
         </div>
 
-        <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
-          <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:44, color: isGood?T.safe:T.danger, lineHeight:1 }}>{isGood ? 0 : stats.needToAttend}</span>
-          <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
-        </div>
+        {stats.impossible ? (
+          <p style={{ fontFamily:F.sans, fontSize:13, color:T.danger, lineHeight:1.55, margin:"6px 0 16px", fontWeight:500 }}>
+            Recovering to a {stats.threshold}% threshold isn't mathematically possible anymore after a missed class — consider lowering the threshold for this component.
+          </p>
+        ) : (
+          <>
+            <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+              <span style={{ fontFamily:F.serif, fontWeight:700, fontSize:44, color: isGood?T.safe:T.danger, lineHeight:1 }}>{isGood ? 0 : stats.needToAttend}</span>
+              <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
+            </div>
 
-        <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
-          {isGood
-            ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
-            : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[activeType].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
-          }
-        </p>
+            <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
+              {isGood
+                ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
+                : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[activeType].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
+              }
+            </p>
+          </>
+        )}
 
         <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background:"#fff", alignItems:"flex-start", boxShadow:`0 4px 12px ${isGood?"rgba(47,122,92,0.1)":"rgba(176,58,69,0.1)"}` }}>
           {isGood
