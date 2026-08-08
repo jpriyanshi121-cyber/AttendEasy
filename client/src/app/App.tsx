@@ -187,8 +187,8 @@ function Icon({ name, size=18, color=T.accent }: { name:string; size?:number; co
 }
 
 /* The signature seal — an SVG progress ring showing overall % */
-function Seal({ pct, size=84, animate=false, label="OVERALL", flat=false }: {
-  pct:number; size?:number; animate?:boolean; label?:string; flat?:boolean;
+function Seal({ pct, size=84, animate=false, label="OVERALL", flat=false, tierColor }: {
+  pct:number; size?:number; animate?:boolean; label?:string; flat?:boolean; tierColor?:string;
 }) {
   const display = useCountUp(pct, 720, animate);
   const gradId = useId().replace(/:/g, "");
@@ -212,7 +212,7 @@ function Seal({ pct, size=84, animate=false, label="OVERALL", flat=false }: {
         </defs>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F0EAF7" strokeWidth={stroke} />
         <circle
-          cx={size/2} cy={size/2} r={r} fill="none" stroke={`url(#${gradId})`} strokeWidth={stroke}
+          cx={size/2} cy={size/2} r={r} fill="none" stroke={tierColor || `url(#${gradId})`} strokeWidth={stroke}
           strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
           transform={`rotate(-90 ${size/2} ${size/2})`}
           style={{ transition: animate ? "stroke-dashoffset 0.9s cubic-bezier(0.22,1,0.36,1)" : "none" }}
@@ -2138,9 +2138,10 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
                 dashboard color instead of the generic type color. */}
             {activeType === "practical" && (
               <span style={{
-                fontFamily:F.mono, fontSize:11, fontWeight:700, letterSpacing:"0.03em",
-                color:"#fff", background:subject.color, lineHeight:1.5,
-                borderRadius:999, padding:"3px 10px", flexShrink:0, textTransform:"uppercase",
+                fontFamily:F.mono, fontSize:9, fontWeight:700, letterSpacing:"0.08em",
+                color:"#fff", background:"linear-gradient(155deg,#8E6BB8,#6E4F91)",
+                boxShadow:"0 4px 10px rgba(110,79,145,0.3)",
+                borderRadius:20, padding:"5px 11px", flexShrink:0, textTransform:"uppercase",
               }}>
                 Lab
               </span>
@@ -2163,10 +2164,11 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           )}
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:10 }}>
-          <Seal pct={Math.round(stats.percentage)} size={66} animate={true} label={stats.threshold !== 75 ? `${stats.threshold}% min` : "Overall"} flat />
+          <Seal pct={Math.round(stats.percentage)} size={78} animate={true} label={stats.threshold !== 75 ? `${stats.threshold}% min` : "Overall"} tierColor={INK(stats.percentage)} />
           <button onClick={onEditTimetable} style={{
             display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:20,
             background:T.aFill, border:"none", cursor:"pointer",
+            boxShadow:"0 4px 10px rgba(110,79,145,0.14)",
           }}>
             <Edit2 size={11} color={T.accent} />
             <span style={{ fontFamily:F.mono, fontSize:9.5, color:T.accent, fontWeight:600, letterSpacing:"0.04em" }}>EDIT</span>
@@ -2179,30 +2181,22 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           not "trigger something". */}
       {typesPresent.length > 1 && (
         <div style={{
-          position:"relative", display:"flex", margin:"20px 24px 0", height:40,
-          borderRadius:13, background:T.bg, border:`1px solid ${HAIR}`,
+          display:"flex", gap:4, margin:"20px 24px 0", padding:4,
+          borderRadius:16, background:T.aFill,
         }}>
-          <motion.div
-            animate={{
-              left: `calc(3px + (100% - 6px) * ${typesPresent.indexOf(activeType) / typesPresent.length})`,
-              width: `calc((100% - 6px) / ${typesPresent.length})`,
-            }}
-            transition={{ type: "spring", stiffness: 420, damping: 34 }}
-            style={{
-              position:"absolute", top:3, bottom:3, borderRadius:10,
-              background:T.card, boxShadow:S.xs,
-            }}
-          />
           {typesPresent.map(type => {
             const on = activeType === type;
             return (
               <button key={type} onClick={() => { setActiveType(type); setHistoryFilter("all"); }} style={{
-                flex:1, position:"relative", zIndex:1, padding:"0", background:"transparent",
+                flex:1, padding:10, borderRadius:12, textAlign:"center",
                 border:"none", cursor:"pointer",
+                background: on ? "linear-gradient(155deg,#8E6BB8,#6E4F91)" : "transparent",
+                boxShadow: on ? "0 8px 18px rgba(110,79,145,0.35), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
+                transition:"all 0.2s ease",
               }}>
                 <span style={{
-                  fontFamily:F.sans, fontWeight: on ? 700 : 500, fontSize:13,
-                  color: on ? T.inkH : T.inkM, transition:"color 0.2s, font-weight 0.2s",
+                  fontFamily:F.sans, fontWeight:700, fontSize:13.5,
+                  color: on ? "#fff" : T.accent,
                 }}>
                   {typeLabels[type]}
                 </span>
@@ -2231,7 +2225,16 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
       </div>
 
       {/* Bunk calculator */}
-      <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
+      <div style={{
+        margin:"18px 24px 0", borderRadius:22, padding:20,
+        background: isGood
+          ? "linear-gradient(155deg,#EEF7F2,#E3F3EA 65%)"
+          : "linear-gradient(155deg,#FDF1EC,#FCE6E8 65%)",
+        boxShadow: isGood
+          ? "0 16px 36px rgba(47,122,92,0.12), 0 2px 8px rgba(47,122,92,0.05)"
+          : "0 16px 36px rgba(176,58,69,0.14), 0 2px 8px rgba(176,58,69,0.06)",
+        border: `1px solid ${isGood ? "rgba(47,122,92,0.12)" : "rgba(176,58,69,0.1)"}`,
+      }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:7 }}>
             <div style={{ width:4, height:4, borderRadius:"50%", background:GOLD }} />
@@ -2239,7 +2242,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
               {typeLabels[activeType]} Recovery Plan
             </span>
           </div>
-          <div style={{ padding:"5px 11px", borderRadius:20, background: isGood?T.safeFill:T.dangerFill, flexShrink:0 }}>
+          <div style={{ padding:"5px 11px", borderRadius:20, background:"#fff", flexShrink:0, boxShadow:`0 4px 10px ${isGood?"rgba(47,122,92,0.15)":"rgba(176,58,69,0.15)"}` }}>
             <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:12, color: isGood?T.safe:T.danger }}>{Math.round(stats.percentage)}%</span>
           </div>
         </div>
@@ -2256,7 +2259,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           }
         </p>
 
-        <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background: isGood?T.safeFill:T.dangerFill, alignItems:"flex-start" }}>
+        <div style={{ display:"flex", gap:10, padding:"13px 14px", borderRadius:14, background:"#fff", alignItems:"flex-start", boxShadow:`0 4px 12px ${isGood?"rgba(47,122,92,0.1)":"rgba(176,58,69,0.1)"}` }}>
           {isGood
             ? <Check size={15} color={T.safe} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
             : <AlertCircle size={15} color={T.danger} strokeWidth={2.2} style={{ flexShrink:0, marginTop:1 }} />
@@ -2272,10 +2275,10 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
         <div style={{ margin:"18px 24px 0", background:T.card, borderRadius:22, padding:20, boxShadow:"0 14px 32px rgba(27,21,48,0.09), 0 2px 8px rgba(27,21,48,0.04)", border:`1px solid ${HAIR}` }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
             <div>
-              <span style={{ fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.inkM, fontWeight:600 }}>
+              <span style={{ fontFamily:F.sans, fontWeight:700, fontSize:13.5, color:T.inkH }}>
                 Attendance Trend
               </span>
-              <div style={{ fontFamily:F.sans, fontSize:10.5, color:T.inkL, marginTop:2 }}>
+              <div style={{ fontFamily:F.mono, fontSize:9.5, color:T.inkM, marginTop:3 }}>
                 Last {trendPoints.length} {typeLabels[activeType].toLowerCase()} classes
               </div>
             </div>
@@ -2308,16 +2311,16 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
             const on = historyFilter === key;
             return (
               <button key={key} onClick={() => setHistoryFilter(key)} style={{
-                padding:"7px 14px", borderRadius:100, border:"none", flexShrink:0,
-                background: on ? T.accent : T.card,
-                color: on ? "#fff" : T.accent,
-                fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer",
-                boxShadow: on ? S.acc : S.xs,
-                transform: on ? "scale(1.04)" : "scale(1)",
-                transition:"all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
+                padding:"8px 13px", borderRadius:20, flexShrink:0,
+                border: on ? "1.5px solid transparent" : `1.5px solid ${HAIR}`,
+                background: on ? "linear-gradient(155deg,#8E6BB8,#6E4F91)" : T.card,
+                display:"flex", alignItems:"center", gap:5,
+                fontFamily:F.sans, fontSize:12, fontWeight:700, cursor:"pointer",
+                boxShadow: on ? "0 6px 14px rgba(110,79,145,0.32)" : "none",
+                transition:"all 0.18s ease",
               }}>
-                {label}
-                <span style={{ marginLeft:5, fontFamily:F.mono, fontSize:10, opacity:0.75 }}>{historyCounts[key]}</span>
+                <span style={{ color: on ? "#fff" : T.inkM }}>{label}</span>
+                <span style={{ fontFamily:F.mono, fontSize:9.5, color: on ? "rgba(255,255,255,0.75)" : T.inkL }}>{historyCounts[key]}</span>
               </button>
             );
           })}
