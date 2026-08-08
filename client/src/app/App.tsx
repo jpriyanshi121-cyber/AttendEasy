@@ -305,9 +305,8 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newThresholdLecture, setNewThresholdLecture] = useState("75");
-  const [newThresholdTutorial, setNewThresholdTutorial] = useState("75");
-  const [newThresholdPractical, setNewThresholdPractical] = useState("75");
+  const [newTypes, setNewTypes] = useState<Record<ClassType, boolean>>({ lecture:false, tutorial:false, practical:false });
+  const [newThresholds, setNewThresholds] = useState<Record<ClassType, string>>({ lecture:"75", tutorial:"75", practical:"75" });
   const [error, setError] = useState<string|null>(null);
 
   const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
@@ -334,28 +333,42 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
     })();
   }, []);
 
-  async function addSubject() {
-    if (!newName.trim() || !semesterId) return;
-    setLoading(true);
+  function resetAddForm() {
+    setNewName("");
+    setNewTypes({ lecture:false, tutorial:false, practical:false });
+    setNewThresholds({ lecture:"75", tutorial:"75", practical:"75" });
     setError(null);
+  }
+
+  async function addSubject() {
+    setError(null);
+    if (!newName.trim() || !semesterId) { setError("Subject name is required."); return; }
+    const selected = TYPE_ORDER.filter(t => newTypes[t]);
+    if (!selected.length) { setError("Select at least one class type."); return; }
+    for (const t of selected) {
+      const raw = newThresholds[t].trim();
+      const n = parseInt(raw, 10);
+      if (raw === "" || isNaN(n) || n < 0 || n > 100) {
+        setError(`${t[0].toUpperCase()+t.slice(1)} threshold must be between 0–100%.`);
+        return;
+      }
+    }
+    setLoading(true);
     try {
       const color = PALETTE[subjects.length % PALETTE.length];
-      const { subject } = await api.post("/subjects", {
-        semesterId,
-        name: newName.trim(),
-        color,
-        hasLecture: true,
-        hasTutorial: true,
-        hasPractical: true,
-        thresholdLecture: parseInt(newThresholdLecture, 10) || 75,
-        thresholdTutorial: parseInt(newThresholdTutorial, 10) || 75,
-        thresholdPractical: parseInt(newThresholdPractical, 10) || 75,
-      });
+      const body: any = {
+        semesterId, name: newName.trim(), color,
+        hasLecture: selected.includes("lecture"),
+        hasTutorial: selected.includes("tutorial"),
+        hasPractical: selected.includes("practical"),
+      };
+      if (selected.includes("lecture"))   body.thresholdLecture   = parseInt(newThresholds.lecture, 10);
+      if (selected.includes("tutorial"))  body.thresholdTutorial  = parseInt(newThresholds.tutorial, 10);
+      if (selected.includes("practical")) body.thresholdPractical = parseInt(newThresholds.practical, 10);
+
+      const { subject } = await api.post("/subjects", body);
       setSubjects(prev => [...prev, subject]);
-      setNewName("");
-      setNewThresholdLecture("75");
-      setNewThresholdTutorial("75");
-      setNewThresholdPractical("75");
+      resetAddForm();
       setAdding(false);
     } catch (e: any) {
       setError(e.message);
@@ -443,7 +456,7 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
 
             {adding ? (
               <div style={{
-                padding:"16px", borderRadius:18, marginBottom:10, background:T.card,
+                padding:"18px", borderRadius:18, marginBottom:10, background:T.card,
                 boxShadow:S.sm, border:`1px solid rgba(110,79,145,0.07)`,
               }}>
                 <input
@@ -451,43 +464,71 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
                   onChange={e => setNewName(e.target.value)}
                   placeholder="Subject name"
                   style={{
-                    width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:10,
+                    width:"100%", padding:"12px 14px", borderRadius:12, marginBottom:14,
                     border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
                     fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none", boxSizing:"border-box",
                   }}
                 />
-                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
-                  {[
-                    { label:"Lecture %", value:newThresholdLecture, set:setNewThresholdLecture },
-                    { label:"Tutorial %", value:newThresholdTutorial, set:setNewThresholdTutorial },
-                    { label:"Practical %", value:newThresholdPractical, set:setNewThresholdPractical },
-                  ].map(row => (
-                    <div key={row.label} style={{ display:"flex", gap:8, alignItems:"center" }}>
-                      <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM, width:80 }}>{row.label}</span>
-                      <input
-                        value={row.value}
-                        onChange={e => row.set(e.target.value.replace(/\D/g, ""))}
-                        style={{
-                          width:60, padding:"8px 10px", borderRadius:10,
-                          border:`1.5px solid rgba(110,79,145,0.18)`, background:T.bg,
-                          fontFamily:F.sans, fontSize:13, color:T.inkH, outline:"none", textAlign:"center",
-                        }}
-                      />
-                    </div>
-                  ))}
+
+                <div style={{ fontFamily:F.mono, fontSize:9, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, fontWeight:500, marginBottom:9, paddingLeft:2 }}>
+                  Class types
                 </div>
-                {error && <p style={{ color:T.danger, fontSize:12, marginBottom:10 }}>{error}</p>}
-                <div style={{ display:"flex", gap:8 }}>
+
+                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:6 }}>
+                  {TYPE_ORDER.map(t => {
+                    const checked = newTypes[t];
+                    return (
+                      <div key={t} style={{
+                        borderRadius:13, border:`1.5px solid ${checked ? "rgba(110,79,145,0.3)" : HAIR}`,
+                        background: checked ? T.aFill : T.bg, padding:"11px 13px", transition:"background 0.15s",
+                      }}>
+                        <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+                          <input
+                            type="checkbox" checked={checked}
+                            onChange={e => setNewTypes(prev => ({ ...prev, [t]: e.target.checked }))}
+                            style={{ width:17, height:17, accentColor:T.accent, cursor:"pointer", flexShrink:0 }}
+                          />
+                          <span style={{ fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.inkH }}>{t[0].toUpperCase()+t.slice(1)}</span>
+                        </label>
+                        {checked && (
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:9, paddingLeft:27 }}>
+                            <span style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM }}>Threshold</span>
+                            <input
+                              value={newThresholds[t]}
+                              onChange={e => setNewThresholds(prev => ({ ...prev, [t]: e.target.value.replace(/\D/g, "") }))}
+                              style={{ width:52, padding:"6px 8px", borderRadius:9, border:`1.5px solid rgba(110,79,145,0.25)`, background:"#fff", fontFamily:F.sans, fontSize:12.5, color:T.inkH, outline:"none", textAlign:"center" }}
+                            />
+                            <span style={{ fontFamily:F.mono, fontSize:10.5, color:T.inkM }}>%</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {error && (
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"10px 12px", borderRadius:12, background:T.dangerFill, marginTop:10 }}>
+                    <AlertTriangle size={13} color={T.danger} style={{ flexShrink:0, marginTop:1 }} />
+                    <span style={{ fontFamily:F.sans, fontSize:12, color:T.danger, fontWeight:600, lineHeight:1.4 }}>{error}</span>
+                  </div>
+                )}
+
+                <div style={{ display:"flex", gap:9, marginTop:16 }}>
                   <button
-                    onClick={() => { setAdding(false); setError(null); }}
-                    style={{ flex:1, padding:"11px", borderRadius:12, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                    onClick={() => { resetAddForm(); setAdding(false); }}
+                    style={{ flex:1, padding:13, borderRadius:13, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:600, fontSize:13.5, cursor:"pointer" }}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={addSubject}
                     disabled={loading}
-                    style={{ flex:1, padding:"11px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}
+                    style={{
+                      flex:1.6, padding:13, borderRadius:13, border:"none",
+                      background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+                      fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer",
+                      boxShadow:"0 10px 22px rgba(94,63,138,0.36), inset 0 1px 0 rgba(255,255,255,0.2)",
+                    }}
                   >
                     {loading ? "Saving..." : "Save"}
                   </button>
