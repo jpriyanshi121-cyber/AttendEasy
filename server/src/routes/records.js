@@ -280,8 +280,19 @@ router.get("/report/pdf", async (req, res) => {
   const subjects = await prisma.subject.findMany({ where: { semesterId, archived: false } });
   const perSubject = await Promise.all(
     subjects.map(async (subject) => {
-      const records = await prisma.attendanceRecord.findMany({ where: { subjectId: subject.id } });
-      return { subject, stats: computeStats(records, subject.threshold) };
+      const records = await prisma.attendanceRecord.findMany({
+        where: { subjectId: subject.id },
+        include: { slot: true },
+      });
+      const byType = { lecture: [], tutorial: [], practical: [] };
+      for (const r of records) {
+        const t = r.slot?.type || "lecture";
+        if (byType[t]) byType[t].push(r);
+      }
+      const components = ["lecture", "tutorial", "practical"]
+        .filter((t) => (t === "lecture" ? subject.hasLecture : t === "tutorial" ? subject.hasTutorial : subject.hasPractical))
+        .map((type) => ({ type, stats: computeStats(byType[type], thresholdForType(subject, type)) }));
+      return { subject, components };
     })
   );
   const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
@@ -305,11 +316,14 @@ router.get("/report/pdf", async (req, res) => {
   doc.fillColor("#000").fontSize(14).text("Subject-wise Breakdown");
   doc.moveDown(0.5);
 
-  perSubject.forEach(({ subject, stats }) => {
-    doc.fontSize(12).fillColor("#000").text(`${subject.name} (min ${subject.threshold}%)`);
-    doc.fontSize(10).fillColor("#444").text(
-      `  ${stats.percentage}% — Attended ${stats.attended}, Missed ${stats.missed}, Cancelled ${stats.cancelled}, Total ${stats.total}`
-    );
+  const typeLabels = { lecture: "Theory", tutorial: "Tutorial", practical: "Lab" };
+  perSubject.forEach(({ subject, components }) => {
+    doc.fontSize(12).fillColor("#000").text(subject.name);
+    components.forEach(({ type, stats }) => {
+      doc.fontSize(10).fillColor("#444").text(
+        `  ${typeLabels[type]} (min ${stats.threshold}%): ${stats.percentage}% — Attended ${stats.attended}, Missed ${stats.missed}, Cancelled ${stats.cancelled}, Total ${stats.total}`
+      );
+    });
     doc.moveDown(0.6);
   });
 

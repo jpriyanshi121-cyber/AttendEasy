@@ -3476,7 +3476,14 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
         if (!active) { setThresholdSummary("No subjects yet"); return; }
         const { subjects } = await api.get(`/subjects?semesterId=${active.id}`);
         if (subjects.length === 0) { setThresholdSummary("No subjects yet"); return; }
-        const thresholds = subjects.map((s:any) => s.threshold);
+        const thresholds = subjects.flatMap((s:any) => {
+          const vals = [];
+          if (s.hasLecture) vals.push(s.thresholdLecture);
+          if (s.hasTutorial) vals.push(s.thresholdTutorial);
+          if (s.hasPractical) vals.push(s.thresholdPractical);
+          return vals;
+        });
+        if (thresholds.length === 0) { setThresholdSummary("No subjects yet"); return; }
         const min = Math.min(...thresholds), max = Math.max(...thresholds);
         setThresholdSummary(min === max ? `${min}% across ${subjects.length} subjects` : `${min}%–${max}% across ${subjects.length} subjects`);
       } catch (e) {
