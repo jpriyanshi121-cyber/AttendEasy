@@ -599,8 +599,8 @@ function SubjectSlotRow({ subject, index, semesterId, onRenamed, onDeleted }: {
   const presentTypes: ClassType[] = TYPE_ORDER.filter(t => slots.some(s => (s.type || "lecture") === t));
   // Everywhere the UI needs to know "this subject's types" — threshold
   // display and the add/edit slot Type field — uses the same list.
-  const visibleTypes: ClassType[] = presentTypes.length ? presentTypes : (configuredTypes.length ? configuredTypes : ["lecture"]);
-  const typeOptions: ClassType[] = visibleTypes;
+  const visibleTypes: ClassType[] = TYPE_ORDER.filter(t => configuredTypes.includes(t) || presentTypes.includes(t));
+   const typeOptions: ClassType[] = visibleTypes.length ? visibleTypes : ["lecture"];
 
   const [classType, setClassType] = useState<ClassType | "">("");
   const [day, setDay] = useState("");
