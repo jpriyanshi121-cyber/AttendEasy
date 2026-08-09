@@ -14,6 +14,15 @@ const { startScheduler } = require("./lib/scheduler");
 
 const app = express();
 
+// Every real deploy target for this app (Render, Railway, Vercel, Heroku,
+// nginx, etc.) sits behind a reverse proxy. Without this, Express sees the
+// proxy's IP for every request instead of the real client IP — which
+// breaks express-rate-limit below (it would either rate-limit all users
+// together as "one IP", or be bypassable, depending on setup).
+app.set("trust proxy", 1);
+// Don't advertise the framework in responses.
+app.disable("x-powered-by");
+
 // Restrict cross-origin requests to the app's own frontend(s) instead of
 // any website. FRONTEND_URL can be a comma-separated list (e.g. staging +
 // production). If it's not set at all, fall back to allowing any origin so
@@ -45,8 +54,6 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/api/push", pushRoutes);
-
-// TODO (next step): /api/reports (PDF export) once the frontend is wired up.
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
