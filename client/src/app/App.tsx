@@ -2783,6 +2783,26 @@ function CalendarScreen() {
     setDays(fetched);
   }
 
+  const [markingHoliday, setMarkingHoliday] = useState(false);
+
+  async function markWholeDayHoliday(dateStr: string) {
+    const unmarked = expandedClasses.filter(c => !c.rec);
+    if (unmarked.length === 0) return;
+    setMarkingHoliday(true);
+    try {
+      await Promise.all(
+        unmarked.map(c =>
+          api.post("/records/mark", { slotId: c.slot.id, date: dateStr, status: "cancelled", tag: "holiday" })
+        )
+      );
+      await refreshDay(dateStr);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarkingHoliday(false);
+    }
+  }
+
   async function backfillMark(slotId: string, status: Status, dateStr: string) {
     if (!semesterId) return;
     setBackfillBusy(slotId);
@@ -2933,6 +2953,21 @@ function CalendarScreen() {
                 background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
               }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
+
+            {!expLoading && expandedClasses.some(c => !c.rec) && (
+              <button
+                onClick={() => markWholeDayHoliday(expanded)}
+                disabled={markingHoliday}
+                style={{
+                  width:"100%", padding:"10px", borderRadius:12, marginBottom:14,
+                  border:`1.5px dashed ${T.warn}55`, background:T.warnFill,
+                  color:T.warn, fontFamily:F.sans, fontSize:12.5, fontWeight:600, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                }}
+              >
+                🎉 {markingHoliday ? "Marking..." : "Mark Whole Day as Holiday"}
+              </button>
+            )}
 
             {expLoading ? (
               <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
