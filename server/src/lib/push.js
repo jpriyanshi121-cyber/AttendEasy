@@ -1,12 +1,19 @@
 const webpush = require("web-push");
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT,
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+const vapidReady = !!(process.env.VAPID_SUBJECT && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+
+if (vapidReady) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+} else {
+  console.warn("VAPID keys not configured — push notifications are disabled until VAPID_SUBJECT, VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are set.");
+}
 
 async function sendPushToUser(prisma, userId, payload) {
+  if (!vapidReady) return; // silently skip — rest of the app keeps working
   const subs = await prisma.pushSubscription.findMany({ where: { userId } });
   await Promise.all(
     subs.map(async (sub) => {
@@ -16,7 +23,6 @@ async function sendPushToUser(prisma, userId, payload) {
           JSON.stringify(payload)
         );
       } catch (err) {
-        // Subscription is dead (browser unsubscribed, etc.) — clean it up.
         if (err.statusCode === 404 || err.statusCode === 410) {
           await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
         }
