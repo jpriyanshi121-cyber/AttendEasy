@@ -2151,7 +2151,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
   const trendDelta = trendPoints.length >= 2 ? trendPoints[trendPoints.length-1] - trendPoints[0] : 0;
   const trendColor = trendDelta >= 0 ? T.safe : T.danger;
 
-  const isGood = stats.canMissMore > 0;
+  const isGood = stats.percentage >= stats.threshold;
   const diff = Math.round(Math.abs(stats.percentage - stats.threshold));
 
   return (
@@ -2537,9 +2537,20 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
 
         <div style={{ padding:"16px 24px 18px", borderBottom:`1px solid rgba(110,79,145,0.09)` }}>
           <div style={{ marginBottom:5 }}><Eyebrow>MARK ATTENDANCE</Eyebrow></div>
-          <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:6 }}>
-            {slotInfo?.subject?.name || "Loading..."}
-          </h3>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+            <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, margin:0 }}>
+              {slotInfo?.subject?.name || "Loading..."}
+            </h3>
+            {slotInfo && (slotInfo.type === "practical" || slotInfo.type === "tutorial") && (
+              <span style={{
+                fontFamily:F.mono, fontSize:9, fontWeight:700, letterSpacing:"0.02em",
+                color:"#fff", background:T.accent, lineHeight:1.4,
+                borderRadius:999, padding:"2px 8px", textTransform:"uppercase",
+              }}>
+                {slotInfo.type === "practical" ? "Lab" : "Tut"}
+              </span>
+            )}
+          </div>
           {slotInfo && (
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <span style={{ fontFamily:F.mono, fontSize:11, color:T.inkM }}>
