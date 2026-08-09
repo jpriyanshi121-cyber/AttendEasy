@@ -2,6 +2,7 @@ require("dotenv").config();
 require("express-async-errors");
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 
 const authRoutes = require("./routes/auth");
@@ -22,6 +23,7 @@ const app = express();
 app.set("trust proxy", 1);
 // Don't advertise the framework in responses.
 app.disable("x-powered-by");
+app.use(helmet());
 
 // Restrict cross-origin requests to the app's own frontend(s) instead of
 // any website. FRONTEND_URL can be a comma-separated list (e.g. staging +

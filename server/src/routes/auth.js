@@ -155,7 +155,14 @@ router.post(
     // Always respond the same way whether or not the email exists,
     // so this can't be used to check which emails are registered.
     if (user) {
-      const resetToken = jwt.sign({ userId: user.id, purpose: "reset" }, process.env.JWT_SECRET, { expiresIn: "15m" });
+      // Bind the token to the current password hash. Once the password
+      // changes, this fingerprint no longer matches — so the same link
+      // can't be replayed a second time within its 15-minute window.
+      const resetToken = jwt.sign(
+        { userId: user.id, purpose: "reset", pwv: user.passwordHash.slice(-12) },
+        process.env.JWT_SECRET,
+        { expiresIn: "15m" }
+      );
       const resetLink = `${process.env.FRONTEND_URL}/?reset=${resetToken}`;
       try {
         await sendResetEmail(user.email, resetLink);
@@ -186,6 +193,11 @@ router.post(
     }
     if (payload.purpose !== "reset") {
       return res.status(400).json({ error: "This reset link is invalid." });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user || user.passwordHash.slice(-12) !== payload.pwv) {
+      return res.status(400).json({ error: "This reset link has already been used or is no longer valid." });
     }
 
     const passwordHash = await bcrypt.hash(req.body.password, 12);
