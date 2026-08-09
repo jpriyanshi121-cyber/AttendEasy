@@ -3806,6 +3806,11 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [overallPct, setOverallPct] = useState(0);
   const [semesterId, setSemesterId] = useState<string|null>(null);
   const [semesterName, setSemesterName] = useState("");
+  const [semesterEndDate, setSemesterEndDate] = useState("");
+  const [editingSemester, setEditingSemester] = useState(false);
+  const [semNameInput, setSemNameInput] = useState("");
+  const [semEndDateInput, setSemEndDateInput] = useState("");
+  const [savingSemester, setSavingSemester] = useState(false);
   const [subjectCount, setSubjectCount] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
 
@@ -3839,6 +3844,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
         if (active) {
           setSemesterId(active.id);
           setSemesterName(active.name);
+          setSemesterEndDate(active.endDate ? new Date(active.endDate).toISOString().slice(0, 10) : "");
           const [{ overall }, { subjects }] = await Promise.all([
             api.get(`/records/stats/overview?semesterId=${active.id}`),
             api.get(`/subjects?semesterId=${active.id}`),
@@ -3866,6 +3872,21 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
       console.error(e);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveSemester() {
+    if (!semesterId || !semNameInput.trim()) return;
+    setSavingSemester(true);
+    try {
+      await api.patch(`/semesters/${semesterId}`, { name: semNameInput.trim(), endDate: semEndDateInput || null });
+      setSemesterName(semNameInput.trim());
+      setSemesterEndDate(semEndDateInput);
+      setEditingSemester(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingSemester(false);
     }
   }
 
@@ -4081,6 +4102,52 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
             <div>
               <div style={{ fontSize:15, color: college ? T.inkH : T.inkL, fontStyle: college ? "normal" : "italic", marginBottom:4 }}>{college || "No college set"}</div>
               <div style={{ fontSize:13, color: course ? T.inkM : T.inkL, fontStyle: course ? "normal" : "italic" }}>{course || "No course set"}</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          marginTop:18, background:T.card, borderRadius:22, padding:20,
+          boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: editingSemester ? 14 : 0 }}>
+            {label("Semester")}
+            {!editingSemester && semesterId && (
+              <button onClick={() => { setEditingSemester(true); setSemNameInput(semesterName); setSemEndDateInput(semesterEndDate); }} style={{
+                background:"none", border:"none", cursor:"pointer", color:T.accent,
+                display:"flex", alignItems:"center", gap:4, fontSize:13, fontWeight:600, marginBottom:14,
+              }}>
+                <Edit2 size={13} /> Edit
+              </button>
+            )}
+          </div>
+          {editingSemester ? (
+            <>
+              <input
+                value={semNameInput}
+                onFocus={() => setFocused("semName")} onBlur={() => setFocused(null)}
+                onChange={e => setSemNameInput(e.target.value)}
+                placeholder="Semester name"
+                style={inputStyle("semName")}
+              />
+              <input
+                type="date"
+                value={semEndDateInput}
+                onFocus={() => setFocused("semEndDate")} onBlur={() => setFocused(null)}
+                onChange={e => setSemEndDateInput(e.target.value)}
+                style={{ ...inputStyle("semEndDate"), marginBottom:4 }}
+              />
+              <div style={{ display:"flex", gap:9, marginTop:4 }}>
+                <button onClick={() => { setEditingSemester(false); setSemNameInput(semesterName); setSemEndDateInput(semesterEndDate); }} style={cancelBtn}>Cancel</button>
+                <button onClick={saveSemester} disabled={savingSemester || !semNameInput.trim()} style={saveBtn}>{savingSemester ? "Saving..." : "Save"}</button>
+              </div>
+            </>
+          ) : (
+            <div>
+              <div style={{ fontSize:15, color: semesterName ? T.inkH : T.inkL, fontStyle: semesterName ? "normal" : "italic", marginBottom:4 }}>{semesterName || "No active semester"}</div>
+              <div style={{ fontSize:13, color: semesterEndDate ? T.inkM : T.inkL, fontStyle: semesterEndDate ? "normal" : "italic" }}>
+                {semesterEndDate ? `Ends ${new Date(semesterEndDate).toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" })}` : "No end date set"}
+              </div>
             </div>
           )}
         </div>
