@@ -56,11 +56,6 @@ type Status   = "present" | "absent" | "cancelled" | "rescheduled";
 type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings" | "edit-timetable" | "profile";
 type TabId    = "home" | "timetable" | "calendar" | "settings";
 
-interface Subject  { id: string; name: string; code: string; color: string; icon: string; threshold: number; }
-interface Slot     { id: string; subjectId: string; day: number; time: string; endTime: string; room: string; prof: string; }
-interface Record_  { date: string; slotId: string; subjectId: string; status: Status; note?: string; tag?: string; }
-interface Stats    { total: number; attended: number; absent: number; cancelled: number; pct: number; }
-
 function fireConfetti() {
   confetti({
     particleCount: 120,
@@ -71,69 +66,6 @@ function fireConfetti() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// DATA
-// ════════════════════════════════════════════════════════════════
-const SUBJECTS: Subject[] = [
-  { id:"s1", name:"Data Structures",   code:"CS301", color:"#6E4F91", icon:"Cpu",        threshold:75 },
-  { id:"s2", name:"Calculus II",       code:"MA201", color:"#8B6FBB", icon:"Calculator", threshold:75 },
-  { id:"s3", name:"Digital Logic",     code:"EC201", color:"#5A3D78", icon:"Code2",      threshold:80 },
-  { id:"s4", name:"Tech Writing",      code:"EN301", color:"#9B7FCC", icon:"PenLine",    threshold:75 },
-  { id:"s5", name:"Microeconomics",    code:"EC101", color:"#7A5AA0", icon:"TrendingUp", threshold:75 },
-];
-
-const SLOTS: Slot[] = [
-  { id:"sl1",  subjectId:"s1", day:0, time:"09:00", endTime:"10:00", room:"C-204", prof:"Prof. M. Iyer" },
-  { id:"sl2",  subjectId:"s1", day:2, time:"09:00", endTime:"10:00", room:"C-204", prof:"Prof. M. Iyer" },
-  { id:"sl3",  subjectId:"s1", day:4, time:"09:00", endTime:"10:00", room:"C-204", prof:"Prof. M. Iyer" },
-  { id:"sl4",  subjectId:"s2", day:1, time:"10:00", endTime:"11:30", room:"A-101", prof:"Prof. R. Gupta" },
-  { id:"sl5",  subjectId:"s2", day:3, time:"10:00", endTime:"11:30", room:"A-101", prof:"Prof. R. Gupta" },
-  { id:"sl6",  subjectId:"s3", day:0, time:"11:00", endTime:"12:00", room:"B-301", prof:"Prof. A. Singh" },
-  { id:"sl7",  subjectId:"s3", day:2, time:"11:00", endTime:"12:00", room:"B-301", prof:"Prof. A. Singh" },
-  { id:"sl8",  subjectId:"s4", day:1, time:"14:00", endTime:"15:30", room:"D-102", prof:"Prof. V. Nair" },
-  { id:"sl9",  subjectId:"s5", day:2, time:"14:00", endTime:"15:00", room:"E-201", prof:"Prof. P. Mehta" },
-  { id:"sl10", subjectId:"s5", day:4, time:"14:00", endTime:"15:00", room:"E-201", prof:"Prof. P. Mehta" },
-];
-
-// Pre-computed stats as of Tue Jul 29, 2026 (after Calculus morning class)
-const STATS: Record<string, Stats> = {
-  s1: { total:18, attended:15, absent:2, cancelled:1, pct:83 },
-  s2: { total:16, attended:12, absent:3, cancelled:1, pct:75 },
-  s3: { total:14, attended:13, absent:1, cancelled:0, pct:93 },
-  s4: { total:12, attended:9,  absent:2, cancelled:1, pct:75 },
-  s5: { total:15, attended:10, absent:4, cancelled:1, pct:67 }, // below threshold
-};
-const OVERALL = 79;
-
-// Today = Tuesday July 29, 2026 — day index 1 (Mon=0)
-const TODAY_SLOTS = [
-  { slot: SLOTS[3], status: "present" as Status, marked: true  },  // Calc 10:00 — done
-  { slot: SLOTS[7], status: null as Status|null,  marked: false },  // TechWrite 14:00 — pending
-];
-
-const HISTORY: Record_[] = [
-  { date:"2026-07-29", slotId:"sl4", subjectId:"s2", status:"present" },
-  { date:"2026-07-28", slotId:"sl1", subjectId:"s1", status:"present" },
-  { date:"2026-07-28", slotId:"sl6", subjectId:"s3", status:"present" },
-  { date:"2026-07-25", slotId:"sl3", subjectId:"s1", status:"absent" },
-  { date:"2026-07-25", slotId:"sl9", subjectId:"s5", status:"absent",    note:"Wasn't feeling well" },
-  { date:"2026-07-24", slotId:"sl4", subjectId:"s2", status:"present" },
-  { date:"2026-07-24", slotId:"sl8", subjectId:"s4", status:"cancelled", tag:"Holiday" },
-  { date:"2026-07-23", slotId:"sl5", subjectId:"s2", status:"present" },
-  { date:"2026-07-23", slotId:"sl2", subjectId:"s1", status:"present" },
-  { date:"2026-07-22", slotId:"sl2", subjectId:"s1", status:"present" },
-  { date:"2026-07-22", slotId:"sl7", subjectId:"s3", status:"present" },
-  { date:"2026-07-22", slotId:"sl9", subjectId:"s5", status:"absent" },
-  { date:"2026-07-21", slotId:"sl1", subjectId:"s1", status:"present" },
-  { date:"2026-07-21", slotId:"sl6", subjectId:"s3", status:"absent",    note:"Prof absent" },
-  { date:"2026-07-18", slotId:"sl3", subjectId:"s1", status:"present" },
-  { date:"2026-07-17", slotId:"sl4", subjectId:"s2", status:"absent" },
-  { date:"2026-07-17", slotId:"sl8", subjectId:"s4", status:"present" },
-  { date:"2026-07-16", slotId:"sl2", subjectId:"s1", status:"present" },
-  { date:"2026-07-15", slotId:"sl1", subjectId:"s1", status:"present" },
-  { date:"2026-07-15", slotId:"sl9", subjectId:"s5", status:"absent" },
-];
-
-// ════════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════════
 function statusMeta(s: Status) {
@@ -141,20 +73,6 @@ function statusMeta(s: Status) {
   if (s === "absent")      return { text:T.danger, bg:T.dangerFill,  label:"Absent" };
   if (s === "cancelled")   return { text:T.inkM,   bg:T.cancelFill,  label:"Cancelled" };
   return                          { text:T.warn,   bg:T.warnFill,    label:"Rescheduled" };
-}
-
-function calcBunk(st: Stats, threshold: number) {
-  const t  = threshold / 100;
-  const canMiss  = Math.max(0, Math.floor(st.attended / t) - st.total);
-  const need     = st.pct < threshold
-    ? Math.ceil((t * st.total - st.attended) / (1 - t))
-    : 0;
-  return { canMiss, need };
-}
-
-function fmtDate(d: string) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-IN",
-    { weekday:"short", day:"numeric", month:"short" });
 }
 
 function useCountUp(target: number, ms = 750, trigger = true) {
