@@ -14,7 +14,17 @@ const { startScheduler } = require("./lib/scheduler");
 
 const app = express();
 
-app.use(cors());
+// Restrict cross-origin requests to the app's own frontend(s) instead of
+// any website. FRONTEND_URL can be a comma-separated list (e.g. staging +
+// production). If it's not set at all, fall back to allowing any origin so
+// an unconfigured deploy doesn't silently break — but every real deploy
+// should set this.
+const allowedOrigins = (process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }));
 app.use(express.json());
 
 // Basic protection against brute-forcing login/register.
