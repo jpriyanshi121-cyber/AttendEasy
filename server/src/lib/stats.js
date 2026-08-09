@@ -1,9 +1,26 @@
 // Pure functions for attendance math — no DB calls here, just numbers.
 
+// A class's weight in the attendance math is its duration in hours, not "1
+// per mark" — a 1-hour lecture is 1 attendance unit, a 3-hour lab is 3.
+// Falls back to 1 if slot data wasn't included in the query (shouldn't
+// normally happen — every caller of computeStats includes `slot`).
+function slotHours(slot) {
+  if (!slot || !slot.startTime || !slot.endTime) return 1;
+  const [sh, sm] = slot.startTime.split(":").map(Number);
+  const [eh, em] = slot.endTime.split(":").map(Number);
+  const minutes = (eh * 60 + em) - (sh * 60 + sm);
+  return minutes > 0 ? minutes / 60 : 1;
+}
+
 function computeStats(records, threshold) {
-  const present = records.filter((r) => r.status === "present").length;
-  const absent = records.filter((r) => r.status === "absent").length;
-  const cancelled = records.filter((r) => r.status === "cancelled").length;
+  const presentRecords = records.filter((r) => r.status === "present");
+  const absentRecords = records.filter((r) => r.status === "absent");
+  const cancelledRecords = records.filter((r) => r.status === "cancelled");
+
+  const present = presentRecords.reduce((sum, r) => sum + slotHours(r.slot), 0);
+  const absent = absentRecords.reduce((sum, r) => sum + slotHours(r.slot), 0);
+  const cancelled = cancelledRecords.reduce((sum, r) => sum + slotHours(r.slot), 0);
+  const total = records.reduce((sum, r) => sum + slotHours(r.slot), 0);
 
   const held = present + absent;
   const percentage = held === 0 ? 100 : (present / held) * 100;
@@ -32,11 +49,11 @@ function computeStats(records, threshold) {
   }
 
   return {
-    total: records.length,
-    held,
-    attended: present,
-    missed: absent,
-    cancelled,
+    total: Math.round(total * 100) / 100,
+    held: Math.round(held * 100) / 100,
+    attended: Math.round(present * 100) / 100,
+    missed: Math.round(absent * 100) / 100,
+    cancelled: Math.round(cancelled * 100) / 100,
     percentage: Math.round(percentage * 100) / 100,
     threshold,
     canMissMore,
@@ -58,11 +75,12 @@ function startOfDayLocal(date) {
   return d;
 }
 
-// How many classes of a given type remain between today and the semester's
-// end date (inclusive). Walks each day, checking recurring weekly slots
-// (minus any that were rescheduled away that specific day) plus any
-// already-scheduled one-off extra classes. Returns null if there's no
-// end date set — meaning the horizon is unknown.
+// How many attendance-hours remain between today and the semester's end
+// date (inclusive) for a given class type — not a session count, since a
+// 1-hour and a 3-hour class don't count the same. Walks each day, checking
+// recurring weekly slots (minus any that were rescheduled away that specific
+// day) plus any already-scheduled one-off extra classes. Returns null if
+// there's no end date set — meaning the horizon is unknown.
 async function countRemainingClasses(prisma, { subjectId, semesterId, type, endDate }) {
   if (!endDate) return null;
 
@@ -80,17 +98,17 @@ async function countRemainingClasses(prisma, { subjectId, semesterId, type, endD
     if (e.replacesSlotId) replacedKeys.add(`${e.replacesSlotId}|${e.extraDate.toISOString().slice(0, 10)}`);
   }
 
-  let count = extras.length;
+  let hours = extras.reduce((sum, e) => sum + slotHours(e), 0);
   const cursor = new Date(from);
   while (cursor <= to) {
     const dow = toOurDay(cursor.getDay());
     const dateKey = cursor.toISOString().slice(0, 10);
     for (const s of recurring) {
-      if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) count++;
+      if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) hours += slotHours(s);
     }
     cursor.setDate(cursor.getDate() + 1);
   }
-  return count;
+  return Math.round(hours * 100) / 100;
 }
 
-module.exports = { computeStats, thresholdForType, countRemainingClasses };
+module.exports = { computeStats, thresholdForType, countRemainingClasses, slotHours };

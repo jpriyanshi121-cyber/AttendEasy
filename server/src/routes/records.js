@@ -218,7 +218,7 @@ router.get("/stats/overview", async (req, res) => {
   );
   const perSubject = cardLists.flat();
 
-  const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
+  const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId }, include: { slot: true } });
   const overall = computeStats(allRecords, 75);
 
   res.json({ overall, subjects: perSubject });
@@ -318,7 +318,7 @@ router.get("/report/pdf", async (req, res) => {
       return { subject, components, recordCount: records.length };
     })
   );
-  const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId } });
+  const allRecords = await prisma.attendanceRecord.findMany({ where: { semesterId }, include: { slot: true } });
   const overall = computeStats(allRecords, 75);
 
   res.setHeader("Content-Type", "application/pdf");
