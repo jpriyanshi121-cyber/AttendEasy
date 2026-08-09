@@ -2784,6 +2784,8 @@ function CalendarScreen() {
   }
 
   const [markingHoliday, setMarkingHoliday] = useState(false);
+  const [holidayNoteOpen, setHolidayNoteOpen] = useState(false);
+  const [holidayNote, setHolidayNote] = useState("");
 
   async function markWholeDayHoliday(dateStr: string) {
     const unmarked = expandedClasses.filter(c => !c.rec);
@@ -2792,10 +2794,15 @@ function CalendarScreen() {
     try {
       await Promise.all(
         unmarked.map(c =>
-          api.post("/records/mark", { slotId: c.slot.id, date: dateStr, status: "cancelled", tag: "holiday" })
+          api.post("/records/mark", {
+            slotId: c.slot.id, date: dateStr, status: "cancelled", tag: "holiday",
+            note: holidayNote.trim() || undefined,
+          })
         )
       );
       await refreshDay(dateStr);
+      setHolidayNoteOpen(false);
+      setHolidayNote("");
     } catch (e) {
       console.error(e);
     } finally {
@@ -2954,21 +2961,6 @@ function CalendarScreen() {
               }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
 
-            {!expLoading && expandedClasses.some(c => !c.rec) && (
-              <button
-                onClick={() => markWholeDayHoliday(expanded)}
-                disabled={markingHoliday}
-                style={{
-                  width:"100%", padding:"10px", borderRadius:12, marginBottom:14,
-                  border:`1.5px dashed ${T.warn}55`, background:T.warnFill,
-                  color:T.warn, fontFamily:F.sans, fontSize:12.5, fontWeight:600, cursor:"pointer",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                }}
-              >
-                🎉 {markingHoliday ? "Marking..." : "Mark Whole Day as Holiday"}
-              </button>
-            )}
-
             {expLoading ? (
               <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
             ) : expandedClasses.length === 0 ? (
@@ -3076,6 +3068,51 @@ function CalendarScreen() {
                 )}
               </div>
             ))}
+
+            {!expLoading && expandedClasses.some(c => !c.rec) && (
+              <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #EFEAF6" }}>
+                {holidayNoteOpen ? (
+                  <div>
+                    <input
+                      value={holidayNote}
+                      onChange={e => setHolidayNote(e.target.value)}
+                      placeholder="Reason (optional) — e.g. Diwali, College Fest"
+                      autoFocus
+                      style={{
+                        width:"100%", padding:"10px 12px", borderRadius:11, marginBottom:8,
+                        border:"1.5px solid #EFEAF6", fontFamily:F.sans, fontSize:12.5,
+                        color:T.inkH, outline:"none", boxSizing:"border-box",
+                      }}
+                    />
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button
+                        onClick={() => { setHolidayNoteOpen(false); setHolidayNote(""); }}
+                        style={{ flex:1, padding:"9px", borderRadius:10, border:"1.5px solid rgba(110,79,145,0.2)", background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}
+                      >Cancel</button>
+                      <button
+                        onClick={() => markWholeDayHoliday(expanded!)}
+                        disabled={markingHoliday}
+                        style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:T.warn, color:"#fff", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}
+                      >
+                        {markingHoliday ? "Marking..." : "Confirm"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setHolidayNoteOpen(true)}
+                    style={{
+                      width:"100%", padding:"10px", borderRadius:12,
+                      border:`1.5px dashed ${T.warn}55`, background:T.warnFill,
+                      color:T.warn, fontFamily:F.sans, fontSize:12.5, fontWeight:600, cursor:"pointer",
+                      display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                    }}
+                  >
+                    🎉 Mark Whole Day as Holiday
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
