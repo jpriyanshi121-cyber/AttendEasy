@@ -3302,25 +3302,31 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
 
       {confirm && (
         <>
-          <div className="ae-backdrop" onClick={()=>setConfirm(false)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
+          <div className="ae-backdrop" onClick={()=>!starting && setConfirm(false)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
           <div className="ae-modal" style={{
-            position:"fixed", top:"50%", left:"50%",
-            width:"calc(100% - 48px)", maxWidth:350,
-            background:T.card, borderRadius:28, padding:"30px 26px",
-            boxShadow:S.lg, zIndex:51,
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            width:"calc(100% - 48px)", maxWidth:320,
+            background:T.card, borderRadius:24, padding:"26px 24px 22px",
+            boxShadow:"0 30px 70px rgba(15,8,28,0.4), 0 10px 24px rgba(15,8,28,0.2), inset 0 1px 0 #fff",
+            zIndex:51,
           }}>
-            <div style={{ width:52, height:52, borderRadius:16, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:18 }}>
-              <Archive size={22} color={T.danger} />
+            <div style={{ width:48, height:48, borderRadius:15, background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:"0 8px 18px rgba(110,79,145,0.18)" }}>
+              <Archive size={21} color={T.accent} strokeWidth={2} />
             </div>
-            <h3 style={{ fontFamily:F.serif, fontWeight:600, fontSize:24, color:T.inkH, marginBottom:10 }}>Archive this semester?</h3>
-            <p style={{ fontSize:14, color:T.inkM, lineHeight:1.68, marginBottom:26 }}>
-              {current?.semester.name} will be archived. All attendance records will be preserved in read-only mode.
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:21, color:T.inkH, letterSpacing:"-0.01em", marginBottom:9 }}>Archive this semester?</h3>
+            <p style={{ fontSize:14, color:T.inkM, lineHeight:1.55, marginBottom:22 }}>
+              <b style={{ color:T.inkB, fontWeight:600 }}>{current?.semester.name}</b> will be archived. All attendance records will be preserved in read-only mode.
             </p>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setConfirm(false)} style={{ flex:1, padding:"15px", borderRadius:15, border:`1.5px solid rgba(110,79,145,0.2)`, background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer" }}>
+              <button onClick={()=>setConfirm(false)} disabled={starting} style={{ flex:1, padding:14, borderRadius:14, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}>
                 Cancel
               </button>
-              <button onClick={confirmStartNew} disabled={starting} style={{ flex:1, padding:"15px", borderRadius:15, border:"none", background:T.accent, color:"#fff", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", boxShadow:S.acc }}>
+              <button onClick={confirmStartNew} disabled={starting} style={{
+                flex:1, padding:14, borderRadius:14, border:"none", cursor:"pointer",
+                background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:14,
+                boxShadow:"0 14px 28px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
                 {starting ? "Archiving..." : "Archive"}
               </button>
             </div>
@@ -3800,10 +3806,6 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [overallPct, setOverallPct] = useState(0);
   const [semesterId, setSemesterId] = useState<string|null>(null);
   const [semesterName, setSemesterName] = useState("");
-  const [editingSemester, setEditingSemester] = useState(false);
-  const [semesterInput, setSemesterInput] = useState("");
-  const [semesterEndDateInput, setSemesterEndDateInput] = useState("");
-  const [savingSemester, setSavingSemester] = useState(false);
   const [subjectCount, setSubjectCount] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
 
@@ -3837,8 +3839,6 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
         if (active) {
           setSemesterId(active.id);
           setSemesterName(active.name);
-          setSemesterInput(active.name);
-          setSemesterEndDateInput(active.endDate ? active.endDate.slice(0,10) : "");
           const [{ overall }, { subjects }] = await Promise.all([
             api.get(`/records/stats/overview?semesterId=${active.id}`),
             api.get(`/subjects?semesterId=${active.id}`),
@@ -3917,7 +3917,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:40 }}>
+    <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"52px 24px 0" }}>
         <button onClick={onBack} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:"1px solid #EFEAF6",
@@ -3973,50 +3973,8 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
             flex:1, background:T.card, borderRadius:18, padding:"15px 10px", textAlign:"center",
             boxShadow:"0 8px 20px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6",
           }}>
-            {editingSemester ? (
-              <>
-                <input
-                  value={semesterInput}
-                  onChange={e => setSemesterInput(e.target.value)}
-                  autoFocus
-                  style={{ width:"100%", padding:"6px 8px", borderRadius:8, border:`1.5px solid ${T.accent}`, fontFamily:F.serif, fontSize:13, color:T.inkH, outline:"none", textAlign:"center", boxSizing:"border-box", marginBottom:6 }}
-                />
-                <input
-                  type="date"
-                  value={semesterEndDateInput}
-                  onChange={e => setSemesterEndDateInput(e.target.value)}
-                  style={{ width:"100%", padding:"6px 4px", borderRadius:8, border:"1.5px solid #EFEAF6", fontFamily:F.sans, fontSize:10.5, color:T.inkH, outline:"none", textAlign:"center", boxSizing:"border-box", marginBottom:6 }}
-                />
-                <div style={{ display:"flex", gap:5, justifyContent:"center" }}>
-                  <button onClick={() => { setEditingSemester(false); setSemesterInput(semesterName); }} style={{ fontSize:9, color:T.inkM, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Cancel</button>
-                  <button
-                    onClick={async () => {
-                      if (!semesterId || !semesterInput.trim()) return;
-                      setSavingSemester(true);
-                      try {
-                        await api.renameSemester(semesterId, semesterInput.trim());
-                        await api.setSemesterEndDate(semesterId, semesterEndDateInput || null);
-                        setSemesterName(semesterInput.trim());
-                        setEditingSemester(false);
-                      } catch (e) { console.error(e); } finally { setSavingSemester(false); }
-                    }}
-                    style={{ fontSize:9, color:T.accent, background:"none", border:"none", cursor:"pointer", fontWeight:700 }}
-                  >
-                    {savingSemester ? "..." : "Save"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                  <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{semesterName || "—"}</div>
-                  <button onClick={() => { setEditingSemester(true); setSemesterInput(semesterName); }} style={{ background:"none", border:"none", cursor:"pointer", color:T.accent, padding:0, display:"flex", flexShrink:0 }}>
-                    <Edit2 size={10} />
-                  </button>
-                </div>
-                <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:5, fontWeight:500 }}>Current Semester</div>
-              </>
-            )}
+            <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:16.5, color:T.inkH, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{semesterName || "—"}</div>
+            <div style={{ fontFamily:F.mono, fontSize:8, color:T.inkM, textTransform:"uppercase", letterSpacing:"0.07em", marginTop:5, fontWeight:500 }}>Current Semester</div>
           </div>
           {[
             { label:"Subjects", v: subjectCount },
