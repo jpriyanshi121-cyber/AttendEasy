@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
 import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
   Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
@@ -2785,7 +2786,19 @@ function CalendarScreen() {
 
   const [markingHoliday, setMarkingHoliday] = useState(false);
   const [holidayNoteOpen, setHolidayNoteOpen] = useState(false);
+  const [holidaySheetVisible, setHolidaySheetVisible] = useState(false);
   const [holidayNote, setHolidayNote] = useState("");
+
+  useEffect(() => {
+    if (!holidayNoteOpen) return;
+    const raf = requestAnimationFrame(() => setHolidaySheetVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [holidayNoteOpen]);
+
+  function closeHolidaySheet() {
+    setHolidaySheetVisible(false);
+    setTimeout(() => { setHolidayNoteOpen(false); setHolidayNote(""); }, 420);
+  }
 
   async function markWholeDayHoliday(dateStr: string) {
     const unmarked = expandedClasses.filter(c => !c.rec);
@@ -2801,8 +2814,7 @@ function CalendarScreen() {
         )
       );
       await refreshDay(dateStr);
-      setHolidayNoteOpen(false);
-      setHolidayNote("");
+      closeHolidaySheet();
     } catch (e) {
       console.error(e);
     } finally {
@@ -3086,18 +3098,24 @@ function CalendarScreen() {
               </div>
             )}
 
-            {holidayNoteOpen && (
+            {holidayNoteOpen && createPortal(
               <>
                 <div
-                  onClick={() => { setHolidayNoteOpen(false); setHolidayNote(""); }}
-                  style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.44)", backdropFilter:"blur(5px)", zIndex:60 }}
+                  onClick={closeHolidaySheet}
+                  style={{
+                    position:"fixed", inset:0,
+                    background: holidaySheetVisible ? "rgba(27,21,48,0.44)" : "rgba(27,21,48,0)",
+                    backdropFilter:"blur(5px)", transition:"background 0.25s ease", zIndex:60,
+                  }}
                 />
                 <div style={{
-                  position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+                  position:"fixed", bottom:0, left:"50%",
                   width:"100%", maxWidth:390,
                   background:T.card, borderRadius:"28px 28px 0 0",
                   boxShadow:"0 -12px 56px rgba(27,21,48,0.20)",
                   zIndex:61,
+                  transform: holidaySheetVisible ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(100%)",
+                  transition:"transform 0.42s cubic-bezier(0.22,1.3,0.55,1)",
                 }}>
                   <div style={{ display:"flex", justifyContent:"center", padding:"16px 0 0" }}>
                     <div style={{ width:40, height:4, borderRadius:2, background:"rgba(27,21,48,0.1)" }} />
@@ -3128,7 +3146,7 @@ function CalendarScreen() {
                     />
                     <div style={{ display:"flex", gap:10 }}>
                       <button
-                        onClick={() => { setHolidayNoteOpen(false); setHolidayNote(""); }}
+                        onClick={closeHolidaySheet}
                         style={{ flex:1, padding:14, borderRadius:14, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}
                       >Cancel</button>
                       <button
@@ -3146,7 +3164,8 @@ function CalendarScreen() {
                     </div>
                   </div>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
         )}
