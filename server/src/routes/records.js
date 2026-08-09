@@ -3,7 +3,7 @@ const { body, query, validationResult } = require("express-validator");
 const prisma = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getOwnedSemester } = require("../lib/ownership");
-const { computeStats, thresholdForType } = require("../lib/stats");
+const { computeStats, thresholdForType, countRemainingClasses } = require("../lib/stats");
 const PDFDocument = require("pdfkit");
 
 // Converts a hue (0-360), saturation (%), lightness (%) into a pastel hex
@@ -133,7 +133,27 @@ router.get("/stats/subject/:subjectId", async (req, res) => {
   for (const type of ["lecture", "tutorial", "practical"]) {
     if (!typesPresent.includes(type)) continue;
     const typeRecords = records.filter((r) => (r.slot?.type || "lecture") === type);
-    breakdown[type] = computeStats(typeRecords, thresholdForType(subject, type));
+    const stats = computeStats(typeRecords, thresholdForType(subject, type));
+
+    const remaining = await countRemainingClasses(prisma, {
+      subjectId: subject.id, semesterId: semester.id, type, endDate: semester.endDate,
+    });
+    stats.remainingClasses = remaining;
+
+    if (remaining !== null) {
+      stats.canMissMore = Math.min(stats.canMissMore, remaining);
+      if (!stats.impossible && stats.needToAttend > remaining) {
+        // Even attending every remaining class this semester, the
+        // threshold can't be reached — show what IS achievable instead
+        // of a misleadingly large "attend X more" number.
+        const bestHeld = stats.held + remaining;
+        const bestPresent = stats.attended + remaining;
+        stats.maxAchievablePercentage = bestHeld === 0 ? 0 : Math.round((bestPresent / bestHeld) * 10000) / 100;
+        stats.impossible = true;
+      }
+    }
+
+    breakdown[type] = stats;
   }
 
   const overall = computeStats(records, 75);

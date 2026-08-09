@@ -50,6 +50,7 @@ export const api = {
   updateProfile: (data: { name?: string; college?: string; course?: string }) =>
     request("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
   renameSemester: (id: string, name: string) => request(`/semesters/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  setSemesterEndDate: (id: string, endDate: string | null) => request(`/semesters/${id}`, { method: "PATCH", body: JSON.stringify({ endDate }) }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request("/auth/change-password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
   unsubscribePush: (endpoint: string) => request("/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),

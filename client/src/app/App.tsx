@@ -296,8 +296,9 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 // SCREEN 1 — ONBOARDING
 // ════════════════════════════════════════════════════════════════
 function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: boolean }) {
-  const [step,  setStep]  = useState<0|1>(skipIntro ? 1 : 0);
+  const [step,  setStep]  = useState<0|1>(0);
   const [name,  setName]  = useState("");
+  const [semesterEndDate, setSemesterEndDate] = useState("");
   const [pulse, setPulse] = useState(false);
 
   const [semesterId, setSemesterId] = useState<string|null>(null);
@@ -401,30 +402,62 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
             <p className="ae3" style={{ fontSize:14.5, color:T.inkM, lineHeight:1.6, marginBottom:34, maxWidth:310 }}>
               AttendEasy tracks every class so you always know exactly where you stand — <b style={{ color:T.inkB, fontWeight:600 }}>before it's too late</b>.
             </p>
+            {!skipIntro && (
+              <div className="ae4" style={{ marginBottom:20 }}>
+                <label style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:600, display:"block", marginBottom:9 }}>
+                  Your Name
+                </label>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Enter your name"
+                  style={{
+                    width:"100%", padding:"15px 17px", borderRadius:15,
+                    border:"1.5px solid #EFEAF6", background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                    fontFamily:F.sans, fontSize:15, color:T.inkH, outline:"none",
+                    boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                    boxSizing:"border-box", transition:"border-color 0.2s, box-shadow 0.2s",
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(110,79,145,0.12)"; }}
+                  onBlur={e  => { e.currentTarget.style.borderColor = "#EFEAF6"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)"; }}
+                />
+              </div>
+            )}
+
             <div className="ae4">
               <label style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:600, display:"block", marginBottom:9 }}>
-                Your Name
+                Semester Ends On <span style={{ textTransform:"none", fontWeight:400, color:T.inkL }}>(optional, for accurate bunk calculator)</span>
               </label>
               <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Enter your name"
+                type="date"
+                value={semesterEndDate}
+                onChange={e => setSemesterEndDate(e.target.value)}
                 style={{
                   width:"100%", padding:"15px 17px", borderRadius:15,
                   border:"1.5px solid #EFEAF6", background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
                   fontFamily:F.sans, fontSize:15, color:T.inkH, outline:"none",
                   boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
-                  boxSizing:"border-box", transition:"border-color 0.2s, box-shadow 0.2s",
+                  boxSizing:"border-box",
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(110,79,145,0.12)"; }}
-                onBlur={e  => { e.currentTarget.style.borderColor = "#EFEAF6"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)"; }}
               />
             </div>
           </div>
 
           <button
             className="ae5"
-            onClick={() => setStep(1)}
+            onClick={async () => {
+              try {
+                if (!skipIntro && name.trim()) {
+                  await api.updateName(name.trim());
+                }
+                if (semesterEndDate && semesterId) {
+                  await api.setSemesterEndDate(semesterId, semesterEndDate);
+                }
+              } catch (e) {
+                console.error(e);
+              }
+              setStep(1);
+            }}
             style={{
               width:"100%", padding:17, borderRadius:16, border:"none", cursor:"pointer",
               background:"linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color:"#fff",

@@ -51,4 +51,46 @@ function thresholdForType(subject, type) {
   return subject.thresholdLecture;
 }
 
-module.exports = { computeStats, thresholdForType };
+function toOurDay(jsDay) { return (jsDay + 6) % 7; }
+function startOfDayLocal(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// How many classes of a given type remain between today and the semester's
+// end date (inclusive). Walks each day, checking recurring weekly slots
+// (minus any that were rescheduled away that specific day) plus any
+// already-scheduled one-off extra classes. Returns null if there's no
+// end date set — meaning the horizon is unknown.
+async function countRemainingClasses(prisma, { subjectId, semesterId, type, endDate }) {
+  if (!endDate) return null;
+
+  const from = startOfDayLocal(new Date());
+  const to = startOfDayLocal(endDate);
+  if (to < from) return 0;
+
+  const [recurring, extras] = await Promise.all([
+    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: false } }),
+    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: true, extraDate: { gte: from, lte: to } } }),
+  ]);
+
+  const replacedKeys = new Set();
+  for (const e of extras) {
+    if (e.replacesSlotId) replacedKeys.add(`${e.replacesSlotId}|${e.extraDate.toISOString().slice(0, 10)}`);
+  }
+
+  let count = extras.length;
+  const cursor = new Date(from);
+  while (cursor <= to) {
+    const dow = toOurDay(cursor.getDay());
+    const dateKey = cursor.toISOString().slice(0, 10);
+    for (const s of recurring) {
+      if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) count++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+module.exports = { computeStats, thresholdForType, countRemainingClasses };
