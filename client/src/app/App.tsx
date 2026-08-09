@@ -1342,8 +1342,19 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
                 }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
                     <div>
-                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH, marginBottom:3 }}>
-                        {slot.subject.name}
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+                        <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH }}>
+                          {slot.subject.name}
+                        </div>
+                        {(slot.type === "practical" || slot.type === "tutorial") && (
+                          <span style={{
+                            fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:"0.02em",
+                            color:"#fff", background:T.accent, lineHeight:1.4,
+                            borderRadius:999, padding:"1px 6px", textTransform:"uppercase",
+                          }}>
+                            {slot.type === "practical" ? "Lab" : "Tut"}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                         <span>{slot.startTime}–{slot.endTime}</span>
@@ -2923,7 +2934,18 @@ function CalendarScreen() {
               }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: rec ? 0 : 11 }}>
                   <div>
-                    <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH }}>{slot.subject.name}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15, color:T.inkH }}>{slot.subject.name}</div>
+                      {(slot.type === "practical" || slot.type === "tutorial") && (
+                        <span style={{
+                          fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:"0.02em",
+                          color:"#fff", background:T.accent, lineHeight:1.4,
+                          borderRadius:999, padding:"1px 6px", textTransform:"uppercase",
+                        }}>
+                          {slot.type === "practical" ? "Lab" : "Tut"}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:2 }}>
                       {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
                     </div>
