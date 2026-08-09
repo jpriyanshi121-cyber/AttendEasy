@@ -2200,10 +2200,23 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
   const held = [...activeHistory]
     .filter(r => r.status === "present" || r.status === "absent")
     .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  let presentCount = 0;
-  const trendAll = held.map((r, i) => {
-    if (r.status === "present") presentCount++;
-    return Math.round((presentCount / (i+1)) * 100);
+  // Each class's weight in the running percentage is its duration in hours —
+  // a 1-hour lecture is 1 unit, a 3-hour lab is 3 — matching how the backend
+  // computes the actual attendance percentage, so this trend line never
+  // disagrees with it for subjects with mixed-duration classes.
+  function slotHours(slot: any) {
+    if (!slot?.startTime || !slot?.endTime) return 1;
+    const [sh, sm] = slot.startTime.split(":").map(Number);
+    const [eh, em] = slot.endTime.split(":").map(Number);
+    const mins = (eh*60+em) - (sh*60+sm);
+    return mins > 0 ? mins/60 : 1;
+  }
+  let presentHours = 0, heldHours = 0;
+  const trendAll = held.map((r) => {
+    const hrs = slotHours(r.slot);
+    heldHours += hrs;
+    if (r.status === "present") presentHours += hrs;
+    return Math.round((presentHours / heldHours) * 100);
   });
   const trendPoints = trendAll.slice(-12);
   const trendDelta = trendPoints.length >= 2 ? trendPoints[trendPoints.length-1] - trendPoints[0] : 0;
