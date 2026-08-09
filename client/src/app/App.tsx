@@ -3059,8 +3059,8 @@ function CalendarScreen() {
                     </>
                   ) : (
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <p style={{ fontSize:12, color:T.inkL, fontStyle:"italic", margin:0 }}>Upcoming class</p>
-                      <button onClick={() => setSheetSlotId(slot.id)} style={{ fontFamily:F.sans, fontSize:10.5, fontWeight:600, color:T.accent, background:"none", border:"none", cursor:"pointer" }}>
+                      <p style={{ fontSize:12.5, color:T.inkL, fontStyle:"italic", margin:0 }}>Upcoming class</p>
+                      <button onClick={() => setSheetSlotId(slot.id)} style={{ fontFamily:F.sans, fontSize:12.5, fontWeight:700, color:T.accent, background:"none", border:"none", cursor:"pointer" }}>
                         Plan ahead
                       </button>
                     </div>
@@ -3071,47 +3071,82 @@ function CalendarScreen() {
 
             {!expLoading && expandedClasses.some(c => !c.rec) && (
               <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #EFEAF6" }}>
-                {holidayNoteOpen ? (
-                  <div>
+                <button
+                  onClick={() => setHolidayNoteOpen(true)}
+                  style={{
+                    width:"100%", padding:15, borderRadius:16, border:"none", cursor:"pointer",
+                    background:"linear-gradient(155deg,#E4C578,#C9A24B 55%,#9C7A2E)", color:"#fff",
+                    fontFamily:F.sans, fontWeight:700, fontSize:14.5,
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+                    boxShadow:"0 14px 28px rgba(201,162,75,0.42), inset 0 1px 0 rgba(255,255,255,0.25)",
+                  }}
+                >
+                  🎉 Mark Whole Day as Holiday
+                </button>
+              </div>
+            )}
+
+            {holidayNoteOpen && (
+              <>
+                <div
+                  onClick={() => { setHolidayNoteOpen(false); setHolidayNote(""); }}
+                  style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.44)", backdropFilter:"blur(5px)", zIndex:60 }}
+                />
+                <div style={{
+                  position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+                  width:"100%", maxWidth:390,
+                  background:T.card, borderRadius:"28px 28px 0 0",
+                  boxShadow:"0 -12px 56px rgba(27,21,48,0.20)",
+                  zIndex:61,
+                }}>
+                  <div style={{ display:"flex", justifyContent:"center", padding:"16px 0 0" }}>
+                    <div style={{ width:40, height:4, borderRadius:2, background:"rgba(27,21,48,0.1)" }} />
+                  </div>
+
+                  <div style={{ padding:"18px 24px 26px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
+                      <div style={{ width:44, height:44, borderRadius:14, background:"#FBF1DC", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <span style={{ fontSize:20 }}>🎉</span>
+                      </div>
+                      <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:20, color:T.inkH, margin:0 }}>Mark as Holiday</h3>
+                    </div>
+
+                    <label style={{ display:"block", fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, marginBottom:8, fontWeight:600 }}>
+                      Reason (optional)
+                    </label>
                     <input
                       value={holidayNote}
                       onChange={e => setHolidayNote(e.target.value)}
-                      placeholder="Reason (optional) — e.g. Diwali, College Fest"
+                      placeholder="e.g. Diwali, College Fest"
                       autoFocus
                       style={{
-                        width:"100%", padding:"10px 12px", borderRadius:11, marginBottom:8,
-                        border:"1.5px solid #EFEAF6", fontFamily:F.sans, fontSize:12.5,
-                        color:T.inkH, outline:"none", boxSizing:"border-box",
+                        width:"100%", padding:"13px 15px", borderRadius:14, marginBottom:18,
+                        border:"1.5px solid #EFEAF6", background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                        fontFamily:F.sans, fontSize:13.5, color:T.inkH, outline:"none", boxSizing:"border-box",
+                        boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
                       }}
                     />
-                    <div style={{ display:"flex", gap:8 }}>
+                    <div style={{ display:"flex", gap:10 }}>
                       <button
                         onClick={() => { setHolidayNoteOpen(false); setHolidayNote(""); }}
-                        style={{ flex:1, padding:"9px", borderRadius:10, border:"1.5px solid rgba(110,79,145,0.2)", background:"transparent", color:T.inkM, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}
+                        style={{ flex:1, padding:14, borderRadius:14, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}
                       >Cancel</button>
                       <button
                         onClick={() => markWholeDayHoliday(expanded!)}
                         disabled={markingHoliday}
-                        style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:T.warn, color:"#fff", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}
+                        style={{
+                          flex:1.4, padding:14, borderRadius:14, border:"none", cursor:"pointer",
+                          background:"linear-gradient(155deg,#E4C578,#C9A24B 55%,#9C7A2E)", color:"#fff",
+                          fontFamily:F.sans, fontWeight:700, fontSize:14,
+                          boxShadow:"0 12px 24px rgba(201,162,75,0.4), inset 0 1px 0 rgba(255,255,255,0.22)",
+                        }}
                       >
                         {markingHoliday ? "Marking..." : "Confirm"}
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setHolidayNoteOpen(true)}
-                    style={{
-                      width:"100%", padding:"10px", borderRadius:12,
-                      border:`1.5px dashed ${T.warn}55`, background:T.warnFill,
-                      color:T.warn, fontFamily:F.sans, fontSize:12.5, fontWeight:600, cursor:"pointer",
-                      display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                    }}
-                  >
-                    🎉 Mark Whole Day as Holiday
-                  </button>
-                )}
-              </div>
+                </div>
+              </>
             )}
           </div>
         )}
