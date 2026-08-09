@@ -3802,6 +3802,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [semesterName, setSemesterName] = useState("");
   const [editingSemester, setEditingSemester] = useState(false);
   const [semesterInput, setSemesterInput] = useState("");
+  const [semesterEndDateInput, setSemesterEndDateInput] = useState("");
   const [savingSemester, setSavingSemester] = useState(false);
   const [subjectCount, setSubjectCount] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
@@ -3837,6 +3838,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
           setSemesterId(active.id);
           setSemesterName(active.name);
           setSemesterInput(active.name);
+          setSemesterEndDateInput(active.endDate ? active.endDate.slice(0,10) : "");
           const [{ overall }, { subjects }] = await Promise.all([
             api.get(`/records/stats/overview?semesterId=${active.id}`),
             api.get(`/subjects?semesterId=${active.id}`),
@@ -3979,6 +3981,12 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
                   autoFocus
                   style={{ width:"100%", padding:"6px 8px", borderRadius:8, border:`1.5px solid ${T.accent}`, fontFamily:F.serif, fontSize:13, color:T.inkH, outline:"none", textAlign:"center", boxSizing:"border-box", marginBottom:6 }}
                 />
+                <input
+                  type="date"
+                  value={semesterEndDateInput}
+                  onChange={e => setSemesterEndDateInput(e.target.value)}
+                  style={{ width:"100%", padding:"6px 4px", borderRadius:8, border:"1.5px solid #EFEAF6", fontFamily:F.sans, fontSize:10.5, color:T.inkH, outline:"none", textAlign:"center", boxSizing:"border-box", marginBottom:6 }}
+                />
                 <div style={{ display:"flex", gap:5, justifyContent:"center" }}>
                   <button onClick={() => { setEditingSemester(false); setSemesterInput(semesterName); }} style={{ fontSize:9, color:T.inkM, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Cancel</button>
                   <button
@@ -3987,6 +3995,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
                       setSavingSemester(true);
                       try {
                         await api.renameSemester(semesterId, semesterInput.trim());
+                        await api.setSemesterEndDate(semesterId, semesterEndDateInput || null);
                         setSemesterName(semesterInput.trim());
                         setEditingSemester(false);
                       } catch (e) { console.error(e); } finally { setSavingSemester(false); }
