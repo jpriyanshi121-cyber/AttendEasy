@@ -1452,7 +1452,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
 
       {fabOpen && (
         <ExtraClassModal
-          subjects={subjectCards.map(c => c.subject)}
+          subjects={Array.from(new Map(subjectCards.map(c => [c.subject.id, c.subject])).values())}
           onClose={() => setFabOpen(false)}
           onSaved={() => { setFabOpen(false); setQuickBusy(null); window.location.reload(); }}
         />
