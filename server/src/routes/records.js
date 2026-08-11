@@ -526,4 +526,14 @@ router.get("/report/pdf", async (req, res) => {
   doc.end();
 });
 
+router.delete("/:id", async (req, res) => {
+  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.id } });
+  if (!record) return res.status(404).json({ error: "Record not found" });
+  const semester = await getOwnedSemester(record.semesterId, req.userId);
+  if (!semester) return res.status(404).json({ error: "Record not found" });
+
+  await prisma.attendanceRecord.delete({ where: { id: record.id } });
+  res.json({ success: true });
+});
+
 module.exports = router;

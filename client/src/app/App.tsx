@@ -3016,6 +3016,18 @@ function CalendarScreen() {
                         aria-label="Edit"
                         style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                       ><PenLine size={12.5} strokeWidth={2} /></button>
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm("Delete this attendance record?")) return;
+                          try {
+                            await api.del(`/records/${rec.id}`);
+                            if (expanded) refreshDay(expanded);
+                          } catch (e) { console.error(e); }
+                        }}
+                        title="Delete"
+                        aria-label="Delete"
+                        style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                      ><X size={13} strokeWidth={2.4} /></button>
                     </div>
                   ) : canBackfill ? (
                     <button
