@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { Sparkles, UploadCloud, FileText, Loader2, Trash2, Plus, X, Check, AlertTriangle } from "lucide-react";
 import { T, F, S } from "./App";
 import { api } from "../lib/api";
@@ -12,6 +12,7 @@ type ExtractedSlot = {
   startTime: string;
   endTime: string;
   room: string | null;
+  prof: string | null;
 };
 type ExtractResult = {
   semester: { name: string | null; startDate: string | null; endDate: string | null };
@@ -105,6 +106,36 @@ function FileDrop({
 
 function fieldInputStyle() {
   return { flex: 1, padding: "10px 12px", borderRadius: 12, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 13, color: T.inkH, minWidth: 0 } as const;
+}
+
+// Matches the manual "Add/Edit Slot" form in App.tsx exactly (same label
+// style, same input chrome) so the review screen doesn't feel like a
+// different, unfamiliar UI from the one the user already knows.
+const slotLabelStyle = {
+  display: "block", fontFamily: F.mono, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase" as const,
+  color: T.inkM, marginBottom: 6, paddingLeft: 2, fontWeight: 500,
+};
+function slotInputStyle(danger?: boolean) {
+  return {
+    width: "100%", padding: "10px 11px", borderRadius: 12, border: `1.5px solid ${danger ? "#F0C9CC" : "#EFEAF6"}`,
+    background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)", fontFamily: F.sans, fontSize: 12.5, color: T.inkH,
+    outline: "none", boxSizing: "border-box" as const,
+  };
+}
+function slotSelectStyle() {
+  return {
+    width: "100%", padding: "10px 11px", borderRadius: 12, border: "1.5px solid #EFEAF6",
+    background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)", fontFamily: F.sans, fontSize: 12.5, color: T.inkH,
+    outline: "none", boxSizing: "border-box" as const, cursor: "pointer",
+  };
+}
+function SlotField({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <label style={slotLabelStyle}>{label}{optional && <span style={{ textTransform: "none", opacity: 0.7 }}> (optional)</span>}</label>
+      {children}
+    </div>
+  );
 }
 
 export default function SmartImportScreen({
@@ -250,6 +281,7 @@ export default function SmartImportScreen({
               startTime: s.startTime,
               endTime: s.endTime,
               room: s.room || undefined,
+              prof: s.prof || undefined,
             });
           } catch {
             // A conflicting/duplicate slot shouldn't block the rest of the import.
@@ -417,30 +449,50 @@ export default function SmartImportScreen({
                       {items.map(({ s, i }) => {
                         const missingTime = !s.startTime || !s.endTime;
                         return (
-                          <div key={i} style={{ border: `1.5px solid ${missingTime ? "#F0C9CC" : "#EFEAF6"}`, borderRadius: 14, padding: 12 }}>
-                            <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                          <div key={i} style={{ border: `1.5px solid ${missingTime ? "#F0C9CC" : "#EFEAF6"}`, borderRadius: 16, padding: 14 }}>
+                            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
                               <input type="text" value={s.subject} onChange={(e) => updateSlot(i, { subject: e.target.value })}
-                                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontWeight: 700, fontSize: 12.5, color: T.inkH, minWidth: 0 }} />
-                              <select value={s.type} onChange={(e) => updateSlot(i, { type: e.target.value as any })}
-                                style={{ padding: "7px 8px", borderRadius: 9, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12, color: T.inkH }}>
-                                <option value="lecture">Lecture</option>
-                                <option value="tutorial">Tutorial</option>
-                                <option value="practical">Practical</option>
-                              </select>
-                              <button onClick={() => removeSlot(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkL, padding: 4 }}><Trash2 size={15} /></button>
+                                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontWeight: 700, fontSize: 13, color: T.inkH, minWidth: 0 }} />
+                              <button onClick={() => removeSlot(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkL, padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
                             </div>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <select value={s.day} onChange={(e) => updateSlot(i, { day: Number(e.target.value) })}
-                                style={{ padding: "7px 8px", borderRadius: 9, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12, color: T.inkH }}>
-                                {DAYS_SHORT.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
-                              </select>
-                              <input type="time" value={s.startTime} onChange={(e) => updateSlot(i, { startTime: e.target.value })}
-                                style={{ width: 78, padding: "7px 8px", borderRadius: 9, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12, color: T.inkH }} />
-                              <input type="time" value={s.endTime} onChange={(e) => updateSlot(i, { endTime: e.target.value })}
-                                style={{ width: 78, padding: "7px 8px", borderRadius: 9, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12, color: T.inkH }} />
-                              <div style={{ flex: 1, textAlign: "right", fontFamily: F.mono, fontSize: 11, fontWeight: 700, color: missingTime ? T.danger : T.inkM }}>
-                                {missingTime ? "Set time" : `${fmtTime(s.startTime)}–${fmtTime(s.endTime)}`}
+
+                            <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
+                              <SlotField label="Type">
+                                <select value={s.type} onChange={(e) => updateSlot(i, { type: e.target.value as any })} style={slotSelectStyle()}>
+                                  <option value="lecture">Lecture</option>
+                                  <option value="tutorial">Tutorial</option>
+                                  <option value="practical">Practical</option>
+                                </select>
+                              </SlotField>
+                              <SlotField label="Day">
+                                <select value={s.day} onChange={(e) => updateSlot(i, { day: Number(e.target.value) })} style={slotSelectStyle()}>
+                                  {DAYS_SHORT.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                                </select>
+                              </SlotField>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
+                              <SlotField label="Start Time">
+                                <input type="time" value={s.startTime} onChange={(e) => updateSlot(i, { startTime: e.target.value })} style={slotInputStyle(!s.startTime)} />
+                              </SlotField>
+                              <SlotField label="End Time">
+                                <input type="time" value={s.endTime} onChange={(e) => updateSlot(i, { endTime: e.target.value })} style={slotInputStyle(!s.endTime)} />
+                              </SlotField>
+                            </div>
+
+                            {missingTime && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 11, fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.danger }}>
+                                <AlertTriangle size={12} /> Set both times, or this class will be skipped.
                               </div>
+                            )}
+
+                            <div style={{ display: "flex", gap: 9 }}>
+                              <SlotField label="Room" optional>
+                                <input type="text" placeholder="e.g. C-204" value={s.room || ""} onChange={(e) => updateSlot(i, { room: e.target.value })} style={slotInputStyle()} />
+                              </SlotField>
+                              <SlotField label="Professor" optional>
+                                <input type="text" placeholder="e.g. Prof. Iyer" value={s.prof || ""} onChange={(e) => updateSlot(i, { prof: e.target.value })} style={slotInputStyle()} />
+                              </SlotField>
                             </div>
                           </div>
                         );

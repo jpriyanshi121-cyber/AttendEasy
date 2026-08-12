@@ -12,7 +12,7 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024, files: 2 },
 });
 
-const MODEL = "gemini-3.5-flash-lite";
+const MODEL = "gemini-3.6-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const BASE_PROMPT = `You read a college academic calendar and/or a weekly class timetable (images or PDFs) and extract structured data. Respond with ONLY a single JSON object — no markdown fences, no preamble, no commentary. Follow this exact shape:
@@ -20,7 +20,7 @@ const BASE_PROMPT = `You read a college academic calendar and/or a weekly class 
 {
   "semester": { "name": string|null, "startDate": "YYYY-MM-DD"|null, "endDate": "YYYY-MM-DD"|null },
   "holidays": [ { "date": "YYYY-MM-DD", "label": string, "confidence": "confirmed"|"likely" } ],
-  "slots": [ { "subject": string, "type": "lecture"|"tutorial"|"practical", "day": 0-6, "startTime": "HH:MM", "endTime": "HH:MM", "room": string|null } ]
+  "slots": [ { "subject": string, "type": "lecture"|"tutorial"|"practical", "day": 0-6, "startTime": "HH:MM", "endTime": "HH:MM", "room": string|null, "prof": string|null } ]
 }
 
 SEMESTER END DATE — this must be the last day of regular teaching, never an exam date:
@@ -28,10 +28,12 @@ SEMESTER END DATE — this must be the last day of regular teaching, never an ex
 - Never use a "Conduct of Examination", "End Term Exam", "Practical Exam", or similar exam-period date as the semester end date, even if it's later — exams are not teaching days.
 - If the calendar shows separate rows for different admitted-year batches (e.g. "admitted upto 2025" vs "admitted in 2026") with different date ranges, see the BATCH CONTEXT note below for which row to use.
 
-HOLIDAYS — return every plausible non-teaching date, but mark your confidence honestly:
+HOLIDAYS — be EXHAUSTIVE. Go through the calendar section by section (every table, every bullet, every row) and extract every single date or date-range mentioned anywhere as a break, holiday, fest, exam period, or "important activity" — do not stop after the first few, and do not skip rows that seem minor or that only have a vague date (e.g. "November - 2026" — still add one entry for that, using your best guess of a specific date within the stated month/range, marked "likely"). Missing an entry is worse than over-including one. Mark your confidence honestly:
 - "confirmed": the calendar explicitly says there are no classes that day — words like "holiday", "break", "vacation", "no classes", a gazetted holiday list, or a date range explicitly excluded from the teaching period.
 - "likely": a date where classes are commonly suspended but the calendar doesn't say so outright — fests, sports meets, conferences, alumni meets, convocations, AND exam/mid-term periods (these usually replace regular classes even when not stated as a "holiday"). Still give your best guess at a specific, useful label (e.g. "Mid-Term Examination", "Techno-Cultural Fest") — never omit a date just because you're unsure, mark it "likely" instead.
-- Expand a stated multi-day range (break, fest, exam period, etc.) into one entry per calendar date in that range.
+- Expand a stated multi-day range (break, fest, exam period, etc.) into one entry per calendar date in that range — a 12-day break is 12 entries, not one.
+- Before finishing, re-scan the calendar once more specifically for any date or date-range you haven't yet turned into an entry.
+- ADDITIONALLY, beyond what's written in the files: using your own general knowledge, also add major national/public holidays and widely-observed festivals (e.g. Republic Day, Independence Day, Gandhi Jayanti, Diwali, Holi, Eid, Christmas, etc., matched to the correct dates for the actual calendar year in the semester's date range) that fall within the semester's start/end dates — even if the uploaded files never mention them. Skip this step if you can't determine the semester's date range. Always mark these "likely" (never "confirmed"), since colleges handle these inconsistently (full holiday, optional, or a compensatory working day) — the calendar's own explicit statements always take priority over this general knowledge if they conflict.
 
 TIMETABLE — the grid uses numbered period columns (1, 2, 3...) with a header row mapping each number to a clock time range (e.g. column "3" header "11-12 am" means 11:00-12:00). For every class cell:
 - Find which numbered column(s) it spans and read the actual start/end clock time from that column's header — never leave startTime/endTime empty if the timetable has a header row with times.
@@ -40,6 +42,8 @@ TIMETABLE — the grid uses numbered period columns (1, 2, 3...) with a header r
 - "day" is 0 = Monday .. 6 = Sunday.
 - "type": lectures/theory -> "lecture", tutorials -> "tutorial", labs/practicals -> "practical". A subject that appears as both a lecture and a lab gets two separate slot entries. Default to "lecture" if truly unclear.
 - Use the short subject code exactly as it appears in the timetable's legend/key if there is one (e.g. "DAA", "SW") rather than the long expanded name — keep it consistent across all slots for that subject.
+- "room": the room/lab number for that cell if shown (e.g. "E-312", "A3"), else null.
+- "prof": the instructor's name for that subject if there's a legend/key mapping subject codes to faculty names (e.g. "Ms. Pushpanjali", "Prof. Reddy") — match it to each slot via the subject code, else null. If a slot lists two instructors (e.g. "Ms. Megha/Ms. Deepika" for a group split), see BATCH CONTEXT for which to use, or include both separated by "/" if no group was specified.
 - Skip cells you can't confidently read (blank, illegible, or a shared/free period like "Lunch") — don't invent a class for them.
 - If a cell lists multiple group-specific options (e.g. "IOT Lab A3/B3", "DAA LAB A3/ B3 Networking LAB") see the BATCH CONTEXT note below for which one to keep.
 

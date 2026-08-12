@@ -2057,6 +2057,14 @@ const navBtn: React.CSSProperties = {
   cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
 };
 
+function todayLocalStr(): string {
+  const d = new Date();
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${yr}-${mo}-${da}`;
+}
+
 // ════════════════════════════════════════════════════════════════
 // SCREEN 4 — SUBJECT DETAIL
 // ════════════════════════════════════════════════════════════════
@@ -2472,7 +2480,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
   const [slotInfo, setSlotInfo] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = todayLocalStr();
   const targetDate = date || todayStr;
   const isFutureDate = targetDate > todayStr;
 
@@ -2915,7 +2923,15 @@ function CalendarScreen() {
   const holidayMap = new Map(holidays.map(h => [String(h.date).slice(0,10), h]));
   const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7; // Mon=0
   const daysInMonth = new Date(year, month, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0,10);
+  const [todayStr, setTodayStr] = useState(todayLocalStr());
+
+  // Keep "today" fresh even if this screen is left open across midnight —
+  // otherwise the highlighted date/pointer freezes at whatever day it was
+  // when the component last rendered.
+  useEffect(() => {
+    const id = setInterval(() => setTodayStr(todayLocalStr()), 60000);
+    return () => clearInterval(id);
+  }, []);
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
 
   const expLoading = expanded !== null && expRecsDate !== expanded;
