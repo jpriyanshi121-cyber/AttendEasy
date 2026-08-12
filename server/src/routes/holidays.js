@@ -30,6 +30,7 @@ router.post(
     body("holidays").isArray({ min: 1 }).withMessage("At least one holiday is required"),
     body("holidays.*.date").isISO8601().withMessage("Each holiday needs a valid date"),
     body("holidays.*.label").optional({ nullable: true }).trim().isLength({ max: 120 }),
+    body("holidays.*.confirmed").optional().isBoolean(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -42,6 +43,7 @@ router.post(
       semesterId: semester.id,
       date: new Date(h.date),
       label: h.label || null,
+      confirmed: h.confirmed !== false,
     }));
 
     await prisma.holiday.createMany({ data, skipDuplicates: true });

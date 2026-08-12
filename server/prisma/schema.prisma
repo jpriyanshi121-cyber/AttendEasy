@@ -58,12 +58,18 @@ model Semester {
 // college fest, mid-sem break day, etc.) — declared up front, usually via
 // the AI academic-calendar import, so projections in stats.js can skip
 // these dates instead of assuming every weekday has class.
+// `confirmed`: true when the calendar explicitly states no classes that
+// day (counted in attendance projections). false = "likely" — an event/exam
+// period classes are often suspended for, but the calendar doesn't say so
+// outright; shown on the Calendar screen with its reason, but NOT subtracted
+// from remaining-class projections since it isn't certain.
 model Holiday {
   id         String   @id @default(uuid())
   semesterId String
   semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   date       DateTime
   label      String?
+  confirmed  Boolean  @default(true)
   createdAt  DateTime @default(now())
 
   @@unique([semesterId, date])

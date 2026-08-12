@@ -2786,6 +2786,7 @@ function CalendarScreen() {
   const [expRecsDate, setExpRecsDate] = useState<string|null>(null);
   const [backfillBusy, setBackfillBusy] = useState<string|null>(null);
   const [sheetSlotId, setSheetSlotId] = useState<string|null>(null);
+  const [holidays, setHolidays] = useState<{id:string; date:string; label:string|null; confirmed:boolean}[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -2808,6 +2809,14 @@ function CalendarScreen() {
     (async () => {
       const { slots } = await api.get(`/slots?semesterId=${semesterId}`);
       setAllSlots(slots);
+    })();
+  }, [semesterId]);
+
+  useEffect(() => {
+    if (!semesterId) return;
+    (async () => {
+      const { holidays: fetched } = await api.get(`/holidays/${semesterId}`);
+      setHolidays(fetched);
     })();
   }, [semesterId]);
 
@@ -2903,6 +2912,7 @@ function CalendarScreen() {
   }
 
   const dayMap = new Map(days.map(d => [d.date, d]));
+  const holidayMap = new Map(holidays.map(h => [String(h.date).slice(0,10), h]));
   const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7; // Mon=0
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
@@ -2977,13 +2987,16 @@ function CalendarScreen() {
             const day = i + 1;
             const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
             const entry = dayMap.get(dateStr);
+            const holiday = holidayMap.get(dateStr);
             const isToday = dateStr === todayStr;
             const isSel = expanded === dateStr;
             const { bg, fg } = entry ? entry.color : { bg: "transparent", fg: T.inkL };
             return (
               <button key={day}
                 onClick={() => openDay(dateStr)}
+                title={holiday ? (holiday.label || (holiday.confirmed ? "Holiday" : "Possible no-class day")) : undefined}
                 style={{
+                  position:"relative",
                   width:41, height:41, margin:"0 auto", borderRadius:13,
                   border: isToday && !isSel ? `2px solid ${T.accent}` : "none",
                   background: isSel ? T.accent : (bg || "rgba(110,79,145,0.028)"),
@@ -2997,6 +3010,13 @@ function CalendarScreen() {
                   fontFamily:F.sans, fontWeight:600, fontSize:13.5,
                   color: isSel ? "#fff" : (isToday ? T.accent : fg),
                 }}>{day}</span>
+                {holiday && (
+                  <span style={{
+                    position:"absolute", bottom:3, left:"50%", transform:"translateX(-50%)",
+                    width:5, height:5, borderRadius:"50%",
+                    background: holiday.confirmed ? "#2F7A5C" : "#C9A24B",
+                  }} />
+                )}
               </button>
             );
           })}
@@ -3020,6 +3040,19 @@ function CalendarScreen() {
                 background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
               }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
+
+            {expanded && holidayMap.get(expanded) && (
+              <div style={{
+                display:"flex", alignItems:"center", gap:8, padding:"9px 13px", borderRadius:12, marginBottom:14,
+                background: holidayMap.get(expanded)!.confirmed ? "#E4F1EA" : "#FBF1DC",
+              }}>
+                <span style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, background: holidayMap.get(expanded)!.confirmed ? "#2F7A5C" : "#C9A24B" }} />
+                <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color: holidayMap.get(expanded)!.confirmed ? "#2F7A5C" : "#8A6B23" }}>
+                  {holidayMap.get(expanded)!.label || (holidayMap.get(expanded)!.confirmed ? "Holiday" : "Possible no-class day")}
+                  {!holidayMap.get(expanded)!.confirmed && " (not counted in your %)"}
+                </span>
+              </div>
+            )}
 
             {expLoading ? (
               <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
