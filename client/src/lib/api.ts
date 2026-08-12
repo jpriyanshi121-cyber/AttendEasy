@@ -40,6 +40,25 @@ async function request(path: string, options: RequestInit = {}, retried = false)
   return data;
 }
 
+async function requestForm(path: string, formData: FormData): Promise<any> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  // No Content-Type here on purpose — the browser sets
+  // multipart/form-data with the correct boundary itself.
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { method: "POST", headers, body: formData });
+  } catch (networkErr) {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Something went wrong");
+  return data;
+}
+
 export const api = {
   register: (email: string, password: string, name: string) =>
     request("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }),
@@ -51,6 +70,8 @@ export const api = {
     request("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
   renameSemester: (id: string, name: string) => request(`/semesters/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
   setSemesterEndDate: (id: string, endDate: string | null) => request(`/semesters/${id}`, { method: "PATCH", body: JSON.stringify({ endDate }) }),
+  setSemesterDates: (id: string, startDate: string | null, endDate: string | null) =>
+    request(`/semesters/${id}`, { method: "PATCH", body: JSON.stringify({ ...(startDate ? { startDate } : {}), endDate }) }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request("/auth/change-password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
   unsubscribePush: (endpoint: string) => request("/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
@@ -58,6 +79,7 @@ export const api = {
   resetPassword: (token: string, password: string) => request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) }),
   get: (path: string) => request(path),
   post: (path: string, body: any) => request(path, { method: "POST", body: JSON.stringify(body) }),
+  postForm: (path: string, formData: FormData) => requestForm(path, formData),
   patch: (path: string, body: any) => request(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: (path: string) => request(path, { method: "DELETE" }),
 };

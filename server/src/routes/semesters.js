@@ -61,11 +61,12 @@ router.post(
   }
 );
 
-// Rename a semester and/or set its expected end date (current or archived).
+// Rename a semester and/or set its start/end date (current or archived).
 router.patch(
   "/:id",
   [
     body("name").optional().trim().isLength({ min: 1 }).withMessage("Name cannot be empty"),
+    body("startDate").optional().isISO8601(),
     body("endDate").optional({ nullable: true }).isISO8601(),
   ],
   async (req, res) => {
@@ -77,6 +78,7 @@ router.patch(
 
     const data = {};
     if (req.body.name !== undefined) data.name = req.body.name;
+    if (req.body.startDate !== undefined) data.startDate = new Date(req.body.startDate);
     if (req.body.endDate !== undefined) data.endDate = req.body.endDate ? new Date(req.body.endDate) : null;
 
     const updated = await prisma.semester.update({ where: { id: semester.id }, data });

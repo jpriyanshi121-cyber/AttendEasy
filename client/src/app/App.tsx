@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
+import SmartImportScreen from "./SmartImportScreen";
 import { api, getToken, clearToken } from "../lib/api";
 import { subscribeToPush } from "../lib/push";
 import confetti from "canvas-confetti";
@@ -228,6 +229,7 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
   const [newTypes, setNewTypes] = useState<Record<ClassType, boolean>>({ lecture:false, tutorial:false, practical:false });
   const [newThresholds, setNewThresholds] = useState<Record<ClassType, string>>({ lecture:"75", tutorial:"75", practical:"75" });
   const [error, setError] = useState<string|null>(null);
+  const [showSmartImport, setShowSmartImport] = useState(false);
 
   const PALETTE = ["#6E4F91","#8B6FBB","#5A3D78","#9B7FCC","#7A5AA0"];
 
@@ -412,6 +414,38 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
             </h2>
             <p className="ae2" style={{ fontSize:14, color:T.inkM }}>Add each subject you're taking this semester.</p>
           </div>
+
+          <div style={{ padding:"0 28px 4px" }}>
+            <button
+              onClick={() => setShowSmartImport(true)}
+              className="ae2"
+              style={{
+                width:"100%", padding:"13px 16px", borderRadius:14, cursor:"pointer",
+                border:`1.5px solid ${T.aFillDeep}`, background:T.aFill,
+                display:"flex", alignItems:"center", gap:10, marginBottom:18,
+              }}
+            >
+              <div style={{ width:32, height:32, borderRadius:10, background:"linear-gradient(135deg,#6E4F91,#9B7FCC)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Sparkles size={15} color="#fff" />
+              </div>
+              <div style={{ textAlign:"left" }}>
+                <div style={{ fontFamily:F.sans, fontWeight:700, fontSize:13.5, color:T.inkH }}>Smart Import with AI</div>
+                <div style={{ fontFamily:F.sans, fontSize:11.5, color:T.inkM }}>Upload your calendar & timetable — AI fills this in</div>
+              </div>
+            </button>
+          </div>
+
+          {showSmartImport && semesterId && (
+            <SmartImportScreen
+              semesterId={semesterId}
+              onClose={() => setShowSmartImport(false)}
+              onDone={async () => {
+                setShowSmartImport(false);
+                const { subjects: fetched } = await api.get(`/subjects?semesterId=${semesterId}`);
+                setSubjects(fetched);
+              }}
+            />
+          )}
 
           <div style={{ flex:1, overflow:"auto", padding:"0 28px" }}>
             {subjects.map((s, i) => (
@@ -2398,7 +2432,21 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
               </div>
               {rec.note && <p style={{ fontSize:12, color:T.inkM, fontStyle:"italic", marginTop:5, lineHeight:1.45 }}>{rec.note}</p>}
             </div>
-            <Pill status={rec.status} />
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <Pill status={rec.status} />
+              <button
+                onClick={async () => {
+                  if (!window.confirm("Delete this attendance record?")) return;
+                  try {
+                    await api.del(`/records/${rec.id}`);
+                    setHistory(prev => prev.filter((r:any) => r.id !== rec.id));
+                  } catch (e) { console.error(e); }
+                }}
+                title="Delete"
+                aria-label="Delete"
+                style={{ width:24, height:24, borderRadius:7, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+              ><X size={12} strokeWidth={2.4} /></button>
+            </div>
           </div>
         ))}
       </div>

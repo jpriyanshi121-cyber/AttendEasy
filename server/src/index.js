@@ -1,4 +1,3 @@
-process.env.TZ = "Asia/Kolkata";
 require("dotenv").config();
 require("express-async-errors");
 const express = require("express");
@@ -12,6 +11,8 @@ const subjectRoutes = require("./routes/subjects");
 const slotRoutes = require("./routes/slots");
 const recordRoutes = require("./routes/records");
 const pushRoutes = require("./routes/push");
+const holidayRoutes = require("./routes/holidays");
+const aiRoutes = require("./routes/ai");
 const { startScheduler } = require("./lib/scheduler");
 
 const app = express();
@@ -47,13 +48,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.get("/api/health", async (req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "warm", time: new Date().toISOString() });
-  } catch (e) {
-    res.json({ status: "ok", db: "cold-or-unreachable", time: new Date().toISOString() });
-  }
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
 });
 
 app.use("/api/auth", authLimiter, authRoutes);
@@ -62,6 +58,8 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/holidays", holidayRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

@@ -49,8 +49,25 @@ model Semester {
   subjects   Subject[]
   slots      Slot[]
   records    AttendanceRecord[]
+  holidays   Holiday[]
 
   @@index([userId])
+}
+
+// A single non-teaching calendar date within a semester (public holiday,
+// college fest, mid-sem break day, etc.) — declared up front, usually via
+// the AI academic-calendar import, so projections in stats.js can skip
+// these dates instead of assuming every weekday has class.
+model Holiday {
+  id         String   @id @default(uuid())
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  date       DateTime
+  label      String?
+  createdAt  DateTime @default(now())
+
+  @@unique([semesterId, date])
+  @@index([semesterId])
 }
 
 model Subject {

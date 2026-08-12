@@ -79,8 +79,9 @@ function startOfDayLocal(date) {
 // date (inclusive) for a given class type — not a session count, since a
 // 1-hour and a 3-hour class don't count the same. Walks each day, checking
 // recurring weekly slots (minus any that were rescheduled away that specific
-// day) plus any already-scheduled one-off extra classes. Returns null if
-// there's no end date set — meaning the horizon is unknown.
+// day, or that fall on a declared Holiday) plus any already-scheduled
+// one-off extra classes. Returns null if there's no end date set — meaning
+// the horizon is unknown.
 async function countRemainingClasses(prisma, { subjectId, semesterId, type, endDate }) {
   if (!endDate) return null;
 
@@ -88,23 +89,30 @@ async function countRemainingClasses(prisma, { subjectId, semesterId, type, endD
   const to = startOfDayLocal(endDate);
   if (to < from) return 0;
 
-  const [recurring, extras] = await Promise.all([
+  const [recurring, extras, holidays] = await Promise.all([
     prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: false } }),
     prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: true, extraDate: { gte: from, lte: to } } }),
+    prisma.holiday.findMany({ where: { semesterId, date: { gte: from, lte: to } } }),
   ]);
+
+  const holidayKeys = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
 
   const replacedKeys = new Set();
   for (const e of extras) {
     if (e.replacesSlotId) replacedKeys.add(`${e.replacesSlotId}|${e.extraDate.toISOString().slice(0, 10)}`);
   }
 
+  // Extra (one-off) classes still count even on a declared holiday — if
+  // someone explicitly scheduled a makeup class that day, that's deliberate.
   let hours = extras.reduce((sum, e) => sum + slotHours(e), 0);
   const cursor = new Date(from);
   while (cursor <= to) {
     const dow = toOurDay(cursor.getDay());
     const dateKey = cursor.toISOString().slice(0, 10);
-    for (const s of recurring) {
-      if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) hours += slotHours(s);
+    if (!holidayKeys.has(dateKey)) {
+      for (const s of recurring) {
+        if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) hours += slotHours(s);
+      }
     }
     cursor.setDate(cursor.getDate() + 1);
   }

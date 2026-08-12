@@ -179,3 +179,11 @@
     line-height: 1.5;
   }
 }
+
+.ae-spin {
+  animation: ae-spin-rotate 0.8s linear infinite;
+}
+@keyframes ae-spin-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
