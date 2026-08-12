@@ -111,10 +111,16 @@ function fieldInputStyle() {
 // Matches the manual "Add/Edit Slot" form in App.tsx exactly (same label
 // style, same input chrome) so the review screen doesn't feel like a
 // different, unfamiliar UI from the one the user already knows.
-const slotLabelStyle = {
-  display: "block", fontFamily: F.mono, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase" as const,
-  color: T.inkM, marginBottom: 6, paddingLeft: 2, fontWeight: 500,
-};
+// NOTE: kept as a function (not a top-level const object) — SmartImportScreen
+// and App.tsx import from each other, and a plain const here would read
+// F/T at module-evaluation time, which can hit them before they're
+// initialized in that circular-import order and crash the whole app.
+function slotLabelStyle() {
+  return {
+    display: "block", fontFamily: F.mono, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase" as const,
+    color: T.inkM, marginBottom: 6, paddingLeft: 2, fontWeight: 500,
+  };
+}
 function slotInputStyle(danger?: boolean) {
   return {
     width: "100%", padding: "10px 11px", borderRadius: 12, border: `1.5px solid ${danger ? "#F0C9CC" : "#EFEAF6"}`,
@@ -132,7 +138,7 @@ function slotSelectStyle() {
 function SlotField({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={slotLabelStyle}>{label}{optional && <span style={{ textTransform: "none", opacity: 0.7 }}> (optional)</span>}</label>
+      <label style={slotLabelStyle()}>{label}{optional && <span style={{ textTransform: "none", opacity: 0.7 }}> (optional)</span>}</label>
       {children}
     </div>
   );
