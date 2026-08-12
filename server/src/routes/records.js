@@ -53,7 +53,7 @@ function localDateKey(d) {
   return `${yr}-${mo}-${da}`;
 }
 
-const VALID_STATUSES = ["present", "absent", "cancelled", "rescheduled"];
+const VALID_STATUSES = ["present", "absent", "cancelled", "rescheduled", "note"];
 const VALID_TAGS = ["holiday", "prof_absent", "exam", "other"];
 
 router.post(

@@ -54,7 +54,7 @@ export const S = {
 // ════════════════════════════════════════════════════════════════
 // TYPES
 // ════════════════════════════════════════════════════════════════
-type Status   = "present" | "absent" | "cancelled" | "rescheduled";
+type Status   = "present" | "absent" | "cancelled" | "rescheduled" | "note";
 type Screen   = "onboarding" | "home" | "timetable" | "subject" | "calendar" | "semester" | "settings" | "edit-timetable" | "profile";
 type TabId    = "home" | "timetable" | "calendar" | "settings";
 
@@ -74,6 +74,7 @@ function statusMeta(s: Status) {
   if (s === "present")     return { text:T.safe,   bg:T.safeFill,    label:"Present" };
   if (s === "absent")      return { text:T.danger, bg:T.dangerFill,  label:"Absent" };
   if (s === "cancelled")   return { text:T.inkM,   bg:T.cancelFill,  label:"Cancelled" };
+  if (s === "note")        return { text:T.accent, bg:T.aFill,       label:"Note" };
   return                          { text:T.warn,   bg:T.warnFill,    label:"Rescheduled" };
 }
 
@@ -2515,10 +2516,12 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     { s:"absent",      desc:"I missed this class",        icon:<X size={18}/> },
     { s:"cancelled",   desc:"Class was called off",       icon:<Ban size={18}/> },
     { s:"rescheduled", desc:"Moving to another time",     icon:<RotateCcw size={18}/> },
+    { s:"note",        desc:"Just leave a reminder, no attendance mark yet", icon:<PenLine size={18}/> },
   ];
-  // A class that hasn't happened yet can only be pre-marked as cancelled or
-  // rescheduled — "I attended" / "I missed" don't make sense ahead of time.
-  const OPTS = isFutureDate ? ALL_OPTS.filter(o => o.s === "cancelled" || o.s === "rescheduled") : ALL_OPTS;
+  // A class that hasn't happened yet can only be pre-marked as cancelled,
+  // rescheduled, or given a reminder note — "I attended" / "I missed"
+  // don't make sense ahead of time.
+  const OPTS = isFutureDate ? ALL_OPTS.filter(o => o.s === "cancelled" || o.s === "rescheduled" || o.s === "note") : ALL_OPTS;
 
   async function handleSave() {
     if (!sel || !slotId) return;
@@ -2753,7 +2756,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
           />
 
           <button
-            disabled={!sel || saving}
+            disabled={!sel || saving || (sel === "note" && !note.trim())}
             onClick={handleSave}
             style={{
               width:"100%", padding:"17px", borderRadius:20, border:"none",
@@ -3097,7 +3100,7 @@ function CalendarScreen() {
                       {slot.startTime}–{slot.endTime}{slot.room ? ` · ${slot.room}` : ""}
                     </div>
                   </div>
-                  {rec ? (
+                  {rec && rec.status !== "note" ? (
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <span style={{
                         padding:"5px 12px", borderRadius:100, fontFamily:F.sans, fontWeight:700, fontSize:11,
@@ -3140,7 +3143,7 @@ function CalendarScreen() {
                   <p style={{ fontSize:11.5, color:T.inkM, fontStyle:"italic", margin:"3px 0 0" }}>“{rec.note}”</p>
                 )}
 
-                {!rec && (
+                {(!rec || rec.status === "note") && (
                   canBackfill ? (
                     <>
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9 }}>
