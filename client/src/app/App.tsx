@@ -2469,7 +2469,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
 // SCREEN 5 — MARK ATTENDANCE SHEET
 // ════════════════════════════════════════════════════════════════
 function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
-  slotId:string|null; date?:string; initialRecord?: { status:Status; note?:string|null; tag?:string|null } | null;
+  slotId:string|null; date?:string; initialRecord?: { id:string; status:Status; note?:string|null; tag?:string|null } | null;
   onClose:()=>void; onSaved:()=>void;
 }) {
   const [sel,    setSel]    = useState<Status|null>(null);
@@ -2482,6 +2482,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
   const [visible,setVisible]= useState(false);
   const [slotInfo, setSlotInfo] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string|null>(null);
 
   const todayStr = todayLocalStr();
   const targetDate = date || todayStr;
@@ -2495,6 +2496,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     setSel(initialRecord?.status && initialRecord.status !== "note" ? initialRecord.status : null);
     setCTag(initialRecord?.tag ? initialRecord.tag.split("_").map(w => w[0].toUpperCase()+w.slice(1)).join(" ") : null);
     setNote(initialRecord?.note ?? "");
+    setEditingNoteId(initialRecord?.status === "note" ? initialRecord.id : null);
     setVisible(false);
     setSlotInfo(null);
     requestAnimationFrame(() => setVisible(true));
@@ -2585,6 +2587,20 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     setSaving(true);
     try {
       await api.post("/records/mark", { slotId, date: targetDate, status: "note", note: note.trim() });
+      onSaved();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteNote() {
+    if (!editingNoteId) return;
+    if (!window.confirm("Delete this note?")) return;
+    setSaving(true);
+    try {
+      await api.del(`/records/${editingNoteId}`);
       onSaved();
     } catch (e) {
       console.error(e);
@@ -2799,6 +2815,23 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
             >
               <PenLine size={15} strokeWidth={2.2} />
               {saving ? "Saving..." : "Save as note only"}
+            </button>
+          )}
+
+          {/* Only offered when actually editing an existing note — keeps this
+              contained inside the edit flow instead of a row-level icon
+              that could be mistaken for removing the class itself. */}
+          {!sel && editingNoteId && (
+            <button
+              disabled={saving}
+              onClick={handleDeleteNote}
+              style={{
+                width:"100%", background:"none", border:"none", padding:"8px 4px 2px",
+                color:T.danger, fontFamily:F.sans, fontSize:12.5, fontWeight:600,
+                cursor:"pointer", textAlign:"center",
+              }}
+            >
+              Remove this note
             </button>
           )}
 
@@ -3194,7 +3227,10 @@ function CalendarScreen() {
                         ><Trash2 size={12.5} strokeWidth={2} /></button>
                       )}
                     </div>
-                  ) : canBackfill ? (
+                  ) : (
+                    // Same pencil for "add/edit a note" whether the class is in the
+                    // past (writing it up) or still upcoming (planning ahead) — one
+                    // consistent icon instead of a different affordance per case.
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <button
                         onClick={() => setSheetSlotId(slot.id)}
@@ -3202,23 +3238,6 @@ function CalendarScreen() {
                         aria-label={rec ? "Edit note" : "Add note"}
                         style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                       ><PenLine size={12.5} strokeWidth={2} /></button>
-                      {/* A saved note is a reminder, not an attendance record — it gets
-                          its own delete affordance rather than reusing the record-delete
-                          button above (which only appears for real attendance decisions). */}
-                      {rec && rec.status === "note" && (
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm("Delete this note?")) return;
-                            try {
-                              await api.del(`/records/${rec.id}`);
-                              if (expanded) refreshDay(expanded);
-                            } catch (e) { console.error(e); }
-                          }}
-                          title="Delete note"
-                          aria-label="Delete note"
-                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                        ><X size={13} strokeWidth={2.4} /></button>
-                      )}
                       {slot.isExtra && (
                         <button
                           onClick={async () => {
@@ -3235,39 +3254,7 @@ function CalendarScreen() {
                         ><Trash2 size={12.5} strokeWidth={2} /></button>
                       )}
                     </div>
-                  ) : (slot.isExtra || (rec && rec.status === "note")) ? (
-                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      {rec && rec.status === "note" && (
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm("Delete this note?")) return;
-                            try {
-                              await api.del(`/records/${rec.id}`);
-                              if (expanded) refreshDay(expanded);
-                            } catch (e) { console.error(e); }
-                          }}
-                          title="Delete note"
-                          aria-label="Delete note"
-                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                        ><X size={13} strokeWidth={2.4} /></button>
-                      )}
-                      {slot.isExtra && (
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm("Remove this extra class? This can't be undone.")) return;
-                            try {
-                              await api.del(`/slots/${slot.id}`);
-                              setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
-                              if (expanded) refreshDay(expanded);
-                            } catch (e) { console.error(e); }
-                          }}
-                          title="Remove extra class"
-                          aria-label="Remove extra class"
-                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                        ><Trash2 size={12.5} strokeWidth={2} /></button>
-                      )}
-                    </div>
-                  ) : null}
+                  )}
                 </div>
 
                 {rec?.note && (
@@ -3313,12 +3300,7 @@ function CalendarScreen() {
                       </div>
                     </>
                   ) : (
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <p style={{ fontSize:12.5, color:T.inkL, fontStyle:"italic", margin:0 }}>Upcoming class</p>
-                      <button onClick={() => setSheetSlotId(slot.id)} style={{ fontFamily:F.sans, fontSize:12.5, fontWeight:700, color:T.accent, background:"none", border:"none", cursor:"pointer" }}>
-                        Plan ahead
-                      </button>
-                    </div>
+                    <p style={{ fontSize:12.5, color:T.inkL, fontStyle:"italic", margin:0 }}>Upcoming class</p>
                   )
                 )}
               </div>
