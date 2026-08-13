@@ -2787,12 +2787,18 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
               disabled={!note.trim() || saving}
               onClick={handleSaveNoteOnly}
               style={{
-                width:"100%", background:"none", border:"none", padding:"11px 4px 2px",
-                color: note.trim() ? T.accent : T.inkL, fontFamily:F.sans, fontSize:12.5, fontWeight:600,
-                cursor: note.trim() ? "pointer" : "not-allowed", textAlign:"center",
+                width:"100%", marginTop:12, padding:"13px 16px", borderRadius:16,
+                border:`1.5px solid ${note.trim() ? "rgba(110,79,145,0.22)" : "transparent"}`,
+                background: note.trim() ? T.aFill : "rgba(110,79,145,0.06)",
+                color: note.trim() ? T.accent : T.inkL,
+                fontFamily:F.sans, fontSize:14, fontWeight:700,
+                cursor: note.trim() ? "pointer" : "not-allowed",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                transition:"all 0.18s ease",
               }}
             >
-              {saving ? "Saving..." : "Just save this note — don't mark attendance yet"}
+              <PenLine size={15} strokeWidth={2.2} />
+              {saving ? "Saving..." : "Save as note only"}
             </button>
           )}
 
@@ -3192,10 +3198,27 @@ function CalendarScreen() {
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <button
                         onClick={() => setSheetSlotId(slot.id)}
-                        title="Add note"
-                        aria-label="Add note"
+                        title={rec ? "Edit note" : "Add note"}
+                        aria-label={rec ? "Edit note" : "Add note"}
                         style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                       ><PenLine size={12.5} strokeWidth={2} /></button>
+                      {/* A saved note is a reminder, not an attendance record — it gets
+                          its own delete affordance rather than reusing the record-delete
+                          button above (which only appears for real attendance decisions). */}
+                      {rec && rec.status === "note" && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Delete this note?")) return;
+                            try {
+                              await api.del(`/records/${rec.id}`);
+                              if (expanded) refreshDay(expanded);
+                            } catch (e) { console.error(e); }
+                          }}
+                          title="Delete note"
+                          aria-label="Delete note"
+                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><X size={13} strokeWidth={2.4} /></button>
+                      )}
                       {slot.isExtra && (
                         <button
                           onClick={async () => {
@@ -3212,20 +3235,38 @@ function CalendarScreen() {
                         ><Trash2 size={12.5} strokeWidth={2} /></button>
                       )}
                     </div>
-                  ) : slot.isExtra ? (
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm("Remove this extra class? This can't be undone.")) return;
-                        try {
-                          await api.del(`/slots/${slot.id}`);
-                          setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
-                          if (expanded) refreshDay(expanded);
-                        } catch (e) { console.error(e); }
-                      }}
-                      title="Remove extra class"
-                      aria-label="Remove extra class"
-                      style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    ><Trash2 size={12.5} strokeWidth={2} /></button>
+                  ) : (slot.isExtra || (rec && rec.status === "note")) ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      {rec && rec.status === "note" && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Delete this note?")) return;
+                            try {
+                              await api.del(`/records/${rec.id}`);
+                              if (expanded) refreshDay(expanded);
+                            } catch (e) { console.error(e); }
+                          }}
+                          title="Delete note"
+                          aria-label="Delete note"
+                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><X size={13} strokeWidth={2.4} /></button>
+                      )}
+                      {slot.isExtra && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Remove this extra class? This can't be undone.")) return;
+                            try {
+                              await api.del(`/slots/${slot.id}`);
+                              setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
+                              if (expanded) refreshDay(expanded);
+                            } catch (e) { console.error(e); }
+                          }}
+                          title="Remove extra class"
+                          aria-label="Remove extra class"
+                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><Trash2 size={12.5} strokeWidth={2} /></button>
+                      )}
+                    </div>
                   ) : null}
                 </div>
 
