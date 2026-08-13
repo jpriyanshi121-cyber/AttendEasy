@@ -2159,7 +2159,9 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
     return `${dayStr}, ${g.startTime}–${g.endTime}${g.room ? " · Room " + g.room : ""}`;
   });
 
-  const activeHistory = history.filter(r => (r.slot?.type || "lecture") === activeType);
+  // "Note" records are reminders, not attendance decisions — they don't
+  // belong in the attendance history alongside Present/Absent/Cancelled.
+  const activeHistory = history.filter(r => (r.slot?.type || "lecture") === activeType && r.status !== "note");
   const historyCounts = {
     all: activeHistory.length,
     present: activeHistory.filter(r => r.status === "present").length,
@@ -2487,7 +2489,10 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
 
   useEffect(() => {
     if (!slotId) return;
-    setSel(initialRecord?.status ?? null);
+    // "note" isn't a selectable status anymore (see ALL_OPTS) — if the
+    // existing record is just a reminder, leave no primary status selected
+    // so editing routes back through the same "note only" action instead.
+    setSel(initialRecord?.status && initialRecord.status !== "note" ? initialRecord.status : null);
     setCTag(initialRecord?.tag ? initialRecord.tag.split("_").map(w => w[0].toUpperCase()+w.slice(1)).join(" ") : null);
     setNote(initialRecord?.note ?? "");
     setVisible(false);
@@ -2516,12 +2521,13 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     { s:"absent",      desc:"I missed this class",        icon:<X size={18}/> },
     { s:"cancelled",   desc:"Class was called off",       icon:<Ban size={18}/> },
     { s:"rescheduled", desc:"Moving to another time",     icon:<RotateCcw size={18}/> },
-    { s:"note",        desc:"Just leave a reminder, no attendance mark yet", icon:<PenLine size={18}/> },
   ];
-  // A class that hasn't happened yet can only be pre-marked as cancelled,
-  // rescheduled, or given a reminder note — "I attended" / "I missed"
-  // don't make sense ahead of time.
-  const OPTS = isFutureDate ? ALL_OPTS.filter(o => o.s === "cancelled" || o.s === "rescheduled" || o.s === "note") : ALL_OPTS;
+  // A class that hasn't happened yet can only be pre-marked as cancelled
+  // or rescheduled — "I attended" / "I missed" don't make sense ahead of
+  // time. A reminder note isn't an attendance decision at all, so it lives
+  // outside this list entirely (see the "note only" action below) rather
+  // than being filtered in/out here as a fifth status.
+  const OPTS = isFutureDate ? ALL_OPTS.filter(o => o.s === "cancelled" || o.s === "rescheduled") : ALL_OPTS;
 
   async function handleSave() {
     if (!sel || !slotId) return;
@@ -2562,6 +2568,23 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
         }
       }
 
+      onSaved();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Saving "just a note" is a deliberately separate action from marking
+  // attendance — it doesn't create a real attendance decision, so it
+  // shouldn't share a button (or a status option) with Present/Absent/
+  // Cancelled/Rescheduled.
+  async function handleSaveNoteOnly() {
+    if (!slotId || !note.trim()) return;
+    setSaving(true);
+    try {
+      await api.post("/records/mark", { slotId, date: targetDate, status: "note", note: note.trim() });
       onSaved();
     } catch (e) {
       console.error(e);
@@ -2755,8 +2778,26 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
             style={{ ...fieldStyle, width:"100%", fontStyle: note?"normal":"italic", marginBottom:0 }}
           />
 
+          {/* Separate from attendance entirely — a plain reminder, not a
+              fifth status alongside Present/Absent/Cancelled/Rescheduled.
+              Only offered while no real status is picked; once one is,
+              this note is just attached to that decision instead. */}
+          {!sel && (
+            <button
+              disabled={!note.trim() || saving}
+              onClick={handleSaveNoteOnly}
+              style={{
+                width:"100%", background:"none", border:"none", padding:"11px 4px 2px",
+                color: note.trim() ? T.accent : T.inkL, fontFamily:F.sans, fontSize:12.5, fontWeight:600,
+                cursor: note.trim() ? "pointer" : "not-allowed", textAlign:"center",
+              }}
+            >
+              {saving ? "Saving..." : "Just save this note — don't mark attendance yet"}
+            </button>
+          )}
+
           <button
-            disabled={!sel || saving || (sel === "note" && !note.trim())}
+            disabled={!sel || saving}
             onClick={handleSave}
             style={{
               width:"100%", padding:"17px", borderRadius:20, border:"none",
