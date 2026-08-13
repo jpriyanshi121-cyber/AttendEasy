@@ -248,23 +248,28 @@ router.get("/calendar", async (req, res) => {
     byDay.get(key).push(r);
   }
 
-  const days = Array.from(byDay.entries()).map(([date, dayRecords]) => {
-    const present = dayRecords.filter((r) => r.status === "present").length;
-    const absent = dayRecords.filter((r) => r.status === "absent").length;
-    const held = present + absent; // cancelled classes never affect the ratio
+  const days = Array.from(byDay.entries())
+    .map(([date, dayRecords]) => {
+      const present = dayRecords.filter((r) => r.status === "present").length;
+      const absent = dayRecords.filter((r) => r.status === "absent").length;
+      const cancelled = dayRecords.filter((r) => r.status === "cancelled").length;
+      const held = present + absent; // cancelled/note classes never affect the ratio
 
-    let color;
-    if (held === 0) {
-      // Every class that day was cancelled.
-      color = { bg: "#EFEDF2", fg: "#8A8194" };
-    } else {
-      const ratio = present / held; // 1 = all present, 0 = all absent
-      const hue = ratioToHue(ratio);
-      color = { bg: hslToHex(hue, 40, 92), fg: hslToHex(hue, 42, 38) };
-    }
+      let color = null;
+      if (held === 0 && cancelled > 0) {
+        // At least one real cancellation that day, and nothing attended/missed.
+        color = { bg: "#EFEDF2", fg: "#8A8194" };
+      } else if (held > 0) {
+        const ratio = present / held; // 1 = all present, 0 = all absent
+        const hue = ratioToHue(ratio);
+        color = { bg: hslToHex(hue, 40, 92), fg: hslToHex(hue, 42, 38) };
+      }
+      // else: held===0 and cancelled===0 — only "note" records exist that
+      // day, no real attendance decision was made, so leave it uncolored.
 
-    return { date, color, classCount: dayRecords.length, present, absent };
-  });
+      return { date, color, classCount: dayRecords.length, present, absent };
+    })
+    .filter((d) => d.color !== null);
 
   res.json({ days });
 });
