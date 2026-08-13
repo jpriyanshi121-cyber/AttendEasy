@@ -2878,6 +2878,11 @@ function CalendarScreen() {
   const [backfillBusy, setBackfillBusy] = useState<string|null>(null);
   const [sheetSlotId, setSheetSlotId] = useState<string|null>(null);
   const [holidays, setHolidays] = useState<{id:string; date:string; label:string|null; confirmed:boolean}[]>([]);
+  const [addHolidayOpen, setAddHolidayOpen] = useState(false);
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayLabel, setNewHolidayLabel] = useState("");
+  const [savingHoliday, setSavingHoliday] = useState(false);
+  const [holidayError, setHolidayError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -2946,6 +2951,25 @@ function CalendarScreen() {
   function closeHolidaySheet() {
     setHolidaySheetVisible(false);
     setTimeout(() => { setHolidayNoteOpen(false); setHolidayNote(""); }, 420);
+  }
+
+  async function saveManualHoliday() {
+    if (!newHolidayDate || !semesterId) { setHolidayError("Pick a date first."); return; }
+    setSavingHoliday(true);
+    setHolidayError("");
+    try {
+      const { holidays: fetched } = await api.post(`/holidays/${semesterId}`, {
+        holidays: [{ date: newHolidayDate, label: newHolidayLabel.trim() || null, confirmed: true }],
+      });
+      setHolidays(fetched);
+      setAddHolidayOpen(false);
+      setNewHolidayDate("");
+      setNewHolidayLabel("");
+    } catch (e: any) {
+      setHolidayError(e.message || "Couldn't save. Try again.");
+    } finally {
+      setSavingHoliday(false);
+    }
   }
 
   async function markWholeDayHoliday(dateStr: string) {
@@ -3068,6 +3092,16 @@ function CalendarScreen() {
             <span style={{ fontFamily:F.mono, fontSize:9, color:T.inkM, fontWeight:500 }}>{item.l}</span>
           </div>
         ))}
+        <button
+          onClick={() => setAddHolidayOpen(true)}
+          style={{
+            display:"flex", alignItems:"center", gap:5, padding:"5px 11px 5px 9px", borderRadius:20,
+            background:T.aFill, border:`1px solid ${T.aFillDeep}`, cursor:"pointer",
+          }}
+        >
+          <Plus size={11} color={T.accent} strokeWidth={2.6} />
+          <span style={{ fontFamily:F.mono, fontSize:9, color:T.accent, fontWeight:600 }}>Add Holiday</span>
+        </button>
       </div>
 
       <div className="ae3" style={{ padding:"18px 20px 0" }}>
@@ -3395,6 +3429,45 @@ function CalendarScreen() {
           </div>
         )}
       </div>
+
+      {addHolidayOpen && (
+        <>
+          <div
+            onClick={() => !savingHoliday && setAddHolidayOpen(false)}
+            style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.44)", backdropFilter:"blur(5px)", zIndex:60 }}
+          />
+          <div style={{
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            width:"calc(100% - 48px)", maxWidth:360,
+            background:T.card, borderRadius:24, padding:24, zIndex:61,
+            boxShadow:"0 24px 64px rgba(27,21,48,0.24)",
+          }}>
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:19, color:T.inkH, margin:"0 0 6px" }}>Add a holiday</h3>
+            <p style={{ fontFamily:F.sans, fontSize:12.5, color:T.inkM, margin:"0 0 18px", lineHeight:1.4 }}>
+              This date will be skipped in your "classes remaining" projection.
+            </p>
+            <label style={{ display:"block", fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, marginBottom:7, fontWeight:600 }}>Date</label>
+            <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)}
+              style={{ width:"100%", padding:"11px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`, fontFamily:F.sans, fontSize:13.5, color:T.inkH, marginBottom:14, boxSizing:"border-box" }} />
+            <label style={{ display:"block", fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, marginBottom:7, fontWeight:600 }}>Label <span style={{ textTransform:"none", opacity:0.7 }}>(optional)</span></label>
+            <input type="text" placeholder="e.g. Diwali" value={newHolidayLabel} onChange={e => setNewHolidayLabel(e.target.value)}
+              style={{ width:"100%", padding:"11px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`, fontFamily:F.sans, fontSize:13.5, color:T.inkH, marginBottom: holidayError ? 8 : 18, boxSizing:"border-box" }} />
+            {holidayError && <div style={{ fontFamily:F.sans, fontSize:12, color:T.danger, marginBottom:10 }}>{holidayError}</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setAddHolidayOpen(false)} disabled={savingHoliday}
+                style={{ flex:1, padding:13, borderRadius:14, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={saveManualHoliday} disabled={savingHoliday}
+                style={{ flex:1.4, padding:13, borderRadius:14, border:"none", cursor:"pointer",
+                  background: savingHoliday ? "#C9BEDB" : "linear-gradient(155deg,#8A6BB0,#6E4F91)", color:"#fff",
+                  fontFamily:F.sans, fontWeight:700, fontSize:13.5 }}>
+                {savingHoliday ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <AttendanceSheet
         slotId={sheetSlotId}
