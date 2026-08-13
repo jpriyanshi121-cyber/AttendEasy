@@ -3128,14 +3128,63 @@ function CalendarScreen() {
                         aria-label="Delete"
                         style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                       ><X size={13} strokeWidth={2.4} /></button>
+                      {/* Extra (one-time) classes can be removed outright, not just their
+                          attendance record — useful when a makeup class was scheduled but
+                          then didn't actually happen. */}
+                      {slot.isExtra && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Remove this extra class? Its attendance record will be removed too. This can't be undone.")) return;
+                            try {
+                              await api.del(`/slots/${slot.id}`);
+                              setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
+                              if (expanded) refreshDay(expanded);
+                            } catch (e) { console.error(e); }
+                          }}
+                          title="Remove extra class"
+                          aria-label="Remove extra class"
+                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><Trash2 size={12.5} strokeWidth={2} /></button>
+                      )}
                     </div>
                   ) : canBackfill ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <button
+                        onClick={() => setSheetSlotId(slot.id)}
+                        title="Add note"
+                        aria-label="Add note"
+                        style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                      ><PenLine size={12.5} strokeWidth={2} /></button>
+                      {slot.isExtra && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Remove this extra class? This can't be undone.")) return;
+                            try {
+                              await api.del(`/slots/${slot.id}`);
+                              setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
+                              if (expanded) refreshDay(expanded);
+                            } catch (e) { console.error(e); }
+                          }}
+                          title="Remove extra class"
+                          aria-label="Remove extra class"
+                          style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><Trash2 size={12.5} strokeWidth={2} /></button>
+                      )}
+                    </div>
+                  ) : slot.isExtra ? (
                     <button
-                      onClick={() => setSheetSlotId(slot.id)}
-                      title="Add note"
-                      aria-label="Add note"
-                      style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.aFill, color:T.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    ><PenLine size={12.5} strokeWidth={2} /></button>
+                      onClick={async () => {
+                        if (!window.confirm("Remove this extra class? This can't be undone.")) return;
+                        try {
+                          await api.del(`/slots/${slot.id}`);
+                          setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
+                          if (expanded) refreshDay(expanded);
+                        } catch (e) { console.error(e); }
+                      }}
+                      title="Remove extra class"
+                      aria-label="Remove extra class"
+                      style={{ width:26, height:26, borderRadius:8, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    ><Trash2 size={12.5} strokeWidth={2} /></button>
                   ) : null}
                 </div>
 
