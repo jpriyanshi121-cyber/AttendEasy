@@ -11,17 +11,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export async function subscribeToPush(): Promise<boolean> {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    return false;
-  }
-
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return false;
-
-  const registration = await navigator.serviceWorker.register("/sw.js");
-  await navigator.serviceWorker.ready;
-
+async function subscribeOnce(registration: ServiceWorkerRegistration): Promise<boolean> {
   const { key } = await api.get("/push/vapid-public-key");
   if (!key) return false;
 
@@ -35,4 +25,33 @@ export async function subscribeToPush(): Promise<boolean> {
 
   await api.post("/push/subscribe", subscription.toJSON());
   return true;
+}
+
+export async function subscribeToPush(): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return false;
+
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+
+  try {
+    return await subscribeOnce(registration);
+  } catch (err) {
+    // Right after a fresh permission grant, the service worker can still
+    // be finishing activation for a moment — the very first subscribe
+    // attempt sometimes fails as a result. Wait briefly and retry once
+    // instead of forcing the user to tap the toggle a second time.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const freshReg = await navigator.serviceWorker.ready;
+      return await subscribeOnce(freshReg);
+    } catch (err2) {
+      console.error("Push subscribe failed after retry:", err2);
+      return false;
+    }
+  }
 }
