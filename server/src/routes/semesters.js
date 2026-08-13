@@ -86,4 +86,20 @@ router.patch(
   }
 );
 
+// Delete an archived semester and everything under it (subjects, slots,
+// attendance records, holidays — cascades via the schema's onDelete rules).
+// The active semester can't be deleted this way: archive it first via
+// /start-new, which also guarantees the user is never left with zero
+// semesters or an orphaned "no active semester" state.
+router.delete("/:id", async (req, res) => {
+  const semester = await getOwnedSemester(req.params.id, req.userId);
+  if (!semester) return res.status(404).json({ error: "Semester not found" });
+  if (semester.isActive) {
+    return res.status(400).json({ error: "Can't delete the active semester. Archive it first from Manage Semesters." });
+  }
+
+  await prisma.semester.delete({ where: { id: semester.id } });
+  res.json({ success: true });
+});
+
 module.exports = router;

@@ -3353,6 +3353,9 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
   const [archived, setArchived] = useState<any[]>([]);
   const [expandStats, setExpandStats] = useState<Record<string, any>>({});
   const [starting, setStarting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{id:string; name:string}|null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string|null>(null);
 
   async function loadAll() {
     const { semesters } = await api.get("/semesters");
@@ -3390,6 +3393,22 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
       console.error(e);
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function confirmDeleteSemester() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.del(`/semesters/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      if (expand !== null && archived[expand]?.id === deleteTarget.id) setExpand(null);
+      await loadAll();
+    } catch (e: any) {
+      setDeleteError(e.message || "Couldn't delete this semester. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -3537,8 +3556,16 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
                         </div>
                       ))}
 
-                      <div style={{ marginTop:10, padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Read-only · Archived</span>
+                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:8 }}>
+                        <div style={{ flex:1, padding:"10px 14px", background:T.aFill, borderRadius:12, display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontFamily:F.mono, fontSize:10, color:T.inkM }}>Read-only · Archived</span>
+                        </div>
+                        <button
+                          onClick={() => { setDeleteError(null); setDeleteTarget({ id:sem.id, name:sem.name }); }}
+                          title="Delete semester"
+                          aria-label="Delete semester"
+                          style={{ width:38, height:38, borderRadius:12, flexShrink:0, border:"none", background:T.dangerFill, color:T.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                        ><Trash2 size={15} strokeWidth={2} /></button>
                       </div>
                     </>
                   ) : (
@@ -3579,6 +3606,43 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
                 boxShadow:"0 14px 28px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
               }}>
                 {starting ? "Archiving..." : "Archive"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {deleteTarget && (
+        <>
+          <div className="ae-backdrop" onClick={()=>!deleting && setDeleteTarget(null)} style={{ position:"fixed", inset:0, background:"rgba(27,21,48,0.52)", backdropFilter:"blur(6px)", zIndex:50 }} />
+          <div className="ae-modal" style={{
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            width:"calc(100% - 48px)", maxWidth:320,
+            background:T.card, borderRadius:24, padding:"26px 24px 22px",
+            boxShadow:"0 30px 70px rgba(15,8,28,0.4), 0 10px 24px rgba(15,8,28,0.2), inset 0 1px 0 #fff",
+            zIndex:51,
+          }}>
+            <div style={{ width:48, height:48, borderRadius:15, background:T.dangerFill, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:"0 8px 18px rgba(196,64,64,0.18)" }}>
+              <AlertTriangle size={21} color={T.danger} strokeWidth={2} />
+            </div>
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:21, color:T.inkH, letterSpacing:"-0.01em", marginBottom:9 }}>Delete this semester?</h3>
+            <p style={{ fontSize:14, color:T.inkM, lineHeight:1.55, marginBottom:14 }}>
+              <b style={{ color:T.inkB, fontWeight:600 }}>{deleteTarget.name}</b> and everything under it — subjects, timetable, and every attendance record — will be permanently deleted. This can't be undone.
+            </p>
+            {deleteError && (
+              <p style={{ fontSize:12.5, color:T.danger, background:T.dangerFill, borderRadius:10, padding:"9px 12px", marginBottom:14 }}>{deleteError}</p>
+            )}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setDeleteTarget(null)} disabled={deleting} style={{ flex:1, padding:14, borderRadius:14, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={confirmDeleteSemester} disabled={deleting} style={{
+                flex:1, padding:14, borderRadius:14, border:"none", cursor:"pointer",
+                background:"linear-gradient(155deg,#D46A6A,#B84545 55%,#8C2F2F)", color:"#fff",
+                fontFamily:F.sans, fontWeight:700, fontSize:14,
+                boxShadow:"0 14px 28px rgba(184,69,69,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
+                {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
