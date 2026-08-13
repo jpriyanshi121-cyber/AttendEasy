@@ -21,6 +21,7 @@ type ExtractResult = {
 };
 
 const DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const PALETTE = ["#6E4F91", "#8B6FBB", "#5A3D78", "#9B7FCC", "#7A5AA0"];
 
 // Turns a flat list of individual dates into ranges when the same label
 // appears on consecutive calendar days — so a 12-day winter break shows as
@@ -243,6 +244,7 @@ export default function SmartImportScreen({
       // each slot under it.
       const { subjects: existing } = await api.get(`/subjects?semesterId=${semesterId}`);
       const byName = new Map<string, any>(existing.map((s: any) => [s.name.trim().toLowerCase(), s]));
+      let newSubjectCount = existing.length;
 
       // Group extracted slots by subject name so we only create/patch each
       // subject once even if it has multiple slots.
@@ -268,11 +270,13 @@ export default function SmartImportScreen({
           const { subject: created } = await api.post("/subjects", {
             semesterId,
             name: slots[0].subject.trim(),
+            color: PALETTE[newSubjectCount % PALETTE.length],
             hasLecture: types.has("lecture"),
             hasTutorial: types.has("tutorial"),
             hasPractical: types.has("practical"),
           });
           subject = created;
+          newSubjectCount++;
           byName.set(key, subject);
         }
 
