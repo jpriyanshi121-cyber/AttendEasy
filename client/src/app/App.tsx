@@ -3189,6 +3189,10 @@ function CalendarScreen() {
 
             {expLoading ? (
               <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
+            ) : expanded && holidayMap.get(expanded)?.confirmed ? (
+              <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>
+                No classes — {holidayMap.get(expanded)!.label || "Holiday"}.
+              </p>
             ) : expandedClasses.length === 0 ? (
               <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No classes on this day.</p>
             ) : expandedClasses.map(({ slot, rec }, i) => (
@@ -3340,7 +3344,7 @@ function CalendarScreen() {
               </div>
             ))}
 
-            {!expLoading && expandedClasses.some(c => !c.rec) && (
+            {!expLoading && !holidayMap.get(expanded || "")?.confirmed && expandedClasses.some(c => !c.rec) && (
               <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #EFEAF6" }}>
                 <button
                   onClick={() => setHolidayNoteOpen(true)}
