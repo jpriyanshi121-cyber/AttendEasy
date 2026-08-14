@@ -1,7 +1,6 @@
 // Lightweight UI sound effects, synthesized with the Web Audio API — no
 // audio files to fetch, host, or bundle, and they still work offline in
-// the installed PWA. Every sound is short and soft on purpose: these are
-// meant to read as understated confirmation, not a game's SFX.
+// the installed PWA.
 
 const STORAGE_KEY = "attendeasy_sound_enabled";
 
@@ -28,20 +27,57 @@ export function setSoundEnabled(on: boolean) {
   localStorage.setItem(STORAGE_KEY, on ? "1" : "0");
 }
 
-// One soft, rounded tone — a sine wave with a quick attack and a gentle
-// exponential decay, so nothing ever clicks or pops at the edges.
-function tone(freq: number, startAt: number, duration: number, gain: number, ac: AudioContext, type: OscillatorType = "sine") {
-  const osc = ac.createOscillator();
+// A warm, rounded tone: a sine fundamental layered with a quieter
+// octave-up sine (adds body without turning it into a raw synth beep),
+// run through a gentle lowpass so nothing sounds thin or harsh, with a
+// fast attack and a smooth exponential decay so there's no click at
+// either end.
+function tone(freq: number, startAt: number, duration: number, peak: number, ac: AudioContext) {
+  const filter = ac.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = Math.min(freq * 4, 6000);
+  filter.connect(ac.destination);
+
+  const mk = (f: number, level: number) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(f, startAt);
+    g.gain.setValueAtTime(0, startAt);
+    g.gain.linearRampToValueAtTime(level, startAt + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+    osc.connect(g);
+    g.connect(filter);
+    osc.start(startAt);
+    osc.stop(startAt + duration + 0.03);
+  };
+  mk(freq, peak);
+  mk(freq * 2, peak * 0.22);
+}
+
+// A short, dry percussive tick (for taps/navigation) — filtered noise
+// burst rather than a tone, like a soft mechanical-keyboard click.
+function tick(startAt: number, duration: number, peak: number, ac: AudioContext, freq = 1500) {
+  const bufferSize = Math.ceil(ac.sampleRate * duration);
+  const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const noise = ac.createBufferSource();
+  noise.buffer = buffer;
+  const filter = ac.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = freq;
+  filter.Q.value = 0.9;
   const g = ac.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, startAt);
-  g.gain.setValueAtTime(0, startAt);
-  g.gain.linearRampToValueAtTime(gain, startAt + 0.008);
+  g.gain.setValueAtTime(peak, startAt);
   g.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-  osc.connect(g);
+
+  noise.connect(filter);
+  filter.connect(g);
   g.connect(ac.destination);
-  osc.start(startAt);
-  osc.stop(startAt + duration + 0.02);
+  noise.start(startAt);
+  noise.stop(startAt + duration + 0.01);
 }
 
 function play(fn: (ac: AudioContext, now: number) => void) {
@@ -55,52 +91,70 @@ function play(fn: (ac: AudioContext, now: number) => void) {
   }
 }
 
-// Marking present — a brief, bright two-note rise (like a soft "ding").
+// Marking present — a bright, cheerful two-note rise.
 export function playPresent() {
   play((ac, t) => {
-    tone(783.99, t, 0.16, 0.05, ac);        // G5
-    tone(1174.66, t + 0.07, 0.18, 0.045, ac); // D6
+    tone(783.99, t, 0.22, 0.24, ac);         // G5
+    tone(1174.66, t + 0.08, 0.26, 0.22, ac); // D6
   });
 }
 
-// Marking absent — a single, low, muted tone. Acknowledging, not scolding.
+// Marking absent — a single, low, soft tone. Acknowledging, not scolding.
 export function playAbsent() {
   play((ac, t) => {
-    tone(220, t, 0.16, 0.035, ac, "sine");
+    tone(261.63, t, 0.24, 0.2, ac); // C4
   });
 }
 
-// Cancelled / rescheduled — a neutral, short two-tone tick.
+// Cancelled / rescheduled — a neutral two-note tick-tock.
 export function playNeutral() {
   play((ac, t) => {
-    tone(440, t, 0.09, 0.035, ac);
-    tone(392, t + 0.05, 0.1, 0.03, ac);
+    tone(440, t, 0.14, 0.18, ac);
+    tone(392, t + 0.07, 0.16, 0.16, ac);
   });
 }
 
 // Crossing back above the attendance threshold — pairs with the confetti
-// burst, so it gets a fuller three-note major arpeggio.
+// burst, so it gets a fuller four-note major run.
 export function playCelebration() {
   play((ac, t) => {
-    tone(523.25, t, 0.14, 0.05, ac);        // C5
-    tone(659.25, t + 0.09, 0.14, 0.05, ac); // E5
-    tone(783.99, t + 0.18, 0.26, 0.055, ac); // G5
+    tone(523.25, t, 0.18, 0.22, ac);         // C5
+    tone(659.25, t + 0.09, 0.18, 0.22, ac);  // E5
+    tone(783.99, t + 0.18, 0.18, 0.22, ac);  // G5
+    tone(1046.5, t + 0.27, 0.32, 0.24, ac);  // C6
   });
 }
 
-// Deleting something — a short, dry downward tick. Deliberately unshowy.
+// Deleting something — a short, dry downward tick.
 export function playDelete() {
   play((ac, t) => {
-    tone(340, t, 0.07, 0.03, ac, "triangle");
-    tone(230, t + 0.045, 0.08, 0.026, ac, "triangle");
+    tick(t, 0.05, 0.5, ac, 1800);
+    tone(220, t + 0.02, 0.12, 0.14, ac);
   });
 }
 
 // Generic save/confirm — a single soft, quick blip for actions that
 // don't already have a more specific sound (archiving a semester,
-// saving a note, adding a subject, etc).
+// saving a note, adding a subject, turning a setting on, etc).
 export function playConfirm() {
   play((ac, t) => {
-    tone(660, t, 0.1, 0.04, ac);
+    tone(660, t, 0.15, 0.2, ac);
+  });
+}
+
+// A light tap — for navigation-y taps that aren't a full "confirm": tab
+// bar switches, back buttons, a segmented control (Theory/Lab), opening
+// a subject card. Meant to be felt more than heard.
+export function playTap() {
+  play((ac, t) => {
+    tick(t, 0.035, 0.35, ac, 2400);
+  });
+}
+
+// Flipping a switch/toggle — a tiny click, pitched slightly differently
+// for on vs off, like a physical rocker switch.
+export function playToggle(on: boolean) {
+  play((ac, t) => {
+    tick(t, 0.03, 0.4, ac, on ? 2600 : 1400);
   });
 }

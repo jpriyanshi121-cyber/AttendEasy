@@ -11,7 +11,7 @@ import ResetPasswordScreen from "./ResetPasswordScreen";
 import SmartImportScreen from "./SmartImportScreen";
 import { api, getToken, clearToken } from "../lib/api";
 import { subscribeToPush } from "../lib/push";
-import { playPresent, playAbsent, playNeutral, playCelebration, playDelete, playConfirm, isSoundEnabled, setSoundEnabled } from "../lib/sound";
+import { playPresent, playAbsent, playNeutral, playCelebration, playDelete, playConfirm, playTap, playToggle, isSoundEnabled, setSoundEnabled } from "../lib/sound";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -208,7 +208,7 @@ function Divider() {
 function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
-      onClick={() => onChange(!checked)}
+      onClick={() => { playToggle(!checked); onChange(!checked); }}
       style={{
         width:42, height:24, borderRadius:100, border:"none", cursor:"pointer",
         background: checked ? "linear-gradient(135deg,#8E6BB8,#6E4F91)" : "#E4E0EA",
@@ -410,14 +410,14 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
         <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
           <div style={{ padding:"56px 28px 0" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }} className="ae0">
-              <button onClick={() => setStep(0)} style={{
+              <button onClick={() => { playTap(); setStep(0); }} style={{
                 width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
                 display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
                 boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
               }}>
                 <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
               </button>
-              <span onClick={() => setStep(0)} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+              <span onClick={() => { playTap(); setStep(0); }} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
             </div>
           </div>
           <div style={{ padding:"0 28px 28px" }}>
@@ -1307,7 +1307,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
             return (
               <button
                 key={`${subject.id}-${type}`}
-                onClick={() => onSubject(subject.id, type)}
+                onClick={() => { playTap(); onSubject(subject.id, type); }}
                 className={`ae${Math.min(i+1,5)}`}
                 style={{
                   flexShrink:0, width:136, height:154, padding:16, borderRadius:22, border:"none",
@@ -1911,7 +1911,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
         }} />
         {/* fixed header block — never scrolls */}
         <div style={{ flexShrink:0, position:"relative", zIndex:1 }}>
-          <button onClick={onBack} style={{
+          <button onClick={() => { playTap(); onBack(); }} style={{
             width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${hair}`,
             display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
             boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
@@ -2222,14 +2222,14 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:108 }}>
       {/* Header */}
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
-        <button onClick={onBack} style={{
+        <button onClick={() => { playTap(); onBack(); }} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
           display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
           boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
         }}>
           <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+        <span onClick={() => { playTap(); onBack(); }} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
       </div>
 
       <div style={{ padding:"18px 24px 0", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -2290,7 +2290,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
           {typesPresent.map(type => {
             const on = activeType === type;
             return (
-              <button key={type} onClick={() => { setActiveType(type); setHistoryFilter("all"); }} style={{
+              <button key={type} onClick={() => { if (!on) playTap(); setActiveType(type); setHistoryFilter("all"); }} style={{
                 flex:1, padding:10, borderRadius:12, textAlign:"center",
                 border:"none", cursor:"pointer",
                 background: on ? "linear-gradient(155deg,#8E6BB8,#6E4F91)" : "transparent",
@@ -3586,14 +3586,14 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
-        <button onClick={onBack} style={{
+        <button onClick={() => { playTap(); onBack(); }} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
           display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
           boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
         }}>
           <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+        <span onClick={() => { playTap(); onBack(); }} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
       </div>
       <div style={{ padding:"18px 24px 20px" }}>
         <div style={{ marginBottom:9 }}><Eyebrow>SEMESTER MANAGEMENT</Eyebrow></div>
@@ -3892,14 +3892,14 @@ function EditTimetableScreen({ onBack }: { onBack: () => void }) {
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"56px 24px 0" }}>
-        <button onClick={onBack} style={{
+        <button onClick={() => { playTap(); onBack(); }} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:`1px solid ${HAIR}`,
           display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
           boxShadow:"0 2px 6px rgba(27,21,48,0.05)", cursor:"pointer", padding:0,
         }}>
           <ChevronLeft size={14} color={T.accent} strokeWidth={2.4} />
         </button>
-        <span onClick={onBack} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
+        <span onClick={() => { playTap(); onBack(); }} style={{ fontFamily:F.sans, fontWeight:600, fontSize:14, color:T.accent, cursor:"pointer" }}>Back</span>
       </div>
       <div style={{ padding:"18px 24px 20px" }}>
         <div style={{ marginBottom:9 }}><Eyebrow>SUBJECTS & TIMETABLE</Eyebrow></div>
@@ -4459,7 +4459,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   return (
     <div style={{ fontFamily:F.sans, background:T.bg, minHeight:"100%", paddingBottom:116 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"52px 24px 0" }}>
-        <button onClick={onBack} style={{
+        <button onClick={() => { playTap(); onBack(); }} style={{
           width:34, height:34, borderRadius:11, background:T.card, border:"1px solid #EFEAF6",
           display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
           boxShadow:"0 2px 6px rgba(27,21,48,0.05)",
@@ -4752,7 +4752,7 @@ function TabBar({ active, onChange }: { active:TabId; onChange:(t:TabId)=>void }
       {TABS.map(({ id,I,label }) => {
         const on = active===id;
         return (
-          <button key={id} onClick={() => onChange(id)} style={{
+          <button key={id} onClick={() => { if (!on) playTap(); onChange(id); }} style={{
             flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4,
             border:"none", background:"transparent", cursor:"pointer", padding:0,
           }}>
