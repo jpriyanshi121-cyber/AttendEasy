@@ -11,6 +11,7 @@ import ResetPasswordScreen from "./ResetPasswordScreen";
 import SmartImportScreen from "./SmartImportScreen";
 import { api, getToken, clearToken } from "../lib/api";
 import { subscribeToPush } from "../lib/push";
+import { playPresent, playAbsent, playNeutral, playCelebration, playDelete, playConfirm, isSoundEnabled, setSoundEnabled } from "../lib/sound";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -65,6 +66,17 @@ function fireConfetti() {
     origin: { y: 0.6 },
     colors: ["#6E4F91", "#2F7A5C", "#9B7FCC", "#FFD700"],
   });
+  playCelebration();
+}
+
+// One place that maps an attendance decision to its sound, so every
+// "mark attendance" entry point (today's quick-mark card, the full sheet,
+// calendar backfill buttons) sounds consistent.
+function playForStatus(s: Status) {
+  if (s === "present") playPresent();
+  else if (s === "absent") playAbsent();
+  else if (s === "cancelled" || s === "rescheduled") playNeutral();
+  else playConfirm();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -734,6 +746,7 @@ function SubjectSlotRow({ subject, index, semesterId, onRenamed, onDeleted }: {
     setDeleting(true);
     try {
       await api.del(`/slots/${id}`);
+      playDelete();
       setAllSlots(prev => prev.filter(s => s.id !== id));
       resetForm();
       setAdding(false);
@@ -1217,14 +1230,19 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
       await api.post("/records/mark", { slotId, date: new Date().toISOString(), status });
       setTodayClasses(prev => prev.map(c => c.slot.id === slotId ? { ...c, record: { ...c.record, status } } : c));
 
+      let celebrated = false;
       if (beforeStats && subjectId) {
         const { subject: subj, breakdown } = await api.get(`/records/stats/subject/${subjectId}`);
         const afterStats = breakdown[slotType];
         const threshold = slotType === "tutorial" ? subj.thresholdTutorial : slotType === "practical" ? subj.thresholdPractical : subj.thresholdLecture;
         if (afterStats && beforeStats.percentage < threshold && afterStats.percentage >= threshold) {
           fireConfetti();
+          celebrated = true;
         }
       }
+      // The celebration sound already covers "present" when it fires —
+      // playing both back to back would be noisy, not richer.
+      if (!celebrated) playForStatus(status);
     } catch (e) {
       console.error(e);
     } finally {
@@ -2450,6 +2468,7 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
                   if (!window.confirm("Delete this attendance record?")) return;
                   try {
                     await api.del(`/records/${rec.id}`);
+                    playDelete();
                     setHistory(prev => prev.filter((r:any) => r.id !== rec.id));
                   } catch (e) { console.error(e); }
                 }}
@@ -2561,14 +2580,17 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
         });
       }
 
+      let celebrated = false;
       if (beforeStats && slotInfo) {
         const { subject: subj, breakdown } = await api.get(`/records/stats/subject/${slotInfo.subjectId}`);
         const afterStats = breakdown[slotType];
         const threshold = slotType === "tutorial" ? subj.thresholdTutorial : slotType === "practical" ? subj.thresholdPractical : subj.thresholdLecture;
         if (afterStats && beforeStats.percentage < threshold && afterStats.percentage >= threshold) {
           fireConfetti();
+          celebrated = true;
         }
       }
+      if (!celebrated) playForStatus(sel);
 
       onSaved();
     } catch (e) {
@@ -2587,6 +2609,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     setSaving(true);
     try {
       await api.post("/records/mark", { slotId, date: targetDate, status: "note", note: note.trim() });
+      playConfirm();
       onSaved();
     } catch (e) {
       console.error(e);
@@ -2601,6 +2624,7 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
     setSaving(true);
     try {
       await api.del(`/records/${editingNoteId}`);
+      playDelete();
       onSaved();
     } catch (e) {
       console.error(e);
@@ -2999,6 +3023,7 @@ function CalendarScreen() {
     setBackfillBusy(slotId);
     try {
       await api.post("/records/mark", { slotId, date: dateStr, status });
+      playForStatus(status);
       await refreshDay(dateStr);
     } catch (e) {
       console.error(e);
@@ -3239,6 +3264,7 @@ function CalendarScreen() {
                           if (!window.confirm("Delete this attendance record?")) return;
                           try {
                             await api.del(`/records/${rec.id}`);
+                            playDelete();
                             if (expanded) refreshDay(expanded);
                           } catch (e) { console.error(e); }
                         }}
@@ -3255,6 +3281,7 @@ function CalendarScreen() {
                             if (!window.confirm("Remove this extra class? Its attendance record will be removed too. This can't be undone.")) return;
                             try {
                               await api.del(`/slots/${slot.id}`);
+                              playDelete();
                               setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
                               if (expanded) refreshDay(expanded);
                             } catch (e) { console.error(e); }
@@ -3282,6 +3309,7 @@ function CalendarScreen() {
                             if (!window.confirm("Remove this extra class? This can't be undone.")) return;
                             try {
                               await api.del(`/slots/${slot.id}`);
+                              playDelete();
                               setAllSlots(prev => prev.filter((s:any) => s.id !== slot.id));
                               if (expanded) refreshDay(expanded);
                             } catch (e) { console.error(e); }
@@ -3528,6 +3556,7 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
     setStarting(true);
     try {
       await api.post("/semesters/start-new", {});
+      playConfirm();
       setConfirm(false);
       onStartNew();
     } catch (e) {
@@ -3543,6 +3572,7 @@ function SemesterScreen({ onStartNew, onBack }: { onStartNew: () => void; onBack
     setDeleteError(null);
     try {
       await api.del(`/semesters/${deleteTarget.id}`);
+      playDelete();
       setDeleteTarget(null);
       if (expand !== null && archived[expand]?.id === deleteTarget.id) setExpand(null);
       await loadAll();
@@ -3974,6 +4004,8 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePct, setProfilePct] = useState(0);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [semesterId, setSemesterId] = useState<string|null>(null);
+  const [showSmartImport, setShowSmartImport] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -3984,6 +4016,7 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
         const { semesters } = await api.get("/semesters");
         const active = semesters.find((s:any) => s.isActive) || semesters[0];
         if (active) {
+          setSemesterId(active.id);
           const { overall } = await api.get(`/records/stats/overview?semesterId=${active.id}`);
           setProfilePct(Math.round(overall?.percentage || 0));
         }
@@ -3995,6 +4028,13 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
 
   const [remindersEnabled, setRemindersEnabled] = useState(false);
   const [lowAlertsEnabled, setLowAlertsEnabled] = useState(false);
+  const [soundOn, setSoundOn] = useState(isSoundEnabled());
+
+  function toggleSound(value: boolean) {
+    setSoundEnabled(value);
+    setSoundOn(value);
+    if (value) playConfirm();
+  }
 
   useEffect(() => {
     (async () => {
@@ -4092,6 +4132,7 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
     ]},
     { title:"Data & Export", items:[
       { I:Archive,  l:"Manage Semesters",   s:"View, archive & start new",  c:T.accent, fn:onSemesters },
+      { I:Sparkles, l:"Smart Import with AI", s:"Update holidays & dates for this semester", c:"#8E6BB8", fn:() => setShowSmartImport(true) },
       { I:Download, l:"Export PDF Report",  s:"Full attendance report",    c:"#8B6FBB", fn:downloadReport },
     ]},
   ];
@@ -4149,6 +4190,20 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
               <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:4 }}>Daily check at 8 AM</div>
             </div>
             <Switch checked={lowAlertsEnabled} onChange={toggleLowAlerts} />
+          </div>
+        </div>
+      </div>
+
+      {/* Sound Effects */}
+      <div style={{ padding:"0 24px", marginBottom:22 }}>
+        {eyebrow("Sound")}
+        <div style={{ background:T.card, borderRadius:20, boxShadow:"0 10px 26px rgba(27,21,48,0.07), 0 2px 8px rgba(27,21,48,0.03)", border:"1px solid #EFEAF6", overflow:"hidden" }}>
+          <div style={{ padding:"16px 18px", display:"flex", alignItems:"center", gap:12, justifyContent:"space-between" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontFamily:F.serif, fontWeight:600, fontSize:15.5, color:T.inkH, lineHeight:1.3 }}>Sound Effects</div>
+              <div style={{ fontFamily:F.mono, fontSize:10, color:T.inkM, marginTop:4 }}>Soft tones on marking attendance</div>
+            </div>
+            <Switch checked={soundOn} onChange={toggleSound} />
           </div>
         </div>
       </div>
@@ -4240,6 +4295,14 @@ function SettingsScreen({ onSemesters, onEditTimetable, onLogout, onProfile }: {
             </div>
           </div>
         </>
+      )}
+
+      {showSmartImport && semesterId && (
+        <SmartImportScreen
+          semesterId={semesterId}
+          onClose={() => setShowSmartImport(false)}
+          onDone={() => { setShowSmartImport(false); window.location.reload(); }}
+        />
       )}
     </div>
   );
