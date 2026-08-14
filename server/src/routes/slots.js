@@ -13,7 +13,12 @@ function toOurDay(jsDay) {
 
 function startOfDay(date) {
   const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
+  // UTC-explicit on purpose — setHours() uses the server process's local
+  // timezone, which we can't fully guarantee is UTC. The rest of the app
+  // stores/compares bare "YYYY-MM-DD" dates as UTC midnight, so this must
+  // match that exactly or extraDate lookups (e.g. the reminder scheduler)
+  // silently miss.
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 

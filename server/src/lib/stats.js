@@ -71,7 +71,8 @@ function thresholdForType(subject, type) {
 function toOurDay(jsDay) { return (jsDay + 6) % 7; }
 function startOfDayLocal(date) {
   const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
+  // UTC-explicit — see the identical note in slots.js's startOfDay().
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
