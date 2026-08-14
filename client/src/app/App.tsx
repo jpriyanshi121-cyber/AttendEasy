@@ -4779,6 +4779,31 @@ export default function App() {
     setSubjId(null);
   };
 
+  // The app has no URL router — screens are plain state (subjId, tab,
+  // markSlot). Without this, the phone's back button has no history entry
+  // to pop and just exits the PWA straight away. This pushes a history
+  // entry any time we go "deeper" than Home, and on back, closes that
+  // instead — a real exit only happens once nothing is open and we're
+  // already on the Home tab.
+  useEffect(() => {
+    if (subjId || markSlot || tab !== "home") {
+      window.history.pushState({ appDepth: true }, "");
+    }
+  }, [subjId, markSlot, tab]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (subjId) { setSubjId(null); window.history.pushState({ appDepth: true }, ""); return; }
+      if (markSlot) { setMarkSlot(null); window.history.pushState({ appDepth: true }, ""); return; }
+      if (tab !== "home") { goTab("home"); window.history.pushState({ appDepth: true }, ""); return; }
+      // Already at Home with nothing open — let the back press through,
+      // so it behaves like a normal exit instead of trapping the user.
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjId, markSlot, tab]);
+
   const resetToken = new URLSearchParams(window.location.search).get("reset");
   if (resetToken) {
     return (
