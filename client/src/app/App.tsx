@@ -11,7 +11,7 @@ import ResetPasswordScreen from "./ResetPasswordScreen";
 import SmartImportScreen from "./SmartImportScreen";
 import { api, getToken, clearToken } from "../lib/api";
 import { subscribeToPush } from "../lib/push";
-import { playPresent, playAbsent, playNeutral, playCelebration, playDelete, playConfirm, playTap, playToggle, isSoundEnabled, setSoundEnabled } from "../lib/sound";
+import { playPresent, playAbsent, playNeutral, playCelebration, playDelete, playConfirm, playTap, playToggle, playClickBase, playKeyTick, isSoundEnabled, setSoundEnabled } from "../lib/sound";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -4798,6 +4798,30 @@ export default function App() {
     mq.addEventListener("change", handler);
     window.addEventListener("resize", handler);
     return () => { mq.removeEventListener("change", handler); window.removeEventListener("resize", handler); };
+  }, []);
+
+  // App-wide sound safety net: every button gets a tiny base click, and
+  // every keystroke in any text input gets a tiny key tick — without
+  // having to thread a sound call through every individual onClick or
+  // onChange in the app. Anything that already plays a more specific
+  // sound (marking present, deleting, toggling a switch, ...) still does
+  // — this just fills in everything else so no interaction stays silent.
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      const clickable = target?.closest('button, [role="button"], a');
+      if (clickable) playClickBase();
+    }
+    function onInput(e: Event) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) playKeyTick();
+    }
+    document.addEventListener("click", onClick);
+    document.addEventListener("beforeinput", onInput);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("beforeinput", onInput);
+    };
   }, []);
 
   // Runs once whenever the user becomes authenticated (fresh login,

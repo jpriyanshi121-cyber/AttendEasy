@@ -158,3 +158,28 @@ export function playToggle(on: boolean) {
     tick(t, 0.03, 0.4, ac, on ? 2600 : 1400);
   });
 }
+
+// A near-silent base "click" fired globally on every button press across
+// the app, even ones with no specific sound wired to them — the app-wide
+// safety net so nothing feels mute. Deliberately much quieter/shorter
+// than every sound above it, so it sits underneath a real action's sound
+// (present/delete/toggle/etc.) rather than competing with it.
+export function playClickBase() {
+  play((ac, t) => {
+    tick(t, 0.014, 0.12, ac, 2000);
+  });
+}
+
+// A single keystroke, fired globally on every text input across the app.
+// Also intentionally tiny — this needs to survive someone typing a full
+// sentence without turning into noise, not announce itself.
+let lastKeyTickAt = 0;
+export function playKeyTick() {
+  if (!isSoundEnabled()) return;
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (now - lastKeyTickAt < 32) return; // fast typing shouldn't turn into a wall of clicks
+  lastKeyTickAt = now;
+  play((ac, t) => {
+    tick(t, 0.01, 0.1, ac, 3400);
+  });
+}
