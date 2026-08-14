@@ -4783,6 +4783,16 @@ export default function App() {
   // markSlot, screen). Without this, the phone's back button has no
   // history entry to pop and just exits the PWA straight away.
   //
+  // pushDepth() is called explicitly at every FORWARD navigation (see
+  // onSubject/onMark/onEditTimetable/onSemesters/onProfile/TabBar below) —
+  // never reactively off state changes. A reactive effect watching screen
+  // would also fire when handleBack() itself changes screen, double-
+  // pushing on every single back press and corrupting the stack (which is
+  // what caused a nested screen's back to cascade straight to Home).
+  function pushDepth() {
+    window.history.pushState({ appDepth: true }, "");
+  }
+
   // handleBack() mirrors exactly what each screen's own on-screen back
   // button already does (see the onBack props below) — it must stay in
   // sync with that switch statement, since diverging from it either
@@ -4819,18 +4829,12 @@ export default function App() {
   const handleBackRef = useRef(handleBack);
   handleBackRef.current = handleBack;
 
-  // Push a history entry any time we go "deeper" than Home/Onboarding —
-  // this is what gives the back button something to pop before it exits.
-  useEffect(() => {
-    if (markSlot || (screen !== "home" && screen !== "onboarding")) {
-      window.history.pushState({ appDepth: true }, "");
-    }
-  }, [subjId, markSlot, screen]);
-
   useEffect(() => {
     const onPopState = () => {
-      const handled = handleBackRef.current();
-      if (handled) window.history.pushState({ appDepth: true }, "");
+      // Every actual back press pops one entry, then this pushes exactly
+      // one fresh entry back if we handled it in-app — a 1:1 exchange, so
+      // the stack depth stays in sync no matter how many times this fires.
+      if (handleBackRef.current()) pushDepth();
       // If not handled, we're already at Home/Onboarding — let the back
       // press through so it behaves like a normal exit.
     };
@@ -4946,62 +4950,62 @@ export default function App() {
           {screen==="home" && (
             <HomeScreen
               refreshKey={homeRefresh}
-              onSubject={(id, type) => { setSubjId(id); setSubjInitialType(type ?? null); setScreen("subject"); }}
-              onMark={id => setMarkSlot(id)}
+              onSubject={(id, type) => { pushDepth(); setSubjId(id); setSubjInitialType(type ?? null); setScreen("subject"); }}
+              onMark={id => { pushDepth(); setMarkSlot(id); }}
             />
           )}
           {screen==="timetable" && (
             <TimetableScreen
-              onMark={id => setMarkSlot(id)}
+              onMark={id => { pushDepth(); setMarkSlot(id); }}
               isLandscape={isLandscape}
-              onBack={() => goTab("home")}
-              onEditTimetable={() => setScreen("edit-timetable")}
+              onBack={() => window.history.back()}
+              onEditTimetable={() => { pushDepth(); setScreen("edit-timetable"); }}
             />
           )}
           {screen==="subject" && subjId && (
             <SubjectDetailScreen
               subjectId={subjId}
               initialType={subjInitialType}
-              onBack={() => { setScreen("home"); setTab("home"); setSubjId(null); setSubjInitialType(null); }}
-              onMark={id => setMarkSlot(id)}
-              onEditTimetable={() => setScreen("edit-timetable")}
+              onBack={() => window.history.back()}
+              onMark={id => { pushDepth(); setMarkSlot(id); }}
+              onEditTimetable={() => { pushDepth(); setScreen("edit-timetable"); }}
             />
           )}
           {screen==="calendar"  && <CalendarScreen />}
           {screen==="semester"  && (
             <SemesterScreen
               onStartNew={() => { setSkipOnboardIntro(true); setScreen("onboarding"); setTab("home"); }}
-              onBack={() => setScreen("settings")}
+              onBack={() => window.history.back()}
             />
           )}
           {screen==="settings"  && (
             <SettingsScreen
-              onSemesters={() => setScreen("semester")}
-              onEditTimetable={() => setScreen("edit-timetable")}
+              onSemesters={() => { pushDepth(); setScreen("semester"); }}
+              onEditTimetable={() => { pushDepth(); setScreen("edit-timetable"); }}
               onLogout={() => { clearToken(); window.location.href = "/"; }}
-              onProfile={() => setScreen("profile")}
+              onProfile={() => { pushDepth(); setScreen("profile"); }}
             />
           )}
           {screen==="edit-timetable" && (
-            <EditTimetableScreen onBack={() => setScreen("settings")} />
+            <EditTimetableScreen onBack={() => window.history.back()} />
           )}
           {screen==="profile" && (
-            <ProfileScreen onBack={() => setScreen("settings")} />
+            <ProfileScreen onBack={() => window.history.back()} />
           )}
         </motion.div>
         </AnimatePresence>
 
         {screen !== "onboarding" && !(screen==="timetable" && isLandscape) && (
-          <TabBar active={tab} onChange={goTab} />
+          <TabBar active={tab} onChange={(t) => { if (t !== tab) pushDepth(); goTab(t); }} />
         )}
       </div>
 
       {/* Attendance sheet rendered outside container for full-screen overlay */}
       <AttendanceSheet
         slotId={markSlot}
-        onClose={() => setMarkSlot(null)}
+        onClose={() => { if (markSlot) window.history.back(); }}
         onSaved={() => {
-          setMarkSlot(null);
+          if (markSlot) window.history.back();
           setHomeRefresh(r => r + 1);
         }}
       />
