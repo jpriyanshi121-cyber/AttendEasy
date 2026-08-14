@@ -4780,29 +4780,63 @@ export default function App() {
   };
 
   // The app has no URL router — screens are plain state (subjId, tab,
-  // markSlot). Without this, the phone's back button has no history entry
-  // to pop and just exits the PWA straight away. This pushes a history
-  // entry any time we go "deeper" than Home, and on back, closes that
-  // instead — a real exit only happens once nothing is open and we're
-  // already on the Home tab.
+  // markSlot, screen). Without this, the phone's back button has no
+  // history entry to pop and just exits the PWA straight away.
+  //
+  // handleBack() mirrors exactly what each screen's own on-screen back
+  // button already does (see the onBack props below) — it must stay in
+  // sync with that switch statement, since diverging from it either
+  // strands the user on a blank screen (a "subject"-only condition with
+  // subjId cleared but screen left stuck on "subject") or skips a level
+  // the UI itself wouldn't skip (e.g. Settings -> Edit Timetable should
+  // return to Settings, not jump straight to Home).
+  // Returns false when there's nothing to intercept, so the real back
+  // press (exit) goes through.
+  function handleBack(): boolean {
+    if (markSlot) { setMarkSlot(null); return true; }
+    switch (screen) {
+      case "subject":
+        setScreen("home"); setTab("home"); setSubjId(null); setSubjInitialType(null);
+        return true;
+      case "edit-timetable":
+      case "semester":
+      case "profile":
+        setScreen("settings"); setTab("settings");
+        return true;
+      case "timetable":
+      case "calendar":
+      case "settings":
+        goTab("home");
+        return true;
+      default:
+        // "home", "onboarding" — already at root, nothing to close.
+        return false;
+    }
+  }
+
+  // Kept in a ref so the popstate listener (registered once) always calls
+  // the latest handleBack closure instead of a stale one from mount time.
+  const handleBackRef = useRef(handleBack);
+  handleBackRef.current = handleBack;
+
+  // Push a history entry any time we go "deeper" than Home/Onboarding —
+  // this is what gives the back button something to pop before it exits.
   useEffect(() => {
-    if (subjId || markSlot || tab !== "home") {
+    if (markSlot || (screen !== "home" && screen !== "onboarding")) {
       window.history.pushState({ appDepth: true }, "");
     }
-  }, [subjId, markSlot, tab]);
+  }, [subjId, markSlot, screen]);
 
   useEffect(() => {
     const onPopState = () => {
-      if (subjId) { setSubjId(null); window.history.pushState({ appDepth: true }, ""); return; }
-      if (markSlot) { setMarkSlot(null); window.history.pushState({ appDepth: true }, ""); return; }
-      if (tab !== "home") { goTab("home"); window.history.pushState({ appDepth: true }, ""); return; }
-      // Already at Home with nothing open — let the back press through,
-      // so it behaves like a normal exit instead of trapping the user.
+      const handled = handleBackRef.current();
+      if (handled) window.history.pushState({ appDepth: true }, "");
+      // If not handled, we're already at Home/Onboarding — let the back
+      // press through so it behaves like a normal exit.
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subjId, markSlot, tab]);
+  }, []);
 
   const resetToken = new URLSearchParams(window.location.search).get("reset");
   if (resetToken) {
