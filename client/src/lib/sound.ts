@@ -16,7 +16,7 @@ const STORAGE_KEY = "attendeasy_sound_enabled";
 // C-major pentatonic, low to high.
 const C4 = 261.63, D4 = 293.66, E4 = 329.63, G4 = 392.0, A4 = 440.0;
 const C5 = 523.25, D5 = 587.33, E5 = 659.25, G5 = 783.99, A5 = 880.0;
-const C6 = 1046.5, G6 = 1567.98;
+const C6 = 1046.5;
 
 let ctx: AudioContext | null = null;
 function getCtx(): AudioContext | null {
@@ -174,12 +174,10 @@ export function playClickBase() {
 }
 
 // A single keystroke, fired globally on every text input across the
-// app. Distinct texture from clicks/taps on purpose — a sharp little
-// transient (the "contact" of a key) plus a brief high tonal peep, in
-// the same scale family as everything else, so a run of typing reads as
-// its own crisp sound rather than the same click repeated. Throttled —
-// this needs to survive a full sentence of typing without turning into
-// noise.
+// app. Purely percussive on purpose — no pitched tone in it — so it
+// reads as a soft mechanical key-click rather than a beep repeating on
+// every letter. Throttled — this needs to survive a full sentence of
+// typing without turning into noise.
 let lastKeyTickAt = 0;
 export function playKeyTick() {
   if (!isSoundEnabled()) return;
@@ -187,7 +185,6 @@ export function playKeyTick() {
   if (now - lastKeyTickAt < 55) return;
   lastKeyTickAt = now;
   play((ac, t) => {
-    tick(t, 0.01, 0.32, ac, 3600, 1.3, "bandpass");
-    note(G6, t, 0.055, 0.24, ac);
+    tick(t, 0.022, 0.4, ac, 3200, 1.6, "bandpass");
   });
 }
