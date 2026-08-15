@@ -69,6 +69,22 @@ function thresholdForType(subject, type) {
 }
 
 function toOurDay(jsDay) { return (jsDay + 6) % 7; }
+
+// "Today" has to be computed in IST, not the server's own clock — Render
+// (and most hosts) run the process in UTC, so during roughly midnight to
+// 5:30 AM IST every day, the UTC calendar date is still "yesterday". Using
+// the server's raw clock here would make the recovery-plan projection
+// below silently think it has one extra day to go for exactly that
+// window each night. See the identical fix in scheduler.js's toIST().
+function todayISTDateStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 function startOfDayLocal(date) {
   const d = new Date(date);
   // UTC-explicit — see the identical note in slots.js's startOfDay().
@@ -86,7 +102,7 @@ function startOfDayLocal(date) {
 async function countRemainingClasses(prisma, { subjectId, semesterId, type, endDate }) {
   if (!endDate) return null;
 
-  const from = startOfDayLocal(new Date());
+  const from = startOfDayLocal(todayISTDateStr());
   const to = startOfDayLocal(endDate);
   if (to < from) return 0;
 
@@ -108,7 +124,7 @@ async function countRemainingClasses(prisma, { subjectId, semesterId, type, endD
   let hours = extras.reduce((sum, e) => sum + slotHours(e), 0);
   const cursor = new Date(from);
   while (cursor <= to) {
-    const dow = toOurDay(cursor.getDay());
+    const dow = toOurDay(cursor.getUTCDay());
     const dateKey = cursor.toISOString().slice(0, 10);
     if (!holidayKeys.has(dateKey)) {
       for (const s of recurring) {

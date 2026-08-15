@@ -22,6 +22,22 @@ function startOfDay(date) {
   return d;
 }
 
+// "Today" (when no explicit ?date= is given) has to be computed in IST,
+// not the server's own clock — Render (and most hosts) run the process
+// in UTC, so during roughly midnight to 5:30 AM IST every day, the UTC
+// calendar date is still "yesterday". Falling through to startOfDay(new
+// Date()) here used to make the Home screen's "Today's Classes" show
+// yesterday's timetable for that entire window each night. See the
+// identical fix in scheduler.js's toIST() / stats.js's todayISTDateStr().
+function todayISTDateStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 function timeToMin(t) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -72,9 +88,9 @@ router.get("/today", async (req, res) => {
   const semester = await getOwnedSemester(semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Semester not found" });
 
-  const dateParam = req.query.date ? new Date(req.query.date) : new Date();
+  const dateParam = req.query.date ? new Date(req.query.date) : new Date(todayISTDateStr());
   const today = startOfDay(dateParam);
-  const ourDay = toOurDay(today.getDay());
+  const ourDay = toOurDay(today.getUTCDay());
 
   const [recurring, extras, records] = await Promise.all([
     prisma.slot.findMany({ where: { semesterId, day: ourDay, isExtra: false }, include: { subject: true } }),
@@ -187,7 +203,7 @@ router.post(
     if (!subject) return res.status(404).json({ error: "Subject not found in this semester" });
 
     const extraDate = startOfDay(req.body.date);
-    const day = toOurDay(extraDate.getDay());
+    const day = toOurDay(extraDate.getUTCDay());
 
     const slot = await prisma.slot.create({
       data: {

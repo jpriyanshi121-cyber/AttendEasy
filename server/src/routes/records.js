@@ -350,7 +350,7 @@ router.get("/report/pdf", async (req, res) => {
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);
       doc.fontSize(8).fillColor(MUTE).font("Helvetica").text(
-        `Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}  ·  Page ${i + 1} of ${range.count}`,
+        `Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}  ·  Page ${i + 1} of ${range.count}`,
         doc.page.margins.left, doc.page.height - 34,
         { width: pageWidth, align: "center" }
       );

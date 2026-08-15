@@ -1227,7 +1227,7 @@ function HomeScreen({ onSubject, onMark, refreshKey }: {
         beforeStats = breakdown[slotType];
       }
 
-      await api.post("/records/mark", { slotId, date: new Date().toISOString(), status });
+      await api.post("/records/mark", { slotId, date: todayLocalStr(), status });
       setTodayClasses(prev => prev.map(c => c.slot.id === slotId ? { ...c, record: { ...c.record, status } } : c));
 
       let celebrated = false;
@@ -1520,7 +1520,7 @@ function ExtraClassModal({ subjects, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const [subjectId, setSubjectId] = useState(subjects[0]?.id || "");
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState(todayLocalStr());
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [room, setRoom] = useState("");
