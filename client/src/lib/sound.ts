@@ -185,6 +185,6 @@ export function playKeyTick() {
   if (now - lastKeyTickAt < 55) return;
   lastKeyTickAt = now;
   play((ac, t) => {
-    tick(t, 0.022, 0.4, ac, 3200, 1.6, "bandpass");
+    tick(t, 0.02, 0.18, ac, 3200, 1.6, "bandpass");
   });
 }
