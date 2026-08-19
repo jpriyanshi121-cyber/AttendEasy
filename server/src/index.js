@@ -48,8 +48,13 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
+app.get("/api/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "ok", db: "warm", time: new Date().toISOString() });
+  } catch (e) {
+    res.json({ status: "ok", db: "cold-or-unreachable", time: new Date().toISOString() });
+  }
 });
 
 app.use("/api/auth", authLimiter, authRoutes);
