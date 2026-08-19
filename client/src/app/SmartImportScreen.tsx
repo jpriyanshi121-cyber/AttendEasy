@@ -75,21 +75,27 @@ function FileDrop({
       <div
         onClick={() => inputRef.current?.click()}
         style={{
-          border: `1.5px dashed ${file ? T.accent : "#DAD2E8"}`,
-          borderRadius: 16, padding: "20px 16px", cursor: "pointer",
-          background: file ? T.aFill : "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
-          display: "flex", alignItems: "center", gap: 12,
+          border: file ? "1.5px solid #DECCF1" : "1.5px dashed #D8CDEA",
+          borderRadius: 16, padding: file ? "14px 16px" : "20px 16px", cursor: "pointer",
+          background: file ? "linear-gradient(155deg,#F4EEFB,#EDE3F7)" : "#FBFAFD",
+          boxShadow: file ? "0 6px 16px rgba(110,79,145,0.1)" : "none",
+          display: "flex", alignItems: "center", gap: 13,
         }}
       >
         <input
           ref={inputRef} type="file" accept="application/pdf,image/*" style={{ display: "none" }}
           onChange={(e) => onPick(e.target.files?.[0] || null)}
         />
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: file ? T.accent : "#EFEAF6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {file ? <FileText size={18} color="#fff" /> : <UploadCloud size={18} color={T.inkM} />}
+        <div style={{
+          width: file ? 38 : 42, height: file ? 38 : 42, borderRadius: file ? 11 : 12, flexShrink: 0,
+          background: file ? "linear-gradient(155deg,#8E6BB8,#6E4F91)" : "#EFE7F9",
+          boxShadow: file ? "0 6px 14px rgba(110,79,145,0.32)" : "none",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          {file ? <FileText size={17} color="#fff" /> : <UploadCloud size={19} color={T.accent} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 13.5, color: T.inkH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: file ? 13.5 : 14, color: T.inkH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {file ? file.name : hint}
           </div>
           {!file && <div style={{ fontFamily: F.sans, fontSize: 11.5, color: T.inkM, marginTop: 2 }}>PDF or photo</div>}
@@ -97,8 +103,11 @@ function FileDrop({
         {file && (
           <button
             onClick={(e) => { e.stopPropagation(); onPick(null); if (inputRef.current) inputRef.current.value = ""; }}
-            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 6, color: T.inkM }}
-          ><X size={16} /></button>
+            style={{
+              width: 26, height: 26, borderRadius: 8, flexShrink: 0, border: "none", cursor: "pointer",
+              background: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
+            }}
+          ><X size={14} strokeWidth={2.4} /></button>
         )}
       </div>
     </div>
@@ -106,7 +115,12 @@ function FileDrop({
 }
 
 function fieldInputStyle() {
-  return { flex: 1, padding: "10px 12px", borderRadius: 12, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 13, color: T.inkH, minWidth: 0 } as const;
+  return {
+    flex: 1, minWidth: 0, padding: "13px 14px", borderRadius: 13,
+    border: "1.5px solid #EFEAF6", background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+    fontFamily: F.sans, fontSize: 13, color: T.inkH, outline: "none",
+    boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+  } as const;
 }
 
 // Matches the manual "Add/Edit Slot" form in App.tsx exactly (same label
@@ -321,14 +335,22 @@ export default function SmartImportScreen({
     <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 80, overflowY: "auto" }}>
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "24px 20px 100px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 12, background: "linear-gradient(135deg,#6E4F91,#9B7FCC)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Sparkles size={17} color="#fff" />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+              background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+              boxShadow: "0 8px 18px rgba(94,63,138,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Sparkles size={19} color="#fff" />
             </div>
-            <h2 style={{ fontFamily: F.serif, fontWeight: 700, fontSize: 20, color: T.inkH, margin: 0 }}>Smart Import</h2>
+            <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
           </div>
-          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkM, padding: 6 }}>
-            <X size={20} />
+          <button onClick={onClose} style={{
+            width: 30, height: 30, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
+            background: "#F1EDF7", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
+          }}>
+            <X size={16} strokeWidth={2.4} />
           </button>
         </div>
 
@@ -358,12 +380,12 @@ export default function SmartImportScreen({
               onClick={extract}
               disabled={loading || (!calendarFile && !timetableFile)}
               style={{
-                marginTop: 24, width: "100%", padding: 15, borderRadius: 14, border: "none",
-                background: loading ? "#C9BEDB" : "linear-gradient(155deg,#8A6BB0,#6E4F91)",
-                color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 14.5,
+                marginTop: 24, width: "100%", padding: 16, borderRadius: 16, border: "none",
+                background: loading ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+                color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 15,
                 cursor: loading ? "default" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                boxShadow: S.acc,
+                boxShadow: "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
               }}
             >
               {loading ? <Loader2 size={16} className="ae-spin" /> : <Sparkles size={16} />}

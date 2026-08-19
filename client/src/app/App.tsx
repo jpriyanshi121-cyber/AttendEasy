@@ -3471,29 +3471,54 @@ function CalendarScreen() {
           <div style={{
             position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
             width:"calc(100% - 48px)", maxWidth:360,
-            background:T.card, borderRadius:24, padding:24, zIndex:61,
-            boxShadow:"0 24px 64px rgba(27,21,48,0.24)",
+            background:T.card, borderRadius:24, padding:"26px 24px 22px", zIndex:61,
+            boxShadow:"0 30px 70px rgba(15,8,28,0.4), 0 10px 24px rgba(15,8,28,0.2), inset 0 1px 0 #fff",
           }}>
-            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:19, color:T.inkH, margin:"0 0 6px" }}>Add a holiday</h3>
-            <p style={{ fontFamily:F.sans, fontSize:12.5, color:T.inkM, margin:"0 0 18px", lineHeight:1.4 }}>
+            <h3 style={{ fontFamily:F.serif, fontWeight:700, fontSize:21, color:T.inkH, letterSpacing:"-0.01em", margin:"0 0 9px" }}>Add a holiday</h3>
+            <p style={{ fontFamily:F.sans, fontSize:13.5, color:T.inkM, margin:"0 0 22px", lineHeight:1.55 }}>
               This date will be skipped in your "classes remaining" projection.
             </p>
-            <label style={{ display:"block", fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, marginBottom:7, fontWeight:600 }}>Date</label>
-            <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)}
-              style={{ width:"100%", padding:"11px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`, fontFamily:F.sans, fontSize:13.5, color:T.inkH, marginBottom:14, boxSizing:"border-box" }} />
-            <label style={{ display:"block", fontFamily:F.mono, fontSize:9.5, letterSpacing:"0.08em", textTransform:"uppercase", color:T.inkM, marginBottom:7, fontWeight:600 }}>Label <span style={{ textTransform:"none", opacity:0.7 }}>(optional)</span></label>
+
+            <label style={{ display:"block", fontFamily:F.mono, fontSize:10, letterSpacing:"0.09em", textTransform:"uppercase", color:T.inkM, marginBottom:8, fontWeight:600 }}>Date</label>
+            <div style={{ position:"relative", marginBottom:16 }}>
+              <div style={{
+                padding:"13px 15px", borderRadius:14, border:"1.5px solid #EFEAF6",
+                background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+              }}>
+                <span style={{ fontFamily:F.sans, fontSize:14, color: newHolidayDate ? T.inkH : T.inkL }}>
+                  {newHolidayDate ? new Date(newHolidayDate + "T12:00:00").toLocaleDateString("en-GB", { day:"2-digit", month:"2-digit", year:"numeric" }).replace(/\//g,"-") : "DD-MM-YYYY"}
+                </span>
+                <CalendarDays size={15} color={T.inkM} style={{ flexShrink:0 }} />
+              </div>
+              <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer" }} />
+            </div>
+
+            <label style={{ display:"block", fontFamily:F.mono, fontSize:10, letterSpacing:"0.09em", textTransform:"uppercase", color:T.inkM, marginBottom:8, fontWeight:600 }}>Label <span style={{ textTransform:"none", opacity:0.75, letterSpacing:0 }}>(optional)</span></label>
             <input type="text" placeholder="e.g. Diwali" value={newHolidayLabel} onChange={e => setNewHolidayLabel(e.target.value)}
-              style={{ width:"100%", padding:"11px 13px", borderRadius:13, border:`1.5px solid ${HAIR}`, fontFamily:F.sans, fontSize:13.5, color:T.inkH, marginBottom: holidayError ? 8 : 18, boxSizing:"border-box" }} />
+              style={{
+                width:"100%", padding:"13px 15px", borderRadius:14, border:"1.5px solid #EFEAF6",
+                background:"linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                fontFamily:F.sans, fontSize:14, color:T.inkH, outline:"none",
+                boxShadow:"0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                marginBottom: holidayError ? 8 : 22, boxSizing:"border-box",
+              }} />
             {holidayError && <div style={{ fontFamily:F.sans, fontSize:12, color:T.danger, marginBottom:10 }}>{holidayError}</div>}
-            <div style={{ display:"flex", gap:10 }}>
+
+            <div style={{ display:"flex", gap:10, marginTop:6 }}>
               <button onClick={() => setAddHolidayOpen(false)} disabled={savingHoliday}
-                style={{ flex:1, padding:13, borderRadius:14, border:`1.5px solid ${HAIR}`, background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:13.5, cursor:"pointer" }}>
+                style={{ flex:1, padding:14, borderRadius:14, border:"1.5px solid #EFEAF6", background:"#fff", color:T.inkM, fontFamily:F.sans, fontWeight:700, fontSize:14, cursor:"pointer" }}>
                 Cancel
               </button>
               <button onClick={saveManualHoliday} disabled={savingHoliday}
-                style={{ flex:1.4, padding:13, borderRadius:14, border:"none", cursor:"pointer",
-                  background: savingHoliday ? "#C9BEDB" : "linear-gradient(155deg,#8A6BB0,#6E4F91)", color:"#fff",
-                  fontFamily:F.sans, fontWeight:700, fontSize:13.5 }}>
+                style={{
+                  flex:1, padding:14, borderRadius:14, border:"none", cursor:"pointer",
+                  background: savingHoliday ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+                  color:"#fff", fontFamily:F.sans, fontWeight:700, fontSize:14,
+                  boxShadow: savingHoliday ? "none" : "0 14px 28px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+                }}>
                 {savingHoliday ? "Saving..." : "Save"}
               </button>
             </div>
