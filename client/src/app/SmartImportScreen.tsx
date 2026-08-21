@@ -423,29 +423,36 @@ export default function SmartImportScreen({
   const missingTimeCount = result ? result.slots.filter((s) => !s.startTime || !s.endTime).length : 0;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 80, overflowY: "auto" }}>
-      <div style={{ maxWidth: 420, margin: "0 auto", padding: "24px 20px 100px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-              background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
-              boxShadow: "0 8px 18px rgba(94,63,138,0.35)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Sparkles size={19} color="#fff" />
-            </div>
-            <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
+    <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 80, display: "flex", flexDirection: "column" }}>
+      <div style={{ maxWidth: 420, width: "100%", margin: "0 auto", padding: "24px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+            boxShadow: "0 8px 18px rgba(94,63,138,0.35)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Sparkles size={19} color="#fff" />
           </div>
-          {!loading && (
-            <button onClick={onClose} style={{
-              width: 30, height: 30, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
-              background: "#F1EDF7", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
-            }}>
-              <X size={16} strokeWidth={2.4} />
-            </button>
-          )}
+          <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
         </div>
+        {!loading && (
+          <button onClick={onClose} style={{
+            width: 30, height: 30, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
+            background: "#F1EDF7", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
+          }}>
+            <X size={16} strokeWidth={2.4} />
+          </button>
+        )}
+      </div>
+
+      {/* Everything below the header scrolls in its own region — the
+          action button(s) at the bottom stay fixed in place instead of
+          trailing off at the end of the content, matching the loading
+          screen and the rest of the app's full-page layouts. */}
+      {!loading && (
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          <div style={{ maxWidth: 420, margin: "0 auto", padding: "20px 20px 24px" }}>
 
         {loading && (
           <div style={{ position: "fixed", inset: 0, zIndex: 82, background: T.bg, display: "flex", flexDirection: "column" }}>
@@ -576,22 +583,6 @@ export default function SmartImportScreen({
             </div>
 
             {error && <div style={{ marginTop: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
-
-            <button
-              onClick={extract}
-              disabled={loading || (!calendarFile && !timetableFile)}
-              style={{
-                marginTop: 24, width: "100%", padding: 16, borderRadius: 16, border: "none",
-                background: loading ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
-                color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 15,
-                cursor: loading ? "default" : "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                boxShadow: "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
-              }}
-            >
-              {loading ? <Loader2 size={16} className="ae-spin" /> : <Sparkles size={16} />}
-              {loading ? "Reading your files..." : "Extract with AI"}
-            </button>
           </>
         )}
 
@@ -820,25 +811,55 @@ export default function SmartImportScreen({
             })}
 
             {error && <div style={{ marginBottom: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setResult(null)} disabled={saving}
-                style={{ flex: 1, padding: 16, borderRadius: 16, border: "1.5px solid #EFEAF6", background: "#fff", color: T.inkM, fontFamily: F.sans, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-                Back
-              </button>
-              <button onClick={confirmImport} disabled={saving}
-                style={{ flex: 1.6, padding: 16, borderRadius: 16, border: "none", cursor: saving ? "default" : "pointer",
-                  background: saving ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color: "#fff",
-                  fontFamily: F.sans, fontWeight: 700, fontSize: 15,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  boxShadow: saving ? "none" : "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
-                {saving ? <Loader2 size={16} className="ae-spin" /> : <Check size={16} strokeWidth={2.5} />}
-                {saving ? "Saving..." : "Confirm & Create"}
-              </button>
-            </div>
           </>
         )}
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shared fixed bottom bar — same spot the loading screen's Cancel
+          button lives in, so the primary action never scrolls out of
+          reach regardless of how much content (holidays, classes) is
+          above it. */}
+      {!loading && (
+        <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", background: T.bg }}>
+          <div style={{ maxWidth: 420, margin: "0 auto" }}>
+            {!result ? (
+              <button
+                onClick={extract}
+                disabled={!calendarFile && !timetableFile}
+                style={{
+                  width: "100%", padding: 16, borderRadius: 16, border: "none",
+                  background: (!calendarFile && !timetableFile) ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+                  color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 15,
+                  cursor: (!calendarFile && !timetableFile) ? "default" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  boxShadow: "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+                }}
+              >
+                <Sparkles size={16} />
+                Extract with AI
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setResult(null)} disabled={saving}
+                  style={{ flex: 1, padding: 16, borderRadius: 16, border: "1.5px solid #EFEAF6", background: "#fff", color: T.inkM, fontFamily: F.sans, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+                  Back
+                </button>
+                <button onClick={confirmImport} disabled={saving}
+                  style={{ flex: 1.6, padding: 16, borderRadius: 16, border: "none", cursor: saving ? "default" : "pointer",
+                    background: saving ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color: "#fff",
+                    fontFamily: F.sans, fontWeight: 700, fontSize: 15,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    boxShadow: saving ? "none" : "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+                  {saving ? <Loader2 size={16} className="ae-spin" /> : <Check size={16} strokeWidth={2.5} />}
+                  {saving ? "Saving..." : "Confirm & Create"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
