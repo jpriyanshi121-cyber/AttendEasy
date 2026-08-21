@@ -114,6 +114,46 @@ function FileDrop({
   );
 }
 
+function sectionCardStyle() {
+  return {
+    background: T.card, borderRadius: 20, padding: 18, marginBottom: 16,
+    boxShadow: "0 8px 22px rgba(27,21,48,0.07), 0 2px 6px rgba(27,21,48,0.03)",
+    border: "1px solid #EFEAF6",
+  } as const;
+}
+function sectionTitleStyle() {
+  return {
+    fontFamily: F.mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const,
+    color: T.accent, fontWeight: 700,
+  };
+}
+
+function DateBtn({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const label = value ? new Date(value + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Pick date";
+  return (
+    <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <div style={{
+        padding: "12px 14px", borderRadius: 13, border: "1.5px solid #EFEAF6",
+        background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+        boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6,
+      }}>
+        <span style={{ fontFamily: F.sans, fontSize: 13, color: value ? T.inkH : T.inkL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <CalendarIconSvg />
+      </div>
+      <input type="date" value={value} onChange={(e) => onChange(e.target.value)}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }} />
+    </div>
+  );
+}
+function CalendarIconSvg() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A8194" strokeWidth="2" style={{ flexShrink: 0 }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
 function fieldInputStyle() {
   return {
     flex: 1, minWidth: 0, padding: "13px 14px", borderRadius: 13,
@@ -396,97 +436,124 @@ export default function SmartImportScreen({
 
         {result && (
           <>
-            <div style={{ background: T.card, borderRadius: 18, padding: 18, marginBottom: 16, boxShadow: S.sm }}>
-              <div style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: T.inkM, fontWeight: 600, marginBottom: 10 }}>
-                Semester (last day of regular classes — not exams)
+            <div style={sectionCardStyle()}>
+              <div style={sectionTitleStyle()}>
+                Semester (Last Day of Regular Classes — Not Exams)
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input type="date" value={result.semester.startDate || ""} onChange={(e) => setResult({ ...result, semester: { ...result.semester, startDate: e.target.value } })}
-                  style={fieldInputStyle()} />
-                <input type="date" value={result.semester.endDate || ""} onChange={(e) => setResult({ ...result, semester: { ...result.semester, endDate: e.target.value } })}
-                  style={fieldInputStyle()} />
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <DateBtn value={result.semester.startDate || ""} onChange={(v) => setResult({ ...result, semester: { ...result.semester, startDate: v } })} />
+                <DateBtn value={result.semester.endDate || ""} onChange={(v) => setResult({ ...result, semester: { ...result.semester, endDate: v } })} />
               </div>
             </div>
 
-            <div style={{ background: T.card, borderRadius: 18, padding: 18, marginBottom: 16, boxShadow: S.sm }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <div style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: T.inkM, fontWeight: 600 }}>
-                  Confirmed holidays ({confirmedGroups.reduce((n, g) => n + g.indices.length, 0)})
+            <div style={sectionCardStyle()}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div style={sectionTitleStyle()}>
+                  Confirmed Holidays ({confirmedGroups.reduce((n, g) => n + g.indices.length, 0)})
                 </div>
-                <button onClick={addHoliday} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.accent, display: "flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700 }}>
-                  <Plus size={14} /> Add
+                <button onClick={addHoliday} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.accent, display: "flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
+                  <Plus size={12} strokeWidth={2.5} /> Add
                 </button>
               </div>
-              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.inkL, margin: "0 0 12px" }}>
+              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.inkM, margin: "7px 0 0", lineHeight: 1.5 }}>
                 Calendar explicitly says no classes — these count toward your attendance projection.
               </p>
-              {confirmedGroups.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL }}>None found.</div>}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {confirmedGroups.map((g, gi) => (
-                  <div key={gi} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <div style={{ width: 92, flexShrink: 0, fontFamily: F.mono, fontSize: 11.5, color: T.inkM, fontWeight: 600 }}>
-                      {g.startDate === g.endDate ? fmtShort(g.startDate) : `${fmtShort(g.startDate)}–${fmtShort(g.endDate)}`}
-                    </div>
-                    <input type="text" placeholder="Label" value={g.label} onChange={(e) => relabelHolidayGroup(g.indices, e.target.value)}
-                      style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12.5, color: T.inkH, minWidth: 0 }} />
-                    <button onClick={() => removeHolidayGroup(g.indices)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkL, padding: 4 }}><Trash2 size={15} /></button>
+              {confirmedGroups.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL, marginTop: 12 }}>None found.</div>}
+              {confirmedGroups.map((g, gi) => (
+                <div key={gi} style={{ padding: "13px 0", borderTop: gi > 0 ? "1px solid #F1EDF7" : "none", marginTop: gi === 0 ? 4 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontFamily: F.mono, fontSize: 9.5, color: T.inkM, fontWeight: 600, background: "#F5F2FA", padding: "4px 9px", borderRadius: 8, flexShrink: 0 }}>
+                      {g.startDate === g.endDate ? fmtShort(g.startDate) : `${fmtShort(g.startDate)} – ${fmtShort(g.endDate)}`}
+                    </span>
+                    <button onClick={() => removeHolidayGroup(g.indices)} style={{
+                      width: 26, height: 26, borderRadius: 9, flexShrink: 0, border: "none", cursor: "pointer",
+                      background: "#FBE7EA", display: "flex", alignItems: "center", justifyContent: "center", color: T.danger,
+                    }}><Trash2 size={13} /></button>
                   </div>
-                ))}
-              </div>
+                  <input type="text" placeholder="Label" value={g.label} onChange={(e) => relabelHolidayGroup(g.indices, e.target.value)}
+                    style={{
+                      width: "100%", padding: "11px 14px", borderRadius: 12, border: "1.5px solid #EFEAF6",
+                      background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                      boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                      fontFamily: F.sans, fontSize: 13.5, color: T.inkH, outline: "none", boxSizing: "border-box",
+                    }} />
+                </div>
+              ))}
             </div>
 
-            <div style={{ background: T.card, borderRadius: 18, padding: 18, marginBottom: 16, boxShadow: S.sm }}>
-              <div style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: T.inkM, fontWeight: 600, marginBottom: 4 }}>
-                Likely no-class days ({likelyGroups.reduce((n, g) => n + g.indices.length, 0)})
+            <div style={sectionCardStyle()}>
+              <div style={sectionTitleStyle()}>
+                Likely No-Class Days ({likelyGroups.reduce((n, g) => n + g.indices.length, 0)})
               </div>
-              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.inkL, margin: "0 0 12px" }}>
-                Fests, exam periods, etc. — not counted automatically, but will show on your Calendar with the reason. Tap "Include" to also count one toward your projection.
+              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.inkM, margin: "7px 0 0", lineHeight: 1.5 }}>
+                Fests, exam periods, etc. — not counted automatically, but will show on your Calendar with the reason. Tap "Include" to also count it toward your projection.
               </p>
-              {likelyGroups.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL }}>None found.</div>}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {likelyGroups.map((g, gi) => (
-                  <div key={gi} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <div style={{ width: 92, flexShrink: 0, fontFamily: F.mono, fontSize: 11.5, color: T.inkM, fontWeight: 600 }}>
-                      {g.startDate === g.endDate ? fmtShort(g.startDate) : `${fmtShort(g.startDate)}–${fmtShort(g.endDate)}`}
+              {likelyGroups.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL, marginTop: 12 }}>None found.</div>}
+              {likelyGroups.map((g, gi) => (
+                <div key={gi} style={{ padding: "13px 0", borderTop: gi > 0 ? "1px solid #F1EDF7" : "none", marginTop: gi === 0 ? 4 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontFamily: F.mono, fontSize: 9.5, color: T.inkM, fontWeight: 600, background: "#F5F2FA", padding: "4px 9px", borderRadius: 8, flexShrink: 0 }}>
+                      {g.startDate === g.endDate ? fmtShort(g.startDate) : `${fmtShort(g.startDate)} – ${fmtShort(g.endDate)}`}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => promoteHolidayGroup(g.indices)}
+                        style={{
+                          border: "none", cursor: "pointer", padding: "6px 13px", borderRadius: 20,
+                          background: "linear-gradient(155deg,#8E6BB8,#6E4F91)", color: "#fff",
+                          fontFamily: F.sans, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                          boxShadow: "0 4px 10px rgba(110,79,145,0.32)",
+                        }}>
+                        Include
+                      </button>
+                      <button onClick={() => removeHolidayGroup(g.indices)} style={{
+                        width: 26, height: 26, borderRadius: 9, flexShrink: 0, border: "none", cursor: "pointer",
+                        background: "#FBE7EA", display: "flex", alignItems: "center", justifyContent: "center", color: T.danger,
+                      }}><Trash2 size={13} /></button>
                     </div>
-                    <input type="text" placeholder="Label" value={g.label} onChange={(e) => relabelHolidayGroup(g.indices, e.target.value)}
-                      style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontSize: 12.5, color: T.inkH, minWidth: 0 }} />
-                    <button onClick={() => promoteHolidayGroup(g.indices)}
-                      style={{ border: "none", background: T.aFill, color: T.accent, borderRadius: 8, padding: "6px 8px", cursor: "pointer", fontFamily: F.sans, fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap" }}>
-                      Include
-                    </button>
-                    <button onClick={() => removeHolidayGroup(g.indices)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkL, padding: 4 }}><Trash2 size={15} /></button>
                   </div>
-                ))}
-              </div>
+                  <input type="text" placeholder="Label" value={g.label} onChange={(e) => relabelHolidayGroup(g.indices, e.target.value)}
+                    style={{
+                      width: "100%", padding: "11px 14px", borderRadius: 12, border: "1.5px solid #EFEAF6",
+                      background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                      boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                      fontFamily: F.sans, fontSize: 13.5, color: T.inkH, outline: "none", boxSizing: "border-box",
+                    }} />
+                </div>
+              ))}
             </div>
 
-            <div style={{ background: T.card, borderRadius: 18, padding: 18, marginBottom: 16, boxShadow: S.sm }}>
-              <div style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: T.inkM, fontWeight: 600, marginBottom: 10 }}>
+            <div style={sectionCardStyle()}>
+              <div style={sectionTitleStyle()}>
                 Classes ({result.slots.length})
               </div>
               {missingTimeCount > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 11.5, color: T.danger }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontFamily: F.sans, fontSize: 11.5, color: T.danger }}>
                   <AlertTriangle size={13} /> {missingTimeCount} class{missingTimeCount > 1 ? "es are" : " is"} missing a time — those will be skipped unless you fill them in.
                 </div>
               )}
-              {result.slots.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL }}>No classes found in the timetable file.</div>}
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {slotsByDay.map(({ day, label, items }) => (
-                  <div key={day}>
-                    <div style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: "0.06em", color: T.accent, fontWeight: 700, marginBottom: 8 }}>
-                      {label} · {items.length}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {items.map(({ s, i }) => {
-                        const missingTime = !s.startTime || !s.endTime;
-                        return (
-                          <div key={i} style={{ border: `1.5px solid ${missingTime ? "#F0C9CC" : "#EFEAF6"}`, borderRadius: 16, padding: 14 }}>
-                            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                              <input type="text" value={s.subject} onChange={(e) => updateSlot(i, { subject: e.target.value })}
-                                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #EFEAF6", fontFamily: F.sans, fontWeight: 700, fontSize: 13, color: T.inkH, minWidth: 0 }} />
-                              <button onClick={() => removeSlot(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.inkL, padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
-                            </div>
+              {result.slots.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL, marginTop: 12 }}>No classes found in the timetable file.</div>}
+              {slotsByDay.map(({ day, label, items }) => (
+                <div key={day}>
+                  <div style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: "0.06em", color: T.accent, fontWeight: 700, margin: "16px 0 4px" }}>
+                    {label.toUpperCase()} · {items.length} CLASS{items.length !== 1 ? "ES" : ""}
+                  </div>
+                  {items.map(({ s, i }) => {
+                    const missingTime = !s.startTime || !s.endTime;
+                    return (
+                      <div key={i} style={{ border: `1.5px solid ${missingTime ? "#F0C9CC" : "#EFEAF6"}`, borderRadius: 16, padding: 15, marginTop: 12 }}>
+                        <div style={{ display: "flex", gap: 9, marginBottom: 14, alignItems: "center" }}>
+                          <input type="text" value={s.subject} onChange={(e) => updateSlot(i, { subject: e.target.value })}
+                            style={{
+                              flex: 1, minWidth: 0, padding: "11px 14px", borderRadius: 12, border: "1.5px solid #EFEAF6",
+                              background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
+                              boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
+                              fontFamily: F.serif, fontWeight: 700, fontSize: 15, color: T.inkH, outline: "none",
+                            }} />
+                          <button onClick={() => removeSlot(i)} style={{
+                            width: 34, height: 34, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
+                            background: "#FBE7EA", display: "flex", alignItems: "center", justifyContent: "center", color: T.danger,
+                          }}><Trash2 size={14} /></button>
+                        </div>
 
                             <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
                               <SlotField label="Type">
@@ -529,25 +596,24 @@ export default function SmartImportScreen({
                           </div>
                         );
                       })}
-                    </div>
                   </div>
                 ))}
-              </div>
             </div>
 
             {error && <div style={{ marginBottom: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
 
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setResult(null)} disabled={saving}
-                style={{ flex: 1, padding: 14, borderRadius: 14, border: "1.5px solid #EFEAF6", background: "#fff", color: T.inkM, fontFamily: F.sans, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                style={{ flex: 1, padding: 16, borderRadius: 16, border: "1.5px solid #EFEAF6", background: "#fff", color: T.inkM, fontFamily: F.sans, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
                 Back
               </button>
               <button onClick={confirmImport} disabled={saving}
-                style={{ flex: 1.6, padding: 14, borderRadius: 14, border: "none", cursor: saving ? "default" : "pointer",
-                  background: saving ? "#C9BEDB" : "linear-gradient(155deg,#8A6BB0,#6E4F91)", color: "#fff",
-                  fontFamily: F.sans, fontWeight: 700, fontSize: 14,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                {saving ? <Loader2 size={16} className="ae-spin" /> : <Check size={16} />}
+                style={{ flex: 1.6, padding: 16, borderRadius: 16, border: "none", cursor: saving ? "default" : "pointer",
+                  background: saving ? "#C9BEDB" : "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color: "#fff",
+                  fontFamily: F.sans, fontWeight: 700, fontSize: 15,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  boxShadow: saving ? "none" : "0 16px 32px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+                {saving ? <Loader2 size={16} className="ae-spin" /> : <Check size={16} strokeWidth={2.5} />}
                 {saving ? "Saving..." : "Confirm & Create"}
               </button>
             </div>
