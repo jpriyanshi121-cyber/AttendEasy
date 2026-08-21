@@ -3187,26 +3187,26 @@ function CalendarScreen() {
             boxShadow:"0 16px 36px rgba(27,21,48,0.12), 0 4px 12px rgba(27,21,48,0.06)",
             border:"1px solid #EFEAF6",
           }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
               <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                <span style={{ fontFamily:F.mono, fontSize:10.5, letterSpacing:"0.1em", textTransform:"uppercase", color:T.accent, fontWeight:600 }}>
+                <span style={{ fontFamily:F.mono, fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", color:T.accent, fontWeight:700 }}>
                   {new Date(expanded + "T12:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"long" })}
                 </span>
                 <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
               </div>
               <button onClick={() => setExpanded(null)} style={{
-                width:26, height:26, borderRadius:8, border:"none", cursor:"pointer",
+                width:26, height:26, borderRadius:9, border:"none", cursor:"pointer",
                 background:T.aFill, display:"flex", alignItems:"center", justifyContent:"center",
               }}><X size={12} color={T.accent} strokeWidth={2.3} /></button>
             </div>
 
             {expanded && holidayMap.get(expanded) && (
               <div style={{
-                display:"flex", alignItems:"center", gap:8, padding:"9px 13px", borderRadius:12, marginBottom:14,
-                background: holidayMap.get(expanded)!.confirmed ? "#E4F1EA" : "#FBF1DC",
+                display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:13, marginBottom:12,
+                background: holidayMap.get(expanded)!.confirmed ? "#DFF0E7" : "#FBF1DC",
               }}>
                 <span style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, background: holidayMap.get(expanded)!.confirmed ? "#2F7A5C" : "#C9A24B" }} />
-                <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color: holidayMap.get(expanded)!.confirmed ? "#2F7A5C" : "#8A6B23" }}>
+                <span style={{ fontFamily:F.sans, fontSize:13.5, fontWeight:700, color: holidayMap.get(expanded)!.confirmed ? "#1E5C3F" : "#8A6B23" }}>
                   {holidayMap.get(expanded)!.label || (holidayMap.get(expanded)!.confirmed ? "Holiday" : "Possible no-class day")}
                   {!holidayMap.get(expanded)!.confirmed && " (not counted in your %)"}
                 </span>
@@ -3216,8 +3216,8 @@ function CalendarScreen() {
             {expLoading ? (
               <p style={{ fontSize:13, color:T.inkL, fontStyle:"italic" }}>Loading...</p>
             ) : expanded && holidayMap.get(expanded)?.confirmed ? (
-              <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>
-                No classes — {holidayMap.get(expanded)!.label || "Holiday"}.
+              <p style={{ fontFamily:F.serif, fontStyle:"italic", fontWeight:500, fontSize:13, color:T.inkM, margin:0 }}>
+                No classes today.
               </p>
             ) : expandedClasses.length === 0 ? (
               <p style={{ fontSize:14, color:T.inkM, fontStyle:"italic" }}>No classes on this day.</p>

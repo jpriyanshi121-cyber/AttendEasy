@@ -1,5 +1,5 @@
-import { useState, useRef, type ReactNode } from "react";
-import { Sparkles, UploadCloud, FileText, Loader2, Trash2, Plus, X, Check, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { Sparkles, UploadCloud, FileText, Loader2, Trash2, Plus, X, Check, AlertTriangle, Clock, MapPin } from "lucide-react";
 import { T, F, S } from "./App";
 import { api } from "../lib/api";
 
@@ -207,9 +207,27 @@ export default function SmartImportScreen({
   const [group, setGroup] = useState("");
   const [batchYear, setBatchYear] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ExtractResult | null>(null);
+
+  const LOADING_STEPS = [
+    "Semester dates found",
+    "Holidays identified",
+    "Mapping your weekly timetable",
+    "Matching rooms & professors",
+  ];
+
+  useEffect(() => {
+    if (!loading) { setLoadingStep(0); return; }
+    const timers = [
+      setTimeout(() => setLoadingStep(1), 3200),
+      setTimeout(() => setLoadingStep(2), 6800),
+      setTimeout(() => setLoadingStep(3), 11000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [loading]);
 
   async function extract() {
     if (!calendarFile && !timetableFile) {
@@ -386,15 +404,98 @@ export default function SmartImportScreen({
             </div>
             <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
           </div>
-          <button onClick={onClose} style={{
-            width: 30, height: 30, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
-            background: "#F1EDF7", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
-          }}>
-            <X size={16} strokeWidth={2.4} />
-          </button>
+          {!loading && (
+            <button onClick={onClose} style={{
+              width: 30, height: 30, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
+              background: "#F1EDF7", display: "flex", alignItems: "center", justifyContent: "center", color: T.accent,
+            }}>
+              <X size={16} strokeWidth={2.4} />
+            </button>
+          )}
         </div>
 
-        {!result && (
+        {loading && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 10px 0", minHeight: "60vh" }}>
+            <div style={{ width: 120, height: 140, marginBottom: 26, position: "relative" }}>
+              <div style={{
+                width: 100, height: 130, margin: "0 auto", borderRadius: 14, background: "#fff",
+                border: "1.5px solid #EFEAF6", boxShadow: "0 14px 30px rgba(27,21,48,0.1)",
+                position: "relative", overflow: "hidden", padding: "16px 14px",
+              }}>
+                <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "70%" }} />
+                <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "100%" }} />
+                <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "85%" }} />
+                <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "55%" }} />
+                <div className="ae-scanbeam" style={{
+                  position: "absolute", left: 0, right: 0, height: 34,
+                  background: "linear-gradient(180deg, transparent, rgba(110,79,145,0.22) 45%, rgba(201,162,75,0.35) 50%, rgba(110,79,145,0.22) 55%, transparent)",
+                }} />
+              </div>
+              <div className="ae-loadchip" style={{
+                position: "absolute", top: 6, left: -8, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "0.2s",
+              }}>
+                <CalendarIconSvg />
+              </div>
+              <div className="ae-loadchip" style={{
+                position: "absolute", top: 52, right: -12, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1s",
+              }}>
+                <Clock size={13} color="#C9A24B" strokeWidth={2} />
+              </div>
+              <div className="ae-loadchip" style={{
+                position: "absolute", bottom: 2, left: -4, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1.8s",
+              }}>
+                <MapPin size={13} color="#2F7A5C" strokeWidth={2} />
+              </div>
+            </div>
+
+            <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 21, color: T.inkH, textAlign: "center", margin: "0 0 8px" }}>
+              Reading your files
+            </h2>
+            <p style={{ fontFamily: F.serif, fontStyle: "italic", fontWeight: 500, fontSize: 13.5, color: T.inkM, textAlign: "center", margin: "0 0 34px" }}>
+              This usually takes about 15 seconds.
+            </p>
+
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+              {LOADING_STEPS.map((stepLabel, i) => {
+                const state = i < loadingStep ? "done" : i === loadingStep ? "active" : "pending";
+                return (
+                  <div key={stepLabel} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: state === "done" ? "#DFF0E7" : state === "active" ? "#EFE7F9" : "#F3F1F6",
+                      boxShadow: state === "active" ? "0 0 0 4px rgba(110,79,145,0.14)" : "none",
+                    }}>
+                      {state === "done" && <Check size={13} color="#2F7A5C" strokeWidth={3} />}
+                      {state === "active" && <span className="ae-steppulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "block" }} />}
+                    </div>
+                    <span style={{
+                      fontFamily: F.sans, fontSize: 13.5, fontWeight: 600,
+                      color: state === "done" ? T.inkH : state === "active" ? T.accent : T.inkL,
+                    }}>
+                      {stepLabel}
+                      {state === "active" && (
+                        <span className="ae-ellipsis"><span>.</span><span>.</span><span>.</span></span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button onClick={onClose} style={{
+              marginTop: 36, background: "none", border: "none", cursor: "pointer",
+              fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.inkL,
+            }}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {!loading && !result && (
           <>
             <p style={{ fontFamily: F.sans, fontSize: 13.5, color: T.inkM, marginBottom: 22, lineHeight: 1.5 }}>
               Upload your academic calendar and/or weekly timetable — AI will read the semester dates, holidays, and classes, and you'll get to review everything before it's saved.
