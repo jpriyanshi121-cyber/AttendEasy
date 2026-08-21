@@ -22,6 +22,12 @@ type ExtractResult = {
 
 const DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const PALETTE = ["#6E4F91", "#8B6FBB", "#5A3D78", "#9B7FCC", "#7A5AA0"];
+const GOLD = "#C9A24B";
+// Mirrors the private TYPE_DOT/TYPE_TAG constants in App.tsx (not exported
+// from there) so the review screen's class pills look like the same
+// vocabulary as the manual Edit Timetable screen.
+const TYPE_DOT: Record<string, string> = { lecture: "#6E4F91", tutorial: GOLD, practical: "#2F7A5C" };
+const TYPE_TAG: Record<string, string> = { lecture: "LEC", tutorial: "TUT", practical: "PRAC" };
 
 // Turns a flat list of individual dates into ranges when the same label
 // appears on consecutive calendar days — so a 12-day winter break shows as
@@ -211,6 +217,10 @@ export default function SmartImportScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ExtractResult | null>(null);
+  // Tracks which single slot (by its flat index into result.slots) has its
+  // full edit form open — pills stay compact until tapped, mirroring the
+  // manual Edit Timetable screen instead of always showing every field.
+  const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
 
   const LOADING_STEPS = [
     "Semester dates found",
@@ -279,7 +289,7 @@ export default function SmartImportScreen({
     setResult({ ...result, holidays: [...result.holidays, { date: "", label: "", confidence: "confirmed" }] });
   }
 
-  function updateSlot(i: number, patch: Partial<ExtractedSlot>) {
+    function updateSlot(i: number, patch: Partial<ExtractedSlot>) {
     if (!result) return;
     const slots = result.slots.slice();
     slots[i] = { ...slots[i], ...patch };
@@ -288,6 +298,24 @@ export default function SmartImportScreen({
   function removeSlot(i: number) {
     if (!result) return;
     setResult({ ...result, slots: result.slots.filter((_, idx) => idx !== i) });
+    setExpandedSlot((cur) => (cur === i ? null : cur));
+  }
+  function renameSubjectGroup(key: string, name: string) {
+    if (!result) return;
+    const slots = result.slots.map((s) => (s.subject.trim().toLowerCase() === key ? { ...s, subject: name } : s));
+    setResult({ ...result, slots });
+  }
+  function removeSubjectGroup(key: string) {
+    if (!result) return;
+    setResult({ ...result, slots: result.slots.filter((s) => s.subject.trim().toLowerCase() !== key) });
+    setExpandedSlot(null);
+  }
+  function addSlotToSubject(subjectName: string) {
+    if (!result) return;
+    const newSlot: ExtractedSlot = { subject: subjectName, type: "lecture", day: 0, startTime: "", endTime: "", room: null, prof: null };
+    const newIndex = result.slots.length;
+    setResult({ ...result, slots: [...result.slots, newSlot] });
+    setExpandedSlot(newIndex);
   }
 
   async function confirmImport() {
@@ -381,12 +409,17 @@ export default function SmartImportScreen({
 
   const confirmedGroups = result ? groupHolidays(result.holidays, "confirmed") : [];
   const likelyGroups = result ? groupHolidays(result.holidays, "likely") : [];
-  const slotsByDay = result
-    ? DAYS_SHORT.map((label, day) => ({
-        day, label,
-        items: result.slots.map((s, i) => ({ s, i })).filter(({ s }) => s.day === day),
-      })).filter((g) => g.items.length > 0)
-    : [];
+  type SubjectGroup = { key: string; name: string; items: { s: ExtractedSlot; i: number }[] };
+  const slotsBySubject: SubjectGroup[] = (() => {
+    if (!result) return [];
+    const map = new Map<string, SubjectGroup>();
+    result.slots.forEach((s, i) => {
+      const key = s.subject.trim().toLowerCase() || `__untitled_${i}`;
+      if (!map.has(key)) map.set(key, { key, name: s.subject, items: [] });
+      map.get(key)!.items.push({ s, i });
+    });
+    return Array.from(map.values());
+  })();
   const missingTimeCount = result ? result.slots.filter((s) => !s.startTime || !s.endTime).length : 0;
 
   return (
@@ -623,83 +656,141 @@ export default function SmartImportScreen({
               ))}
             </div>
 
-            <div style={sectionCardStyle()}>
+                        <div style={{ margin: "0 2px 12px" }}>
               <div style={sectionTitleStyle()}>
                 Classes ({result.slots.length})
               </div>
               {missingTimeCount > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontFamily: F.sans, fontSize: 11.5, color: T.danger }}>
-                  <AlertTriangle size={13} /> {missingTimeCount} class{missingTimeCount > 1 ? "es are" : " is"} missing a time — those will be skipped unless you fill them in.
+                  <AlertTriangle size={13} /> {missingTimeCount} class{missingTimeCount > 1 ? "es are" : " is"} missing a time — tap it below to fill in.
                 </div>
               )}
               {result.slots.length === 0 && <div style={{ fontFamily: F.sans, fontSize: 12.5, color: T.inkL, marginTop: 12 }}>No classes found in the timetable file.</div>}
-              {slotsByDay.map(({ day, label, items }) => (
-                <div key={day}>
-                  <div style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: "0.06em", color: T.accent, fontWeight: 700, margin: "16px 0 4px" }}>
-                    {label.toUpperCase()} · {items.length} CLASS{items.length !== 1 ? "ES" : ""}
+            </div>
+
+            {slotsBySubject.map((group, gi) => {
+              const typeCounts: Record<string, number> = {};
+              for (const { s } of group.items) typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
+              const openItem = group.items.find(({ i }) => i === expandedSlot);
+
+              return (
+                <div key={group.key} style={sectionCardStyle()}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                      background: `linear-gradient(155deg,${PALETTE[gi % PALETTE.length]},#4A3266)`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "#fff", fontFamily: F.serif, fontWeight: 700, fontSize: 14,
+                    }}>
+                      {group.name.trim().charAt(0).toUpperCase() || "?"}
+                    </div>
+                    <input type="text" value={group.name} onChange={(e) => renameSubjectGroup(group.key, e.target.value)}
+                      style={{
+                        flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 11, border: "1.5px solid #EFEAF6",
+                        background: "#fff", fontFamily: F.serif, fontWeight: 700, fontSize: 15, color: T.inkH, outline: "none", boxSizing: "border-box",
+                      }} />
+                    <button onClick={() => removeSubjectGroup(group.key)} style={{
+                      width: 32, height: 32, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
+                      background: "#FBE7EA", display: "flex", alignItems: "center", justifyContent: "center", color: T.danger,
+                    }}><Trash2 size={14} /></button>
                   </div>
-                  {items.map(({ s, i }) => {
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {Object.entries(typeCounts).map(([type, count]) => (
+                      <span key={type} style={{
+                        display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20,
+                        background: "#F5F2FA", fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: T.inkM,
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: TYPE_DOT[type], flexShrink: 0 }} />
+                        {count} {TYPE_TAG[type]}{count > 1 ? "s" : ""}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {group.items.map(({ s, i }) => {
+                      const missingTime = !s.startTime || !s.endTime;
+                      const isOpen = i === expandedSlot;
+                      return (
+                        <button key={i} onClick={() => setExpandedSlot(isOpen ? null : i)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 12,
+                            border: "none", cursor: "pointer", fontFamily: F.sans, fontSize: 12, fontWeight: 700,
+                            background: isOpen ? "linear-gradient(155deg,#8E6BB8,#6E4F91)" : (missingTime ? "#FBE7EA" : "#F5F2FA"),
+                            color: isOpen ? "#fff" : (missingTime ? T.danger : T.inkH),
+                          }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: isOpen ? "#fff" : TYPE_DOT[s.type], flexShrink: 0 }} />
+                          {DAYS_SHORT[s.day]} {missingTime ? "· Set time" : fmtTime(s.startTime)}
+                          <span style={{ fontSize: 9, opacity: 0.75 }}>{TYPE_TAG[s.type]}</span>
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => addSlotToSubject(group.name)} style={{
+                      display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 12,
+                      border: "1.5px dashed #D8CDEA", cursor: "pointer", background: "transparent",
+                      fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.accent,
+                    }}>
+                      <Plus size={12} /> Add slot
+                    </button>
+                  </div>
+
+                  {openItem && (() => {
+                    const { s, i } = openItem;
                     const missingTime = !s.startTime || !s.endTime;
                     return (
-                      <div key={i} style={{ border: `1.5px solid ${missingTime ? "#F0C9CC" : "#EFEAF6"}`, borderRadius: 16, padding: 15, marginTop: 12 }}>
-                        <div style={{ display: "flex", gap: 9, marginBottom: 14, alignItems: "center" }}>
-                          <input type="text" value={s.subject} onChange={(e) => updateSlot(i, { subject: e.target.value })}
-                            style={{
-                              flex: 1, minWidth: 0, padding: "11px 14px", borderRadius: 12, border: "1.5px solid #EFEAF6",
-                              background: "linear-gradient(180deg,#FFFFFF,#FCFAFE)",
-                              boxShadow: "0 1px 2px rgba(27,21,48,0.03), inset 0 1px 0 rgba(255,255,255,0.8)",
-                              fontFamily: F.serif, fontWeight: 700, fontSize: 15, color: T.inkH, outline: "none",
-                            }} />
-                          <button onClick={() => removeSlot(i)} style={{
-                            width: 34, height: 34, borderRadius: 10, flexShrink: 0, border: "none", cursor: "pointer",
-                            background: "#FBE7EA", display: "flex", alignItems: "center", justifyContent: "center", color: T.danger,
-                          }}><Trash2 size={14} /></button>
+                      <div style={{ marginTop: 12, padding: 14, borderRadius: 14, background: "#FAF8FC", border: "1px solid #EFEAF6" }}>
+                        <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
+                          <SlotField label="Type">
+                            <select value={s.type} onChange={(e) => updateSlot(i, { type: e.target.value as any })} style={slotSelectStyle()}>
+                              <option value="lecture">Lecture</option>
+                              <option value="tutorial">Tutorial</option>
+                              <option value="practical">Practical</option>
+                            </select>
+                          </SlotField>
+                          <SlotField label="Day">
+                            <select value={s.day} onChange={(e) => updateSlot(i, { day: Number(e.target.value) })} style={slotSelectStyle()}>
+                              {DAYS_SHORT.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                            </select>
+                          </SlotField>
                         </div>
 
-                            <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
-                              <SlotField label="Type">
-                                <select value={s.type} onChange={(e) => updateSlot(i, { type: e.target.value as any })} style={slotSelectStyle()}>
-                                  <option value="lecture">Lecture</option>
-                                  <option value="tutorial">Tutorial</option>
-                                  <option value="practical">Practical</option>
-                                </select>
-                              </SlotField>
-                              <SlotField label="Day">
-                                <select value={s.day} onChange={(e) => updateSlot(i, { day: Number(e.target.value) })} style={slotSelectStyle()}>
-                                  {DAYS_SHORT.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
-                                </select>
-                              </SlotField>
-                            </div>
+                        <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
+                          <SlotField label="Start Time">
+                            <input type="time" value={s.startTime} onChange={(e) => updateSlot(i, { startTime: e.target.value })} style={slotInputStyle(!s.startTime)} />
+                          </SlotField>
+                          <SlotField label="End Time">
+                            <input type="time" value={s.endTime} onChange={(e) => updateSlot(i, { endTime: e.target.value })} style={slotInputStyle(!s.endTime)} />
+                          </SlotField>
+                        </div>
 
-                            <div style={{ display: "flex", gap: 9, marginBottom: 11 }}>
-                              <SlotField label="Start Time">
-                                <input type="time" value={s.startTime} onChange={(e) => updateSlot(i, { startTime: e.target.value })} style={slotInputStyle(!s.startTime)} />
-                              </SlotField>
-                              <SlotField label="End Time">
-                                <input type="time" value={s.endTime} onChange={(e) => updateSlot(i, { endTime: e.target.value })} style={slotInputStyle(!s.endTime)} />
-                              </SlotField>
-                            </div>
-
-                            {missingTime && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 11, fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.danger }}>
-                                <AlertTriangle size={12} /> Set both times, or this class will be skipped.
-                              </div>
-                            )}
-
-                            <div style={{ display: "flex", gap: 9 }}>
-                              <SlotField label="Room" optional>
-                                <input type="text" placeholder="e.g. C-204" value={s.room || ""} onChange={(e) => updateSlot(i, { room: e.target.value })} style={slotInputStyle()} />
-                              </SlotField>
-                              <SlotField label="Professor" optional>
-                                <input type="text" placeholder="e.g. Prof. Iyer" value={s.prof || ""} onChange={(e) => updateSlot(i, { prof: e.target.value })} style={slotInputStyle()} />
-                              </SlotField>
-                            </div>
+                        {missingTime && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 11, fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.danger }}>
+                            <AlertTriangle size={12} /> Set both times, or this class will be skipped.
                           </div>
-                        );
-                      })}
-                  </div>
-                ))}
-            </div>
+                        )}
+
+                        <div style={{ display: "flex", gap: 9, marginBottom: 12 }}>
+                          <SlotField label="Room" optional>
+                            <input type="text" placeholder="e.g. C-204" value={s.room || ""} onChange={(e) => updateSlot(i, { room: e.target.value })} style={slotInputStyle()} />
+                          </SlotField>
+                          <SlotField label="Professor" optional>
+                            <input type="text" placeholder="e.g. Prof. Iyer" value={s.prof || ""} onChange={(e) => updateSlot(i, { prof: e.target.value })} style={slotInputStyle()} />
+                          </SlotField>
+                        </div>
+
+                        <button onClick={() => removeSlot(i)} style={{
+                          width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                          padding: 10, borderRadius: 11, border: "none", cursor: "pointer",
+                          background: "#FBE7EA", color: T.danger, fontFamily: F.sans, fontWeight: 700, fontSize: 12,
+                        }}>
+                          <Trash2 size={13} /> Remove this class
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
 
             {error && <div style={{ marginBottom: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
 
