@@ -547,7 +547,7 @@ export default function SmartImportScreen({
 
             {/* Pinned to the bottom like every other page's primary action,
                 instead of trailing off as a plain text link under the list. */}
-            <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", background: T.bg }}>
+            <div style={{ flexShrink: 0, padding: "14px 20px calc(34px + env(safe-area-inset-bottom))", background: T.bg }}>
               <div style={{ maxWidth: 420, margin: "0 auto" }}>
                 <button onClick={onClose} style={{
                   width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
@@ -822,7 +822,7 @@ export default function SmartImportScreen({
           reach regardless of how much content (holidays, classes) is
           above it. */}
       {!loading && (
-        <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", background: T.bg }}>
+        <div style={{ flexShrink: 0, padding: "14px 20px calc(34px + env(safe-area-inset-bottom))", background: T.bg }}>
           <div style={{ maxWidth: 420, margin: "0 auto" }}>
             {!result ? (
               <button
