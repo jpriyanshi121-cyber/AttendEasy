@@ -540,13 +540,13 @@ export default function SmartImportScreen({
 
             {/* Pinned to the bottom like every other page's primary action,
                 instead of trailing off as a plain text link under the list. */}
-            <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", borderTop: "1px solid #EFEAF6", background: T.bg }}>
+            <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", background: T.bg }}>
               <div style={{ maxWidth: 420, margin: "0 auto" }}>
                 <button onClick={onClose} style={{
                   width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
-                  background: "linear-gradient(155deg,#9C97A6,#7A7484 55%,#57515F)", color: "#fff",
+                  background: "linear-gradient(155deg,#D8D4DE,#BFB9C8 55%,#A29AB1)", color: T.inkB,
                   fontFamily: F.sans, fontSize: 14.5, fontWeight: 700,
-                  boxShadow: "0 10px 22px rgba(87,81,95,0.32), inset 0 1px 0 rgba(255,255,255,0.16)",
+                  boxShadow: "0 8px 18px rgba(122,116,132,0.22), inset 0 1px 0 rgba(255,255,255,0.3)",
                 }}>
                   Cancel
                 </button>
