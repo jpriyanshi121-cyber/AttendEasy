@@ -2361,11 +2361,17 @@ function SubjectDetailScreen({ subjectId, initialType, onBack, onMark, onEditTim
               <span style={{ fontFamily:F.sans, fontSize:15, color:T.inkM, fontWeight:500 }}>classes needed</span>
             </div>
 
-            <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
+                        <p style={{ fontFamily:F.sans, fontSize:13, color:T.inkM, lineHeight:1.55, margin:"10px 0 16px" }}>
               {isGood
                 ? <>You're on track — no makeup classes required to stay above the <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b> threshold.</>
                 : <>Attend the next <b style={{ color:T.inkB, fontWeight:600 }}>{stats.needToAttend}</b> {typeLabels[activeType].toLowerCase()} class{stats.needToAttend!==1?"es":""} in a row to recover to <b style={{ color:T.inkB, fontWeight:600 }}>{stats.threshold}%</b>.</>
               }
+              {stats.canStillMiss !== undefined && stats.canStillMiss !== null && (
+                <> {stats.canStillMiss > 0
+                  ? <>From today, you can still miss <b style={{ color:T.inkB, fontWeight:600 }}>{stats.canStillMiss}</b> more {typeLabels[activeType].toLowerCase()} class{stats.canStillMiss!==1?"es":""} the rest of this semester and stay at or above {stats.threshold}%.</>
+                  : <>You have <b style={{ color:T.inkB, fontWeight:600 }}>no room left</b> to miss any more {typeLabels[activeType].toLowerCase()} classes this semester without dropping below {stats.threshold}%.</>
+                }</>
+              )}
             </p>
           </>
         )}

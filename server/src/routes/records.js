@@ -141,7 +141,18 @@ router.get("/stats/subject/:subjectId", async (req, res) => {
     });
     stats.remainingClasses = remaining;
 
-    if (remaining !== null) {
+        if (remaining !== null) {
+      // The one number that always answers "how many more can I skip and
+      // still land on my threshold by semester end" — combines what's
+      // already happened with what's left, so it stays meaningful whether
+      // you're currently above or below threshold right now (unlike
+      // canMissMore, which is 0 while below threshold, or needToAttend,
+      // which is 0 while above it).
+      const thresholdFraction = stats.threshold / 100;
+      stats.canStillMiss = Math.floor(
+        stats.attended + remaining - thresholdFraction * (stats.held + remaining)
+      );
+
       stats.canMissMore = Math.min(stats.canMissMore, remaining);
       if (!stats.impossible && stats.needToAttend > remaining) {
         // Even attending every remaining class this semester, the
