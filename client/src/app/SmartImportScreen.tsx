@@ -508,7 +508,7 @@ export default function SmartImportScreen({
                   This usually takes about 15 seconds.
                 </p>
 
-                <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start", margin: "0 auto" }}>
                   {LOADING_STEPS.map((stepLabel, i) => {
                     const state = i < loadingStep ? "done" : i === loadingStep ? "active" : "pending";
                     return (
@@ -543,9 +543,10 @@ export default function SmartImportScreen({
             <div style={{ flexShrink: 0, padding: "14px 20px calc(18px + env(safe-area-inset-bottom))", borderTop: "1px solid #EFEAF6", background: T.bg }}>
               <div style={{ maxWidth: 420, margin: "0 auto" }}>
                 <button onClick={onClose} style={{
-                  width: "100%", padding: 14, borderRadius: 16, cursor: "pointer",
-                  border: "1.5px solid #EFEAF6", background: "#fff", color: T.inkM,
+                  width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
+                  background: "linear-gradient(155deg,#9C97A6,#7A7484 55%,#57515F)", color: "#fff",
                   fontFamily: F.sans, fontSize: 14.5, fontWeight: 700,
+                  boxShadow: "0 10px 22px rgba(87,81,95,0.32), inset 0 1px 0 rgba(255,255,255,0.16)",
                 }}>
                   Cancel
                 </button>
