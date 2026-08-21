@@ -44,7 +44,7 @@ function startScheduler() {
         const semester = await prisma.semester.findFirst({ where: { userId: user.id, isActive: true } });
         if (!semester) continue;
 
-        const recurring = await prisma.slot.findMany({
+                const recurring = await prisma.slot.findMany({
           where: { semesterId: semester.id, day: ourDay, isExtra: false, startTime: targetTime },
           include: { subject: true },
         });
@@ -53,7 +53,16 @@ function startScheduler() {
           include: { subject: true },
         });
 
-        for (const slot of [...recurring, ...extras]) {
+        // If today's occurrence of a recurring slot was rescheduled (an
+        // extra "replaces" it for this exact date), skip the reminder for
+        // its original time — that class isn't actually happening then.
+        const allExtrasToday = await prisma.slot.findMany({
+          where: { semesterId: semester.id, isExtra: true, extraDate: todayStart, replacesSlotId: { not: null } },
+        });
+        const replacedIds = new Set(allExtrasToday.map((e) => e.replacesSlotId));
+        const activeRecurring = recurring.filter((s) => !replacedIds.has(s.id));
+
+        for (const slot of [...activeRecurring, ...extras]) {
           await sendPushToUser(prisma, user.id, {
             title: `${slot.subject.name} in 15 minutes`,
             body: `${slot.startTime}–${slot.endTime}${slot.room ? " · " + slot.room : ""}`,

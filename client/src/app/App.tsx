@@ -2567,10 +2567,11 @@ function AttendanceSheet({ slotId, date, initialRecord, onClose, onSaved }: {
         tag: sel === "cancelled" && cTag ? cTag.toLowerCase().replace(/\s+/g, "_") : undefined,
       });
 
-      if (sel === "rescheduled" && slotInfo) {
+            if (sel === "rescheduled" && slotInfo) {
         await api.post("/slots/extra", {
           semesterId: slotInfo.semesterId,
           subjectId: slotInfo.subjectId,
+          type: slotInfo.type || "lecture",
           date: rDate,
           startTime: rStart,
           endTime: rEnd,
