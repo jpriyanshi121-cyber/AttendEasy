@@ -446,6 +446,120 @@ export default function SmartImportScreen({
         )}
       </div>
 
+      {/* Own full-screen block, independent of the scrollable content
+          region below — loading is mutually exclusive with both the
+          upload and result screens, so this must be a sibling of that
+          region, not nested inside its `!loading` gate (nesting it there
+          made this whole block unreachable: `loading` can never be true
+          at the same time as `!loading`). */}
+      {loading && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 82, background: T.bg, display: "flex", flexDirection: "column" }}>
+          <div style={{ maxWidth: 420, width: "100%", margin: "0 auto", padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+              background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+              boxShadow: "0 8px 18px rgba(94,63,138,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Sparkles size={19} color="#fff" />
+            </div>
+            <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
+          </div>
+
+          {/* Fills whatever space is left between the header and the
+              Cancel bar, so the illustration + checklist land in the true
+              center of the screen instead of just being top-padded. */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 20px" }}>
+            <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ width: 120, height: 140, marginBottom: 26, position: "relative" }}>
+                <div style={{
+                  width: 100, height: 130, margin: "0 auto", borderRadius: 14, background: "#fff",
+                  border: "1.5px solid #EFEAF6", boxShadow: "0 14px 30px rgba(27,21,48,0.1)",
+                  position: "relative", overflow: "hidden", padding: "16px 14px",
+                }}>
+                  <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "70%" }} />
+                  <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "100%" }} />
+                  <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "85%" }} />
+                  <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "55%" }} />
+                  <div className="ae-scanbeam" style={{
+                    position: "absolute", left: 0, right: 0, height: 34,
+                    background: "linear-gradient(180deg, transparent, rgba(110,79,145,0.22) 45%, rgba(201,162,75,0.35) 50%, rgba(110,79,145,0.22) 55%, transparent)",
+                  }} />
+                </div>
+                <div className="ae-loadchip" style={{
+                  position: "absolute", top: 6, left: -8, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                  boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "0.2s",
+                }}>
+                  <CalendarIconSvg />
+                </div>
+                <div className="ae-loadchip" style={{
+                  position: "absolute", top: 52, right: -12, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                  boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1s",
+                }}>
+                  <Clock size={13} color="#C9A24B" strokeWidth={2} />
+                </div>
+                <div className="ae-loadchip" style={{
+                  position: "absolute", bottom: 2, left: -4, width: 26, height: 26, borderRadius: 9, background: "#fff",
+                  boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1.8s",
+                }}>
+                  <MapPin size={13} color="#2F7A5C" strokeWidth={2} />
+                </div>
+              </div>
+
+              <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 21, color: T.inkH, textAlign: "center", margin: "0 0 8px" }}>
+                Reading your files
+              </h2>
+              <p style={{ fontFamily: F.serif, fontStyle: "italic", fontWeight: 500, fontSize: 13.5, color: T.inkM, textAlign: "center", margin: "0 0 34px" }}>
+                This usually takes about 15 seconds.
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start", margin: "0 auto" }}>
+                {LOADING_STEPS.map((stepLabel, i) => {
+                  const state = i < loadingStep ? "done" : i === loadingStep ? "active" : "pending";
+                  return (
+                    <div key={stepLabel} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: state === "done" ? "#DFF0E7" : state === "active" ? "#EFE7F9" : "#F3F1F6",
+                        boxShadow: state === "active" ? "0 0 0 4px rgba(110,79,145,0.14)" : "none",
+                      }}>
+                        {state === "done" && <Check size={13} color="#2F7A5C" strokeWidth={3} />}
+                        {state === "active" && <span className="ae-steppulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "block" }} />}
+                      </div>
+                      <span style={{
+                        fontFamily: F.sans, fontSize: 13.5, fontWeight: 600,
+                        color: state === "done" ? T.inkH : state === "active" ? T.accent : T.inkL,
+                      }}>
+                        {stepLabel}
+                        {state === "active" && (
+                          <span className="ae-ellipsis"><span>.</span><span>.</span><span>.</span></span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Pinned to the bottom like every other page's primary action,
+              instead of trailing off as a plain text link under the list. */}
+          <div style={{ flexShrink: 0, padding: "14px 20px calc(34px + env(safe-area-inset-bottom))", background: T.bg }}>
+            <div style={{ maxWidth: 420, margin: "0 auto" }}>
+              <button onClick={onClose} style={{
+                width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
+                background: "linear-gradient(155deg,#D8D4DE,#BFB9C8 55%,#A29AB1)", color: T.inkB,
+                fontFamily: F.sans, fontSize: 14.5, fontWeight: 700,
+                boxShadow: "0 8px 18px rgba(122,116,132,0.22), inset 0 1px 0 rgba(255,255,255,0.3)",
+              }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Everything below the header scrolls in its own region — the
           action button(s) at the bottom stay fixed in place instead of
           trailing off at the end of the content, matching the loading
@@ -453,114 +567,6 @@ export default function SmartImportScreen({
       {!loading && (
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           <div style={{ maxWidth: 420, margin: "0 auto", padding: "20px 20px 24px" }}>
-
-        {loading && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 82, background: T.bg, display: "flex", flexDirection: "column" }}>
-            <div style={{ maxWidth: 420, width: "100%", margin: "0 auto", padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-              <div style={{
-                width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-                background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
-                boxShadow: "0 8px 18px rgba(94,63,138,0.35)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <Sparkles size={19} color="#fff" />
-              </div>
-              <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 19, color: T.inkH, margin: 0 }}>Smart Import</h2>
-            </div>
-
-            {/* Fills whatever space is left between the header and the
-                Cancel bar, so the illustration + checklist land in the true
-                center of the screen instead of just being top-padded. */}
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 20px" }}>
-              <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ width: 120, height: 140, marginBottom: 26, position: "relative" }}>
-                  <div style={{
-                    width: 100, height: 130, margin: "0 auto", borderRadius: 14, background: "#fff",
-                    border: "1.5px solid #EFEAF6", boxShadow: "0 14px 30px rgba(27,21,48,0.1)",
-                    position: "relative", overflow: "hidden", padding: "16px 14px",
-                  }}>
-                    <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "70%" }} />
-                    <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "100%" }} />
-                    <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "85%" }} />
-                    <div style={{ height: 6, borderRadius: 3, background: "#F1EDF7", marginBottom: 9, width: "55%" }} />
-                    <div className="ae-scanbeam" style={{
-                      position: "absolute", left: 0, right: 0, height: 34,
-                      background: "linear-gradient(180deg, transparent, rgba(110,79,145,0.22) 45%, rgba(201,162,75,0.35) 50%, rgba(110,79,145,0.22) 55%, transparent)",
-                    }} />
-                  </div>
-                  <div className="ae-loadchip" style={{
-                    position: "absolute", top: 6, left: -8, width: 26, height: 26, borderRadius: 9, background: "#fff",
-                    boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "0.2s",
-                  }}>
-                    <CalendarIconSvg />
-                  </div>
-                  <div className="ae-loadchip" style={{
-                    position: "absolute", top: 52, right: -12, width: 26, height: 26, borderRadius: 9, background: "#fff",
-                    boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1s",
-                  }}>
-                    <Clock size={13} color="#C9A24B" strokeWidth={2} />
-                  </div>
-                  <div className="ae-loadchip" style={{
-                    position: "absolute", bottom: 2, left: -4, width: 26, height: 26, borderRadius: 9, background: "#fff",
-                    boxShadow: "0 8px 16px rgba(27,21,48,0.14)", display: "flex", alignItems: "center", justifyContent: "center", animationDelay: "1.8s",
-                  }}>
-                    <MapPin size={13} color="#2F7A5C" strokeWidth={2} />
-                  </div>
-                </div>
-
-                <h2 style={{ fontFamily: F.serif, fontWeight: 600, fontSize: 21, color: T.inkH, textAlign: "center", margin: "0 0 8px" }}>
-                  Reading your files
-                </h2>
-                <p style={{ fontFamily: F.serif, fontStyle: "italic", fontWeight: 500, fontSize: 13.5, color: T.inkM, textAlign: "center", margin: "0 0 34px" }}>
-                  This usually takes about 15 seconds.
-                </p>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start", margin: "0 auto" }}>
-                  {LOADING_STEPS.map((stepLabel, i) => {
-                    const state = i < loadingStep ? "done" : i === loadingStep ? "active" : "pending";
-                    return (
-                      <div key={stepLabel} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{
-                          width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: state === "done" ? "#DFF0E7" : state === "active" ? "#EFE7F9" : "#F3F1F6",
-                          boxShadow: state === "active" ? "0 0 0 4px rgba(110,79,145,0.14)" : "none",
-                        }}>
-                          {state === "done" && <Check size={13} color="#2F7A5C" strokeWidth={3} />}
-                          {state === "active" && <span className="ae-steppulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "block" }} />}
-                        </div>
-                        <span style={{
-                          fontFamily: F.sans, fontSize: 13.5, fontWeight: 600,
-                          color: state === "done" ? T.inkH : state === "active" ? T.accent : T.inkL,
-                        }}>
-                          {stepLabel}
-                          {state === "active" && (
-                            <span className="ae-ellipsis"><span>.</span><span>.</span><span>.</span></span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Pinned to the bottom like every other page's primary action,
-                instead of trailing off as a plain text link under the list. */}
-            <div style={{ flexShrink: 0, padding: "14px 20px calc(34px + env(safe-area-inset-bottom))", background: T.bg }}>
-              <div style={{ maxWidth: 420, margin: "0 auto" }}>
-                <button onClick={onClose} style={{
-                  width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
-                  background: "linear-gradient(155deg,#D8D4DE,#BFB9C8 55%,#A29AB1)", color: T.inkB,
-                  fontFamily: F.sans, fontSize: 14.5, fontWeight: 700,
-                  boxShadow: "0 8px 18px rgba(122,116,132,0.22), inset 0 1px 0 rgba(255,255,255,0.3)",
-                }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {!loading && !result && (
           <>
