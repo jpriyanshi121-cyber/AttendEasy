@@ -158,7 +158,12 @@ router.post(
     // of a guessed timer. Once this starts, every further outcome (success
     // or failure) has to go out as a line on this same stream — the HTTP
     // status/headers are already committed by then.
-    res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" });
+    // X-Accel-Buffering discourages some reverse proxies (nginx-style,
+    // which several hosts front their app with) from buffering the whole
+    // response before forwarding it — without it, a proxy can hold the
+    // entire stream and deliver it to the client in one burst at the end,
+    // which defeats the point of streaming progress at all.
+    res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" });
     const send = (obj) => res.write(JSON.stringify(obj) + "\n");
 
     let apiRes;

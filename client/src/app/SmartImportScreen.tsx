@@ -270,15 +270,33 @@ export default function SmartImportScreen({
           } catch {
             continue; // skip a stray malformed line rather than aborting the whole import
           }
-          if (evt.type === "stage") setLoadingStep(evt.stage);
-          else if (evt.type === "result") finalResult = { semester: evt.semester, holidays: evt.holidays, slots: evt.slots };
-          else if (evt.type === "error") streamError = evt.error;
+          if (evt.type === "stage") {
+            setLoadingStep(evt.stage);
+            // If the whole stream (or several stage events) arrives in one
+            // network read — a fast response, or a proxy buffering it —
+            // firing every setLoadingStep in the same tick would get
+            // batched into a single React render, and the checklist would
+            // never visibly show the steps in between. This pause forces
+            // each step onto its own frame so it's actually seen ticking
+            // off, not skipped straight to the end.
+            await new Promise((r) => setTimeout(r, 350));
+          } else if (evt.type === "result") {
+            finalResult = { semester: evt.semester, holidays: evt.holidays, slots: evt.slots };
+          } else if (evt.type === "error") {
+            streamError = evt.error;
+          }
         }
       }
 
       if (streamError) throw new Error(streamError);
-      if (finalResult) setResult(finalResult);
-      else throw new Error("AI extraction failed. Please try again.");
+      if (finalResult) {
+        // Let the last checklist item's "done" state actually get painted
+        // before switching screens out from under it.
+        await new Promise((r) => setTimeout(r, 350));
+        setResult(finalResult);
+      } else {
+        throw new Error("AI extraction failed. Please try again.");
+      }
     } catch (e: any) {
       setError(e.message || "AI extraction failed. Please try again.");
     } finally {
