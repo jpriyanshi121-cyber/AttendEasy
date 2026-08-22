@@ -36,7 +36,7 @@ function uploadFields(req, res, next) {
 }
 
 const MODEL = "gemini-3.6-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`;
 
 const BASE_PROMPT = `You read a college academic calendar and/or a weekly class timetable (images or PDFs) and extract structured data. Respond with ONLY a single JSON object — no markdown fences, no preamble, no commentary. Follow this exact shape:
 
@@ -103,6 +103,24 @@ function fileToPart(file) {
   };
 }
 
+// Maps how far the model has actually gotten into generating the JSON to
+// the loading screen's 4 checklist steps, by watching for each key/field
+// showing up in the accumulated stream text so far. This tracks real
+// progress through the model's own output — not a guessed timer — so a
+// small file finishes the checklist in a couple seconds and a big one
+// takes as long as it actually takes.
+const STAGE_MARKERS = [
+  '"holidays"',   // semester object just closed -> stage 1 done
+  '"slots"',      // holidays array just closed -> stage 2 done
+  '"startTime"',  // first timetable slot's time fields appearing -> stage 3 done
+  '"room"',       // first slot's room/prof fields appearing -> stage 4 done
+];
+function detectStage(text, currentStage) {
+  let stage = currentStage;
+  while (stage < STAGE_MARKERS.length && text.includes(STAGE_MARKERS[stage])) stage++;
+  return stage;
+}
+
 // POST /api/ai/extract-schedule
 // multipart/form-data fields: "calendar" (optional file), "timetable" (optional file),
 // "group" (optional text, e.g. "A3"), "batchYear" (optional text, e.g. "2025")
@@ -134,9 +152,17 @@ router.post(
       parts.push(fileToPart(timetableFile));
     }
 
-    let aiResponse;
+    // Streamed as newline-delimited JSON so the client's loading checklist
+    // can track the model's *actual* progress through the response instead
+    // of a guessed timer. Once this starts, every further outcome (success
+    // or failure) has to go out as a line on this same stream — the HTTP
+    // status/headers are already committed by then.
+    res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" });
+    const send = (obj) => res.write(JSON.stringify(obj) + "\n");
+
+    let apiRes;
     try {
-      const apiRes = await fetch(GEMINI_URL, {
+      apiRes = await fetch(GEMINI_STREAM_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -148,31 +174,74 @@ router.post(
           generationConfig: { responseMimeType: "application/json" },
         }),
       });
-
-      if (!apiRes.ok) {
-        const errText = await apiRes.text();
-        console.error("Gemini API error:", apiRes.status, errText);
-        return res.status(502).json({ error: "AI extraction failed. Please try again." });
-      }
-      aiResponse = await apiRes.json();
     } catch (e) {
       console.error("AI extraction request failed:", e);
-      return res.status(502).json({ error: "AI extraction failed. Please try again." });
+      send({ type: "error", error: "AI extraction failed. Please try again." });
+      return res.end();
     }
 
-    const text = aiResponse?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-    if (!text) {
-      console.error("Gemini returned no text:", JSON.stringify(aiResponse));
-      return res.status(502).json({ error: "AI returned an unexpected response." });
+    if (!apiRes.ok || !apiRes.body) {
+      const errText = await apiRes.text().catch(() => "");
+      console.error("Gemini API error:", apiRes.status, errText);
+      send({ type: "error", error: "AI extraction failed. Please try again." });
+      return res.end();
+    }
+
+    // Gemini's SSE stream sends "data: {...}\n\n" events, each carrying the
+    // next slice of the response text. We accumulate the text slices (that
+    // running total IS the JSON object being built, one piece at a time)
+    // and re-check it against STAGE_MARKERS after every event.
+    let fullText = "";
+    let stage = 0;
+    let sseBuffer = "";
+    try {
+      for await (const chunk of apiRes.body) {
+        sseBuffer += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+        const events = sseBuffer.split("\n\n");
+        sseBuffer = events.pop() || ""; // last piece may be incomplete — keep it for next chunk
+
+        for (const evt of events) {
+          const line = evt.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const json = JSON.parse(payload);
+            const piece = json?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+            fullText += piece;
+          } catch {
+            // A malformed/partial SSE payload — skip it, the next chunk
+            // usually completes it and we already have everything up to
+            // this point in fullText.
+          }
+        }
+
+        const newStage = detectStage(fullText, stage);
+        if (newStage > stage) {
+          stage = newStage;
+          send({ type: "stage", stage });
+        }
+      }
+    } catch (e) {
+      console.error("AI stream read failed:", e);
+      send({ type: "error", error: "AI extraction failed. Please try again." });
+      return res.end();
+    }
+
+    if (!fullText) {
+      console.error("Gemini returned no text");
+      send({ type: "error", error: "AI returned an unexpected response." });
+      return res.end();
     }
 
     let parsed;
     try {
-      const cleaned = text.replace(/```json|```/g, "").trim();
+      const cleaned = fullText.replace(/```json|```/g, "").trim();
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      console.error("Failed to parse AI JSON:", text);
-      return res.status(502).json({ error: "Couldn't read the AI's response. Try clearer photos/scans." });
+      console.error("Failed to parse AI JSON:", fullText);
+      send({ type: "error", error: "Couldn't read the AI's response. Try clearer photos/scans." });
+      return res.end();
     }
 
     // Catch "wrong kind of file" before falling through to a silently
@@ -190,7 +259,8 @@ router.post(
       } else {
         error = "That file doesn't look like a weekly timetable — double-check you picked the right file and try again.";
       }
-      return res.status(422).json({ error });
+      send({ type: "error", error });
+      return res.end();
     }
 
     const holidays = Array.isArray(parsed.holidays)
@@ -205,12 +275,19 @@ router.post(
     // that looks like the import silently "worked".
     const foundNothing = !semester.startDate && !semester.endDate && holidays.length === 0 && slots.length === 0;
     if (foundNothing) {
-      return res.status(422).json({
-        error: "Couldn't find any calendar or timetable details in that file. Try a clearer photo/scan, or the original PDF if you have one.",
-      });
+      send({ type: "error", error: "Couldn't find any calendar or timetable details in that file. Try a clearer photo/scan, or the original PDF if you have one." });
+      return res.end();
     }
 
-    res.json({ semester, holidays, slots });
+    // Every step's marker showing up somewhere in the JSON doesn't
+    // guarantee we ever emitted all 4 stage events (e.g. a very short
+    // response could have all 4 markers land inside one chunk) — send
+    // whatever's left so the checklist always finishes fully checked off
+    // by the time the result arrives, instead of stopping partway.
+    if (stage < STAGE_MARKERS.length) send({ type: "stage", stage: STAGE_MARKERS.length });
+
+    send({ type: "result", semester, holidays, slots });
+    res.end();
   }
 );
 

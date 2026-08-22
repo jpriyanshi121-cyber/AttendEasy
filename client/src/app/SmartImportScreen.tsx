@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { Sparkles, UploadCloud, FileText, Loader2, Trash2, Plus, X, Check, AlertTriangle, Clock, MapPin } from "lucide-react";
 import { T, F, S } from "./App";
 import { api } from "../lib/api";
@@ -229,16 +229,6 @@ export default function SmartImportScreen({
     "Matching rooms & professors",
   ];
 
-  useEffect(() => {
-    if (!loading) { setLoadingStep(0); return; }
-    const timers = [
-      setTimeout(() => setLoadingStep(1), 3200),
-      setTimeout(() => setLoadingStep(2), 6800),
-      setTimeout(() => setLoadingStep(3), 11000),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [loading]);
-
   async function extract() {
     if (!calendarFile && !timetableFile) {
       setError("Upload at least one file to continue.");
@@ -246,18 +236,49 @@ export default function SmartImportScreen({
     }
     setError("");
     setLoading(true);
+    setLoadingStep(0);
     try {
       const form = new FormData();
       if (calendarFile) form.append("calendar", calendarFile);
       if (timetableFile) form.append("timetable", timetableFile);
       if (group.trim()) form.append("group", group.trim());
       if (batchYear.trim()) form.append("batchYear", batchYear.trim());
-      const data = await api.postForm("/ai/extract-schedule", form);
-      setResult({
-        semester: data.semester,
-        holidays: data.holidays,
-        slots: data.slots,
-      });
+
+      // The server streams back one JSON object per line as it actually
+      // makes progress through the AI's response — each {type:"stage"}
+      // line here directly drives the checklist below, instead of it
+      // advancing on a guessed timer regardless of how the extraction is
+      // actually going.
+      const res = await api.postFormStream("/ai/extract-schedule", form);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: ExtractResult | null = null;
+      let streamError: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let evt: any;
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue; // skip a stray malformed line rather than aborting the whole import
+          }
+          if (evt.type === "stage") setLoadingStep(evt.stage);
+          else if (evt.type === "result") finalResult = { semester: evt.semester, holidays: evt.holidays, slots: evt.slots };
+          else if (evt.type === "error") streamError = evt.error;
+        }
+      }
+
+      if (streamError) throw new Error(streamError);
+      if (finalResult) setResult(finalResult);
+      else throw new Error("AI extraction failed. Please try again.");
     } catch (e: any) {
       setError(e.message || "AI extraction failed. Please try again.");
     } finally {

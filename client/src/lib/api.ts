@@ -59,6 +59,29 @@ async function requestForm(path: string, formData: FormData): Promise<any> {
   return data;
 }
 
+// Like requestForm, but for endpoints that stream newline-delimited JSON
+// progress events back instead of one JSON object — the caller reads
+// res.body itself line by line. Doesn't parse/await a body here since a
+// streaming response isn't one JSON value; the caller's own line
+// parsing is what surfaces a `{type:"error"}` event as a real error.
+async function requestFormStream(path: string, formData: FormData): Promise<Response> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { method: "POST", headers, body: formData });
+  } catch (networkErr) {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Something went wrong");
+  }
+  return res;
+}
+
 export const api = {
   register: (email: string, password: string, name: string) =>
     request("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }),
@@ -80,6 +103,7 @@ export const api = {
   get: (path: string) => request(path),
   post: (path: string, body: any) => request(path, { method: "POST", body: JSON.stringify(body) }),
   postForm: (path: string, formData: FormData) => requestForm(path, formData),
+  postFormStream: (path: string, formData: FormData) => requestFormStream(path, formData),
   patch: (path: string, body: any) => request(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: (path: string) => request(path, { method: "DELETE" }),
 };
