@@ -592,7 +592,8 @@ export default function SmartImportScreen({
               </div>
             </div>
 
-            {error && <div style={{ marginTop: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
+            {/* Error now surfaces as a popup (see the modal at the bottom
+                of this component) instead of inline text here. */}
           </>
         )}
 
@@ -819,8 +820,6 @@ export default function SmartImportScreen({
                 </div>
               );
             })}
-
-            {error && <div style={{ marginBottom: 14, fontFamily: F.sans, fontSize: 12.5, color: T.danger }}>{error}</div>}
           </>
         )}
           </div>
@@ -869,6 +868,33 @@ export default function SmartImportScreen({
             )}
           </div>
         </div>
+      )}
+
+      {error && (
+        <>
+          <div className="ae-backdrop" onClick={() => setError("")} style={{ position: "fixed", inset: 0, background: "rgba(27,21,48,0.52)", backdropFilter: "blur(6px)", zIndex: 90 }} />
+          <div className="ae-modal" style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+            width: "calc(100% - 48px)", maxWidth: 320,
+            background: T.card, borderRadius: 24, padding: "26px 24px 22px",
+            boxShadow: "0 30px 70px rgba(15,8,28,0.4), 0 10px 24px rgba(15,8,28,0.2), inset 0 1px 0 #fff",
+            zIndex: 91,
+          }}>
+            <div style={{ width: 48, height: 48, borderRadius: 15, background: T.dangerFill, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 8px 18px rgba(196,64,64,0.18)" }}>
+              <AlertTriangle size={21} color={T.danger} strokeWidth={2} />
+            </div>
+            <h3 style={{ fontFamily: F.serif, fontWeight: 700, fontSize: 21, color: T.inkH, letterSpacing: "-0.01em", marginBottom: 9 }}>Couldn't do that</h3>
+            <p style={{ fontSize: 14, color: T.inkM, lineHeight: 1.55, marginBottom: 18 }}>{error}</p>
+            <button onClick={() => setError("")} style={{
+              width: "100%", padding: 14, borderRadius: 14, border: "none", cursor: "pointer",
+              background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)", color: "#fff",
+              fontFamily: F.sans, fontWeight: 700, fontSize: 14,
+              boxShadow: "0 14px 28px rgba(94,63,138,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+            }}>
+              Got it
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
