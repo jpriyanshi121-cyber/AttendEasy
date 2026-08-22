@@ -552,10 +552,10 @@ export default function SmartImportScreen({
           <div style={{ flexShrink: 0, padding: "14px 20px calc(34px + env(safe-area-inset-bottom))", background: T.bg }}>
             <div style={{ maxWidth: 420, margin: "0 auto" }}>
               <button onClick={onClose} style={{
-                width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "none",
-                background: "linear-gradient(155deg,#D8D4DE,#BFB9C8 55%,#A29AB1)", color: T.inkB,
+                width: "100%", padding: 14, borderRadius: 16, cursor: "pointer", border: "1px solid #EEEAF2",
+                background: "linear-gradient(155deg,#FFFFFF,#F5F2F8 55%,#EAE5EF)", color: T.inkB,
                 fontFamily: F.sans, fontSize: 14.5, fontWeight: 700,
-                boxShadow: "0 8px 18px rgba(122,116,132,0.22), inset 0 1px 0 rgba(255,255,255,0.3)",
+                boxShadow: "0 6px 16px rgba(122,116,132,0.14), inset 0 1px 0 rgba(255,255,255,0.6)",
               }}>
                 Cancel
               </button>
