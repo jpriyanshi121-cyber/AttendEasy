@@ -36,6 +36,7 @@ function uploadFields(req, res, next) {
 }
 
 const MODEL = "gemini-3.6-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`;
 
 const BASE_PROMPT = `You read a college academic calendar and/or a weekly class timetable (images or PDFs) and extract structured data. Respond with ONLY a single JSON object — no markdown fences, no preamble, no commentary. Follow this exact shape:
@@ -191,12 +192,19 @@ router.post(
     // next slice of the response text. We accumulate the text slices (that
     // running total IS the JSON object being built, one piece at a time)
     // and re-check it against STAGE_MARKERS after every event.
+    // NOTE: chunks from fetch()'s body stream are plain Uint8Array, never
+    // an actual Node Buffer — decoding must go through TextDecoder (or
+    // Buffer.from(chunk), which also works on a Uint8Array); appending a
+    // raw Uint8Array to a string stringifies it as "1,2,3,..." byte
+    // values instead of decoding it, which silently breaks every "data:"
+    // line lookup below.
+    const decoder = new TextDecoder();
     let fullText = "";
     let stage = 0;
     let sseBuffer = "";
     try {
       for await (const chunk of apiRes.body) {
-        sseBuffer += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+        sseBuffer += decoder.decode(chunk, { stream: true });
         const events = sseBuffer.split("\n\n");
         sseBuffer = events.pop() || ""; // last piece may be incomplete — keep it for next chunk
 
@@ -226,6 +234,34 @@ router.post(
       console.error("AI stream read failed:", e);
       send({ type: "error", error: "AI extraction failed. Please try again." });
       return res.end();
+    }
+
+    // Belt-and-suspenders: if streaming somehow still comes back empty
+    // (a Gemini response-format quirk, a transient hiccup, etc.), fall
+    // back to a single non-streaming call instead of failing the import
+    // outright. The checklist just jumps straight to "done" in that case
+    // — no per-stage events to send, but the person still gets their data.
+    if (!fullText) {
+      console.error("Streaming produced no text — falling back to non-streaming call.");
+      try {
+        const fallbackRes = await fetch(GEMINI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: buildSystemPrompt(group, batchYear) }] },
+            contents: [{ role: "user", parts }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
+        });
+        if (fallbackRes.ok) {
+          const fallbackJson = await fallbackRes.json();
+          fullText = fallbackJson?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+        } else {
+          console.error("Fallback Gemini call also failed:", fallbackRes.status, await fallbackRes.text().catch(() => ""));
+        }
+      } catch (e) {
+        console.error("Fallback Gemini call threw:", e);
+      }
     }
 
     if (!fullText) {
