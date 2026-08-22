@@ -13,6 +13,7 @@ const recordRoutes = require("./routes/records");
 const pushRoutes = require("./routes/push");
 const holidayRoutes = require("./routes/holidays");
 const aiRoutes = require("./routes/ai");
+const { requireAuth } = require("./middleware/auth");
 const { startScheduler } = require("./lib/scheduler");
 
 const app = express();
@@ -48,6 +49,22 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// /api/ai calls a paid external AI API per request (with file uploads up
+// to 15MB) — without a limiter here, a single account could hammer this
+// and run up real cost, or degrade the service for everyone else, in a
+// way none of the other routes below (which only touch our own database)
+// are exposed to. requireAuth is applied before this (not just inside
+// ai.js's own router) so the limiter can key per logged-in user instead
+// of per IP — several students on the same campus wifi shouldn't share
+// one bucket.
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || req.ip,
+});
+
 app.get("/api/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -64,7 +81,7 @@ app.use("/api/slots", slotRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/holidays", holidayRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/ai", requireAuth, aiLimiter, aiRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

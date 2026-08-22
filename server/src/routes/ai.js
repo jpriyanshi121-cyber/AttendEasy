@@ -7,10 +7,33 @@ router.use(requireAuth);
 
 // Files never touch disk — read straight into memory, base64-encoded, and
 // sent to the model. 15MB covers a multi-page PDF or a large photo.
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+]);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 2 },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error("Only PDF, JPEG, PNG, WEBP, or HEIC files are supported."));
+    }
+    cb(null, true);
+  },
 });
+
+// upload.fields() used directly as route middleware fails "silently" from
+// the caller's point of view — a rejected fileFilter, an oversized file,
+// or too many files all throw before our async handler below ever runs,
+// which without this wrapper falls straight through to index.js's generic
+// catch-all ("Something went wrong on the server") instead of a message
+// that actually explains what was wrong with the upload.
+function uploadFields(req, res, next) {
+  upload.fields([{ name: "calendar", maxCount: 1 }, { name: "timetable", maxCount: 1 }])(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || "Couldn't process the uploaded file(s)." });
+    next();
+  });
+}
 
 const MODEL = "gemini-3.6-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -86,7 +109,7 @@ function fileToPart(file) {
 // At least one of the two files must be present.
 router.post(
   "/extract-schedule",
-  upload.fields([{ name: "calendar", maxCount: 1 }, { name: "timetable", maxCount: 1 }]),
+  uploadFields,
   async (req, res) => {
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({ error: "AI import isn't configured on the server (missing GEMINI_API_KEY)." });
