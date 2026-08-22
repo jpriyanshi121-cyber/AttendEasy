@@ -18,10 +18,17 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MO
 const BASE_PROMPT = `You read a college academic calendar and/or a weekly class timetable (images or PDFs) and extract structured data. Respond with ONLY a single JSON object — no markdown fences, no preamble, no commentary. Follow this exact shape:
 
 {
+  "calendarFileRelevant": boolean|null,
+  "timetableFileRelevant": boolean|null,
   "semester": { "name": string|null, "startDate": "YYYY-MM-DD"|null, "endDate": "YYYY-MM-DD"|null },
   "holidays": [ { "date": "YYYY-MM-DD", "label": string, "confidence": "confirmed"|"likely" } ],
   "slots": [ { "subject": string, "type": "lecture"|"tutorial"|"practical", "day": 0-6, "startTime": "HH:MM", "endTime": "HH:MM", "room": string|null, "prof": string|null } ]
 }
+
+FILE RELEVANCE CHECK — do this FIRST, before anything else:
+- "calendarFileRelevant": if a file was labeled "This file is the academic calendar" below, look at it and set this to true only if it's plausibly some kind of academic calendar, semester schedule, or list of holidays/breaks/important dates for a college — even a rough, handwritten, or partial one counts as true. Set it to false if the file is clearly something else entirely (a selfie, a meme, an unrelated document, a receipt, a screenshot of an app, a blank/unreadable page, random text unrelated to a college calendar, etc). If no such file was provided at all, set this to null.
+- "timetableFileRelevant": the same check, but for a file labeled "This file is the weekly timetable" — true only if it's plausibly a weekly class schedule/timetable grid (subjects mapped to days/times), false if it's clearly unrelated, null if no such file was provided.
+- If either relevance field is false, you can leave semester/holidays/slots as their empty defaults for that file's contribution — don't try to force-extract data from an irrelevant file.
 
 SEMESTER END DATE — this must be the last day of regular teaching, never an exam date:
 - College calendars label this differently everywhere ("Commencement of Classes", "Teaching Schedule", "Instruction Period", "Last Working Day", etc.) — find whichever section states when regular classes/instruction stop, and use ITS end date.
@@ -145,15 +152,42 @@ router.post(
       return res.status(502).json({ error: "Couldn't read the AI's response. Try clearer photos/scans." });
     }
 
+    // Catch "wrong kind of file" before falling through to a silently
+    // empty review screen — a random photo/document should tell the
+    // person clearly what went wrong, not just look like a calendar with
+    // nothing found in it.
+    const calendarWrong = calendarFile && parsed.calendarFileRelevant === false;
+    const timetableWrong = timetableFile && parsed.timetableFileRelevant === false;
+    if (calendarWrong || timetableWrong) {
+      let error;
+      if (calendarWrong && timetableWrong) {
+        error = "Neither file looks like an academic calendar or a timetable — double-check you picked the right files and try again.";
+      } else if (calendarWrong) {
+        error = "That file doesn't look like an academic calendar — double-check you picked the right file and try again.";
+      } else {
+        error = "That file doesn't look like a weekly timetable — double-check you picked the right file and try again.";
+      }
+      return res.status(422).json({ error });
+    }
+
     const holidays = Array.isArray(parsed.holidays)
       ? parsed.holidays.map((h) => ({ ...h, confidence: h.confidence === "confirmed" ? "confirmed" : "likely" }))
       : [];
+    const semester = parsed.semester || { name: null, startDate: null, endDate: null };
+    const slots = Array.isArray(parsed.slots) ? parsed.slots : [];
 
-    res.json({
-      semester: parsed.semester || { name: null, startDate: null, endDate: null },
-      holidays,
-      slots: Array.isArray(parsed.slots) ? parsed.slots : [],
-    });
+    // Right kind of file, but nothing usable came out of it (blurry
+    // photo, a calendar in an unusual format, a blank template, etc.) —
+    // still worth a clear heads-up rather than an empty review screen
+    // that looks like the import silently "worked".
+    const foundNothing = !semester.startDate && !semester.endDate && holidays.length === 0 && slots.length === 0;
+    if (foundNothing) {
+      return res.status(422).json({
+        error: "Couldn't find any calendar or timetable details in that file. Try a clearer photo/scan, or the original PDF if you have one.",
+      });
+    }
+
+    res.json({ semester, holidays, slots });
   }
 );
 
