@@ -513,7 +513,11 @@ export default function SmartImportScreen({
                 This usually takes about 15 seconds.
               </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start", margin: "0 auto" }}>
+              {/* Fixed width, not shrink-to-fit — otherwise the block resizes
+                  to whichever step's label is currently widest/active (with
+                  its "..." animating), and the icon column visibly shifts
+                  left/right as that happens. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start", width: 272, margin: "0 auto" }}>
                 {LOADING_STEPS.map((stepLabel, i) => {
                   const state = i < loadingStep ? "done" : i === loadingStep ? "active" : "pending";
                   return (
@@ -528,7 +532,7 @@ export default function SmartImportScreen({
                         {state === "active" && <span className="ae-steppulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "block" }} />}
                       </div>
                       <span style={{
-                        fontFamily: F.sans, fontSize: 13.5, fontWeight: 600,
+                        fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap",
                         color: state === "done" ? T.inkH : state === "active" ? T.accent : T.inkL,
                       }}>
                         {stepLabel}
