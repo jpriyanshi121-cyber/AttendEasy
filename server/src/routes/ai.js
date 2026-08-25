@@ -37,7 +37,6 @@ function uploadFields(req, res, next) {
 
 const MODEL = "gemini-3.6-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`;
 
 const BASE_PROMPT = `You read a college academic calendar and/or a weekly class timetable (images or PDFs) and extract structured data. Respond with ONLY a single JSON object — no markdown fences, no preamble, no commentary. Follow this exact shape:
 
@@ -104,24 +103,6 @@ function fileToPart(file) {
   };
 }
 
-// Maps how far the model has actually gotten into generating the JSON to
-// the loading screen's 4 checklist steps, by watching for each key/field
-// showing up in the accumulated stream text so far. This tracks real
-// progress through the model's own output — not a guessed timer — so a
-// small file finishes the checklist in a couple seconds and a big one
-// takes as long as it actually takes.
-const STAGE_MARKERS = [
-  '"holidays"',   // semester object just closed -> stage 1 done
-  '"slots"',      // holidays array just closed -> stage 2 done
-  '"startTime"',  // first timetable slot's time fields appearing -> stage 3 done
-  '"room"',       // first slot's room/prof fields appearing -> stage 4 done
-];
-function detectStage(text, currentStage) {
-  let stage = currentStage;
-  while (stage < STAGE_MARKERS.length && text.includes(STAGE_MARKERS[stage])) stage++;
-  return stage;
-}
-
 // POST /api/ai/extract-schedule
 // multipart/form-data fields: "calendar" (optional file), "timetable" (optional file),
 // "group" (optional text, e.g. "A3"), "batchYear" (optional text, e.g. "2025")
@@ -153,26 +134,16 @@ router.post(
       parts.push(fileToPart(timetableFile));
     }
 
-    // Streamed as newline-delimited JSON so the client's loading checklist
-    // can track the model's *actual* progress through the response instead
-    // of a guessed timer. Once this starts, every further outcome (success
-    // or failure) has to go out as a line on this same stream — the HTTP
-    // status/headers are already committed by then.
-    // X-Accel-Buffering discourages some reverse proxies (nginx-style,
-    // which several hosts front their app with) from buffering the whole
-    // response before forwarding it — without it, a proxy can hold the
-    // entire stream and deliver it to the client in one burst at the end,
-    // which defeats the point of streaming progress at all.
-    res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" });
-    const send = (obj) => res.write(JSON.stringify(obj) + "\n");
-
-    let apiRes;
-    const streamController = new AbortController();
-    const streamTimeout = setTimeout(() => streamController.abort(), 45_000);
+    // Single non-streaming call — simple, and the one code path that's
+    // actually been verified to work end to end. A prior attempt at
+    // streaming this (to drive the loading checklist off real progress)
+    // turned out impossible to verify without live access to test
+    // against, and repeatedly broke extraction outright — not worth the
+    // risk for a cosmetic loading animation.
+    let aiResponse;
     try {
-      apiRes = await fetch(GEMINI_STREAM_URL, {
+      const apiRes = await fetch(GEMINI_URL, {
         method: "POST",
-        signal: streamController.signal,
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": process.env.GEMINI_API_KEY,
@@ -183,127 +154,31 @@ router.post(
           generationConfig: { responseMimeType: "application/json" },
         }),
       });
+
+      if (!apiRes.ok) {
+        const errText = await apiRes.text();
+        console.error("Gemini API error:", apiRes.status, errText);
+        return res.status(502).json({ error: "AI extraction failed. Please try again." });
+      }
+      aiResponse = await apiRes.json();
     } catch (e) {
       console.error("AI extraction request failed:", e);
-      send({ type: "error", error: e.name === "AbortError" ? "That's taking longer than expected. Please try again." : "AI extraction failed. Please try again." });
-      return res.end();
-    } finally {
-      clearTimeout(streamTimeout);
+      return res.status(502).json({ error: "AI extraction failed. Please try again." });
     }
 
-    if (!apiRes.ok || !apiRes.body) {
-      const errText = await apiRes.text().catch(() => "");
-      console.error("Gemini API error:", apiRes.status, errText);
-      send({ type: "error", error: "AI extraction failed. Please try again." });
-      return res.end();
-    }
-
-    // Gemini's SSE stream sends "data: {...}\n\n" events, each carrying the
-    // next slice of the response text. We accumulate the text slices (that
-    // running total IS the JSON object being built, one piece at a time)
-    // and re-check it against STAGE_MARKERS after every event.
-    // NOTE: chunks from fetch()'s body stream are plain Uint8Array, never
-    // an actual Node Buffer — decoding must go through TextDecoder (or
-    // Buffer.from(chunk), which also works on a Uint8Array); appending a
-    // raw Uint8Array to a string stringifies it as "1,2,3,..." byte
-    // values instead of decoding it, which silently breaks every "data:"
-    // line lookup below.
-    const decoder = new TextDecoder();
-    let fullText = "";
-    let stage = 0;
-    let sseBuffer = "";
-    const readController = new AbortController();
-    // A second, independent timeout around *reading* the stream — the
-    // request above can succeed instantly while the body itself never
-    // finishes closing (a lingering connection), which for-await would
-    // otherwise wait on forever with no way for the outer try/catch to
-    // ever get control back.
-    const readTimeout = setTimeout(() => readController.abort(), 45_000);
-    try {
-      for await (const chunk of apiRes.body) {
-        if (readController.signal.aborted) throw new Error("Stream read timed out");
-        sseBuffer += decoder.decode(chunk, { stream: true });
-        const events = sseBuffer.split("\n\n");
-        sseBuffer = events.pop() || ""; // last piece may be incomplete — keep it for next chunk
-
-        for (const evt of events) {
-          const line = evt.split("\n").find((l) => l.startsWith("data:"));
-          if (!line) continue;
-          const payload = line.slice(5).trim();
-          if (!payload || payload === "[DONE]") continue;
-          try {
-            const json = JSON.parse(payload);
-            const piece = json?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-            fullText += piece;
-          } catch {
-            // A malformed/partial SSE payload — skip it, the next chunk
-            // usually completes it and we already have everything up to
-            // this point in fullText.
-          }
-        }
-
-        const newStage = detectStage(fullText, stage);
-        if (newStage > stage) {
-          stage = newStage;
-          send({ type: "stage", stage });
-        }
-      }
-    } catch (e) {
-      console.error("AI stream read failed:", e);
-      // Don't give up yet — fall through to the non-streaming fallback
-      // below rather than failing outright, since we may already have
-      // partial (or even complete) text sitting in fullText.
-    } finally {
-      clearTimeout(readTimeout);
-    }
-
-    // Belt-and-suspenders: if streaming somehow still comes back empty
-    // (a Gemini response-format quirk, a transient hiccup, etc.), fall
-    // back to a single non-streaming call instead of failing the import
-    // outright. The checklist just jumps straight to "done" in that case
-    // — no per-stage events to send, but the person still gets their data.
-    if (!fullText) {
-      console.error("Streaming produced no text — falling back to non-streaming call.");
-      const fallbackController = new AbortController();
-      const fallbackTimeout = setTimeout(() => fallbackController.abort(), 30_000);
-      try {
-        const fallbackRes = await fetch(GEMINI_URL, {
-          method: "POST",
-          signal: fallbackController.signal,
-          headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: buildSystemPrompt(group, batchYear) }] },
-            contents: [{ role: "user", parts }],
-            generationConfig: { responseMimeType: "application/json" },
-          }),
-        });
-        if (fallbackRes.ok) {
-          const fallbackJson = await fallbackRes.json();
-          fullText = fallbackJson?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-        } else {
-          console.error("Fallback Gemini call also failed:", fallbackRes.status, await fallbackRes.text().catch(() => ""));
-        }
-      } catch (e) {
-        console.error("Fallback Gemini call threw:", e);
-      } finally {
-        clearTimeout(fallbackTimeout);
-      }
-    }
-
-    if (!fullText) {
-      console.error("Gemini returned no text");
-      send({ type: "error", error: "AI returned an unexpected response." });
-      return res.end();
+    const text = aiResponse?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+    if (!text) {
+      console.error("Gemini returned no text:", JSON.stringify(aiResponse));
+      return res.status(502).json({ error: "AI returned an unexpected response." });
     }
 
     let parsed;
     try {
-      const cleaned = fullText.replace(/```json|```/g, "").trim();
+      const cleaned = text.replace(/```json|```/g, "").trim();
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      console.error("Failed to parse AI JSON:", fullText);
-      send({ type: "error", error: "Couldn't read the AI's response. Try clearer photos/scans." });
-      return res.end();
+      console.error("Failed to parse AI JSON:", text);
+      return res.status(502).json({ error: "Couldn't read the AI's response. Try clearer photos/scans." });
     }
 
     // Catch "wrong kind of file" before falling through to a silently
@@ -321,8 +196,7 @@ router.post(
       } else {
         error = "That file doesn't look like a weekly timetable — double-check you picked the right file and try again.";
       }
-      send({ type: "error", error });
-      return res.end();
+      return res.status(422).json({ error });
     }
 
     const holidays = Array.isArray(parsed.holidays)
@@ -337,19 +211,12 @@ router.post(
     // that looks like the import silently "worked".
     const foundNothing = !semester.startDate && !semester.endDate && holidays.length === 0 && slots.length === 0;
     if (foundNothing) {
-      send({ type: "error", error: "Couldn't find any calendar or timetable details in that file. Try a clearer photo/scan, or the original PDF if you have one." });
-      return res.end();
+      return res.status(422).json({
+        error: "Couldn't find any calendar or timetable details in that file. Try a clearer photo/scan, or the original PDF if you have one.",
+      });
     }
 
-    // Every step's marker showing up somewhere in the JSON doesn't
-    // guarantee we ever emitted all 4 stage events (e.g. a very short
-    // response could have all 4 markers land inside one chunk) — send
-    // whatever's left so the checklist always finishes fully checked off
-    // by the time the result arrives, instead of stopping partway.
-    if (stage < STAGE_MARKERS.length) send({ type: "stage", stage: STAGE_MARKERS.length });
-
-    send({ type: "result", semester, holidays, slots });
-    res.end();
+    res.json({ semester, holidays, slots });
   }
 );
 
