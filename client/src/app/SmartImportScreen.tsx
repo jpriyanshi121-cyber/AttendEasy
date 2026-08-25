@@ -249,7 +249,18 @@ export default function SmartImportScreen({
       // line here directly drives the checklist below, instead of it
       // advancing on a guessed timer regardless of how the extraction is
       // actually going.
-      const res = await api.postFormStream("/ai/extract-schedule", form);
+      // A hard overall timeout so this can never sit spinning forever —
+      // the server's own timeouts (streaming attempt + fallback) add up
+      // to about 80s worst case, so 90s here always gives it a chance to
+      // finish cleanly on its own first.
+      const controller = new AbortController();
+      const overallTimeout = setTimeout(() => controller.abort(), 90_000);
+      let res: Response;
+      try {
+        res = await api.postFormStream("/ai/extract-schedule", form, controller.signal);
+      } finally {
+        clearTimeout(overallTimeout);
+      }
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -298,7 +309,8 @@ export default function SmartImportScreen({
         throw new Error("AI extraction failed. Please try again.");
       }
     } catch (e: any) {
-      setError(e.message || "AI extraction failed. Please try again.");
+      const message = e.name === "AbortError" ? "That's taking longer than expected. Please try again." : (e.message || "AI extraction failed. Please try again.");
+      setError(message);
     } finally {
       setLoading(false);
     }

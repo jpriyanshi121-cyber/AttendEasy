@@ -167,9 +167,12 @@ router.post(
     const send = (obj) => res.write(JSON.stringify(obj) + "\n");
 
     let apiRes;
+    const streamController = new AbortController();
+    const streamTimeout = setTimeout(() => streamController.abort(), 45_000);
     try {
       apiRes = await fetch(GEMINI_STREAM_URL, {
         method: "POST",
+        signal: streamController.signal,
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": process.env.GEMINI_API_KEY,
@@ -182,8 +185,10 @@ router.post(
       });
     } catch (e) {
       console.error("AI extraction request failed:", e);
-      send({ type: "error", error: "AI extraction failed. Please try again." });
+      send({ type: "error", error: e.name === "AbortError" ? "That's taking longer than expected. Please try again." : "AI extraction failed. Please try again." });
       return res.end();
+    } finally {
+      clearTimeout(streamTimeout);
     }
 
     if (!apiRes.ok || !apiRes.body) {
@@ -207,8 +212,16 @@ router.post(
     let fullText = "";
     let stage = 0;
     let sseBuffer = "";
+    const readController = new AbortController();
+    // A second, independent timeout around *reading* the stream — the
+    // request above can succeed instantly while the body itself never
+    // finishes closing (a lingering connection), which for-await would
+    // otherwise wait on forever with no way for the outer try/catch to
+    // ever get control back.
+    const readTimeout = setTimeout(() => readController.abort(), 45_000);
     try {
       for await (const chunk of apiRes.body) {
+        if (readController.signal.aborted) throw new Error("Stream read timed out");
         sseBuffer += decoder.decode(chunk, { stream: true });
         const events = sseBuffer.split("\n\n");
         sseBuffer = events.pop() || ""; // last piece may be incomplete — keep it for next chunk
@@ -237,8 +250,11 @@ router.post(
       }
     } catch (e) {
       console.error("AI stream read failed:", e);
-      send({ type: "error", error: "AI extraction failed. Please try again." });
-      return res.end();
+      // Don't give up yet — fall through to the non-streaming fallback
+      // below rather than failing outright, since we may already have
+      // partial (or even complete) text sitting in fullText.
+    } finally {
+      clearTimeout(readTimeout);
     }
 
     // Belt-and-suspenders: if streaming somehow still comes back empty
@@ -248,9 +264,12 @@ router.post(
     // — no per-stage events to send, but the person still gets their data.
     if (!fullText) {
       console.error("Streaming produced no text — falling back to non-streaming call.");
+      const fallbackController = new AbortController();
+      const fallbackTimeout = setTimeout(() => fallbackController.abort(), 30_000);
       try {
         const fallbackRes = await fetch(GEMINI_URL, {
           method: "POST",
+          signal: fallbackController.signal,
           headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
           body: JSON.stringify({
             system_instruction: { parts: [{ text: buildSystemPrompt(group, batchYear) }] },
@@ -266,6 +285,8 @@ router.post(
         }
       } catch (e) {
         console.error("Fallback Gemini call threw:", e);
+      } finally {
+        clearTimeout(fallbackTimeout);
       }
     }
 

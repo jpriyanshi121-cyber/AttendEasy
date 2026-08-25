@@ -64,15 +64,16 @@ async function requestForm(path: string, formData: FormData): Promise<any> {
 // res.body itself line by line. Doesn't parse/await a body here since a
 // streaming response isn't one JSON value; the caller's own line
 // parsing is what surfaces a `{type:"error"}` event as a real error.
-async function requestFormStream(path: string, formData: FormData): Promise<Response> {
+async function requestFormStream(path: string, formData: FormData, signal?: AbortSignal): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { method: "POST", headers, body: formData });
-  } catch (networkErr) {
+    res = await fetch(`${API_URL}${path}`, { method: "POST", headers, body: formData, signal });
+  } catch (networkErr: any) {
+    if (networkErr?.name === "AbortError") throw new Error("That's taking longer than expected. Please try again.");
     throw new Error("Could not reach the server. Check your connection and try again.");
   }
   if (!res.ok || !res.body) {
@@ -103,7 +104,7 @@ export const api = {
   get: (path: string) => request(path),
   post: (path: string, body: any) => request(path, { method: "POST", body: JSON.stringify(body) }),
   postForm: (path: string, formData: FormData) => requestForm(path, formData),
-  postFormStream: (path: string, formData: FormData) => requestFormStream(path, formData),
+  postFormStream: (path: string, formData: FormData, signal?: AbortSignal) => requestFormStream(path, formData, signal),
   patch: (path: string, body: any) => request(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: (path: string) => request(path, { method: "DELETE" }),
 };
