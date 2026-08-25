@@ -107,8 +107,8 @@ async function countRemainingClasses(prisma, { subjectId, semesterId, type, endD
   if (to < from) return 0;
 
   const [recurring, extras, holidays] = await Promise.all([
-    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: false } }),
-    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: true, extraDate: { gte: from, lte: to } } }),
+    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: false, retiredAt: null } }),
+    prisma.slot.findMany({ where: { subjectId, semesterId, type, isExtra: true, extraDate: { gte: from, lte: to }, retiredAt: null } }),
     prisma.holiday.findMany({ where: { semesterId, confirmed: true, date: { gte: from, lte: to } } }),
   ]);
 

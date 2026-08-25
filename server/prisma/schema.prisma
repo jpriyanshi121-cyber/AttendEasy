@@ -115,6 +115,7 @@ model Slot {
   isExtra        Boolean   @default(false) // true = one-off added/rescheduled class
   extraDate      DateTime? // set when isExtra: the specific calendar date it occurs on
   replacesSlotId String?   // set when a reschedule "replaces" the original slot for extraDate
+  retiredAt      DateTime? // set instead of hard-deleting — keeps past attendance history intact, just stops the slot from appearing going forward
   createdAt      DateTime  @default(now())
   records        AttendanceRecord[]
 

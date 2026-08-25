@@ -74,7 +74,7 @@ router.get("/", async (req, res) => {
   if (!semester) return res.status(404).json({ error: "Semester not found" });
 
   const slots = await prisma.slot.findMany({
-    where: { semesterId },
+    where: { semesterId, retiredAt: null },
     include: { subject: true },
     orderBy: [{ day: "asc" }, { startTime: "asc" }],
   });
@@ -93,8 +93,8 @@ router.get("/today", async (req, res) => {
   const ourDay = toOurDay(today.getUTCDay());
 
   const [recurring, extras, records] = await Promise.all([
-    prisma.slot.findMany({ where: { semesterId, day: ourDay, isExtra: false }, include: { subject: true } }),
-    prisma.slot.findMany({ where: { semesterId, isExtra: true, extraDate: today }, include: { subject: true } }),
+    prisma.slot.findMany({ where: { semesterId, day: ourDay, isExtra: false, retiredAt: null }, include: { subject: true } }),
+    prisma.slot.findMany({ where: { semesterId, isExtra: true, extraDate: today, retiredAt: null }, include: { subject: true } }),
     prisma.attendanceRecord.findMany({ where: { semesterId, date: today } }),
   ]);
 
@@ -277,7 +277,10 @@ router.delete("/:id", async (req, res) => {
   const semester = await getOwnedSemester(slot.semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Slot not found" });
 
-  await prisma.slot.delete({ where: { id: slot.id } });
+  // Retire instead of hard-deleting — this stops the slot from appearing
+  // in the schedule going forward, but keeps every past attendance record
+  // tied to it (a hard delete would cascade-wipe that history).
+  await prisma.slot.update({ where: { id: slot.id }, data: { retiredAt: new Date() } });
   res.json({ success: true });
 });
 

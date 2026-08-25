@@ -44,12 +44,12 @@ function startScheduler() {
         const semester = await prisma.semester.findFirst({ where: { userId: user.id, isActive: true } });
         if (!semester) continue;
 
-                const recurring = await prisma.slot.findMany({
-          where: { semesterId: semester.id, day: ourDay, isExtra: false, startTime: targetTime },
+        const recurring = await prisma.slot.findMany({
+          where: { semesterId: semester.id, day: ourDay, isExtra: false, startTime: targetTime, retiredAt: null },
           include: { subject: true },
         });
         const extras = await prisma.slot.findMany({
-          where: { semesterId: semester.id, isExtra: true, extraDate: todayStart, startTime: targetTime },
+          where: { semesterId: semester.id, isExtra: true, extraDate: todayStart, startTime: targetTime, retiredAt: null },
           include: { subject: true },
         });
 

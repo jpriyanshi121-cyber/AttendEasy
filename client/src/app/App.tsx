@@ -1695,7 +1695,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   onMark:(slotId:string)=>void; isLandscape:boolean; onBack:()=>void; onEditTimetable:()=>void;
 }) {
   const [slots, setSlots] = useState<any[]>([]);
-  const DAYS  = ["Mon","Tue","Wed","Thu","Fri"];
+  const DAYS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const HOUR_START = 9, HOUR_END = 17;
   const LANE_H = 56;       // min height of a single (non-overlapping) event card — sized to fit 3 single-line rows, no leftover space
   const LANE_GAP = 4;      // gap between stacked lanes when events overlap
@@ -1754,7 +1754,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   const today = new Date();
   const mon = new Date(today);
   mon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  const dates = Array.from({ length:5 }, (_,i) => {
+  const dates = Array.from({ length:7 }, (_,i) => {
     const d = new Date(mon);
     d.setDate(mon.getDate() + i);
     return d;
@@ -1815,8 +1815,33 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
   // together exactly fill it (no scrollbar, Friday never pushed off-screen).
   // Width is untouched by this — hour columns keep their own floor, so this
   // never "squeezes" cards horizontally, only sizes them vertically to fit.
-  const dayLaneCounts = dates.map((_d, di) => {
-    const daySlots = slots.filter(s => s.day === di);
+    function ymd(d: Date) {
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth()+1).padStart(2,"0");
+    const da = String(d.getDate()).padStart(2,"0");
+    return `${yr}-${mo}-${da}`;
+  }
+  function ymdFromISO(iso: string) {
+    return ymd(new Date(iso));
+  }
+
+  // A reschedule "replaces" the original recurring slot only on the
+  // specific date it moved to/from — the original shouldn't also show
+  // up on that same date.
+  const replacedKeys = new Set(
+    slots.filter(s => s.isExtra && s.replacesSlotId && s.extraDate)
+         .map(s => `${s.replacesSlotId}|${ymdFromISO(s.extraDate)}`)
+  );
+
+  const dayLaneCounts = dates.map((d, di) => {
+    const colDateStr = ymd(d);
+    const daySlots = slots.filter(s => {
+      if (s.isExtra) {
+        if (!s.extraDate) return false;
+        return ymdFromISO(s.extraDate) === colDateStr; // only its own actual date, not every matching weekday
+      }
+      return s.day === di && !replacedKeys.has(`${s.id}|${colDateStr}`);
+    });
     const laidOut = layoutDaySlots(daySlots);
     const laneCount = laidOut.reduce((max, l) => Math.max(max, l.trackCount), 1);
     return { daySlots, laidOut, laneCount };
