@@ -63,8 +63,9 @@ function startScheduler() {
         const activeRecurring = recurring.filter((s) => !replacedIds.has(s.id));
 
         for (const slot of [...activeRecurring, ...extras]) {
+          const typeSuffix = slot.type === "practical" ? " (Lab)" : slot.type === "tutorial" ? " (Tutorial)" : "";
           await sendPushToUser(prisma, user.id, {
-            title: `${slot.subject.name} in 15 minutes`,
+            title: `${slot.subject.name}${typeSuffix} in 15 minutes`,
             body: `${slot.startTime}–${slot.endTime}${slot.room ? " · " + slot.room : ""}`,
           });
         }
