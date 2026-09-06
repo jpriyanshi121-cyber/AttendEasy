@@ -120,4 +120,35 @@ function startScheduler() {
   );
 }
 
-module.exports = { startScheduler };
+// Render's free tier spins the whole service down after ~15 minutes with
+// no incoming request, which then takes 30-60s to cold-start back up on
+// the next real visit — this is very likely what "app load ho rahe waqt
+// time lag raha hai" was actually seeing. Pinging our own public
+// /api/ping well under that 15-minute window keeps the service counted
+// as "active" so it never spins down in the first place. Deliberately
+// NOT /api/health here — that one queries Postgres, and doing that every
+// 10 minutes would keep a Neon-style free-tier database's compute
+// endpoint awake around the clock, burning through its monthly
+// compute-hour budget in days rather than letting it idle-suspend
+// between real requests like it's meant to. RENDER_EXTERNAL_URL is set
+// automatically by Render for every web service; this is a no-op
+// anywhere else (local dev, or a host that doesn't set it), since
+// there's nothing to keep warm without a real deployed URL to hit.
+function startKeepAlive() {
+  const selfUrl = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+  if (!selfUrl) return;
+
+  const ping = async () => {
+    try {
+      const res = await fetch(`${selfUrl.replace(/\/$/, "")}/api/ping`);
+      if (!res.ok) console.error("Keep-alive ping got a non-OK response:", res.status);
+    } catch (e) {
+      console.error("Keep-alive ping failed:", e.message);
+    }
+  };
+
+  ping(); // once immediately, then every 10 minutes (safely under the 15-min idle timeout)
+  setInterval(ping, 10 * 60 * 1000);
+}
+
+module.exports = { startScheduler, startKeepAlive };

@@ -14,7 +14,7 @@ const pushRoutes = require("./routes/push");
 const holidayRoutes = require("./routes/holidays");
 const aiRoutes = require("./routes/ai");
 const { requireAuth } = require("./middleware/auth");
-const { startScheduler } = require("./lib/scheduler");
+const { startScheduler, startKeepAlive } = require("./lib/scheduler");
 
 const app = express();
 
@@ -65,6 +65,20 @@ const aiLimiter = rateLimit({
   keyGenerator: (req) => req.userId || req.ip,
 });
 
+// Pure "the web service is alive" check — deliberately does NOT touch the
+// database. This is what keeps Render from spinning the service down, so
+// it needs to be hit often (every 10-14 min); /api/health below still
+// exists for actually checking DB connectivity, but pinging that
+// frequently would keep the Postgres compute endpoint (Neon, going by the
+// DATABASE_URL/DIRECT_URL split) awake around the clock, burning through
+// its free tier's monthly compute-hour budget in days instead of the
+// whole month. Letting the DB idle-suspend on its own and only wake up
+// for a real request is the point — Neon's cold start on the next actual
+// query is quick, nowhere near as costly as never sleeping at all.
+app.get("/api/ping", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
 app.get("/api/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -103,6 +117,7 @@ app.listen(PORT, async () => {
     console.log("Database connection warm and ready.");
     startScheduler();
     console.log("Notification scheduler started.");
+    startKeepAlive();
   } catch (e) {
     console.error("Warning: could not warm up database connection on startup.", e.message);
   }
