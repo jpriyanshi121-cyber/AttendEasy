@@ -6,6 +6,7 @@ const { getOwnedSemester } = require("../lib/ownership");
 
 const router = express.Router();
 router.use(requireAuth);
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function toOurDay(jsDay) {
   return (jsDay + 6) % 7; // our numbering: 0=Monday..6=Sunday
@@ -129,8 +130,8 @@ router.post(
     body("semesterId").isString().notEmpty(),
     body("subjectId").isString().notEmpty(),
     body("day").isInt({ min: 0, max: 6 }),
-    body("startTime").matches(/^\d{2}:\d{2}$/),
-    body("endTime").matches(/^\d{2}:\d{2}$/),
+    body("startTime").matches(TIME_RE),
+    body("endTime").matches(TIME_RE),
     body("room").optional().isString(),
     body("type").optional().isIn(["lecture", "tutorial", "practical"]),
   ],
@@ -182,8 +183,8 @@ router.post(
     body("semesterId").isString().notEmpty(),
     body("subjectId").isString().notEmpty(),
     body("date").isISO8601(),
-    body("startTime").matches(/^\d{2}:\d{2}$/),
-    body("endTime").matches(/^\d{2}:\d{2}$/),
+    body("startTime").matches(TIME_RE),
+    body("endTime").matches(TIME_RE),
     body("mode").isIn(["add", "replace"]),
     body("replacesSlotId").optional().isString(),
     body("room").optional().isString(),
@@ -229,8 +230,8 @@ router.patch(
   "/:id",
   [
     body("day").optional().isInt({ min: 0, max: 6 }),
-    body("startTime").optional().matches(/^\d{2}:\d{2}$/),
-    body("endTime").optional().matches(/^\d{2}:\d{2}$/),
+    body("startTime").optional().matches(TIME_RE),
+    body("endTime").optional().matches(TIME_RE),
     body("room").optional().isString(),
     body("type").optional().isIn(["lecture", "tutorial", "practical"]),
   ],

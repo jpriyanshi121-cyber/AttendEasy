@@ -7,6 +7,14 @@ const { requireAuth } = require("../middleware/auth");
 const { sendResetEmail } = require("../lib/mailer");
 
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "30d" });
@@ -144,6 +152,7 @@ router.patch(
 
 router.post(
   "/forgot-password",
+  forgotPasswordLimiter,
   [body("email").isEmail().normalizeEmail()],
   async (req, res) => {
     const errors = validationResult(req);
