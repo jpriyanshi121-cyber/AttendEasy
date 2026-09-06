@@ -24,7 +24,7 @@ router.get("/:id", async (req, res) => {
 
   const [subjects, slots] = await Promise.all([
     prisma.subject.findMany({ where: { semesterId: semester.id, archived: false } }),
-    prisma.slot.findMany({ where: { semesterId: semester.id } }),
+    prisma.slot.findMany({ where: { semesterId: semester.id, retiredAt: null } }),
   ]);
 
   res.json({ semester, subjects, slots });

@@ -101,7 +101,10 @@ router.patch(
       return res.status(400).json({ error: "A subject needs at least one class type." });
     }
 
-    // Any type being turned off takes its slots (and their attendance records) with it.
+    // Any type being turned off retires its slots (soft-delete, same as
+    // slots.js's own DELETE route) instead of hard-deleting them — a hard
+    // delete would cascade-wipe every attendance record ever marked
+    // against those slots, which the user has no way to recover.
     const removedTypes = [];
     if (subject.hasLecture && !hasLecture) removedTypes.push("lecture");
     if (subject.hasTutorial && !hasTutorial) removedTypes.push("tutorial");
@@ -109,7 +112,10 @@ router.patch(
 
     const ops = [];
     if (removedTypes.length) {
-      ops.push(prisma.slot.deleteMany({ where: { subjectId: subject.id, type: { in: removedTypes } } }));
+      ops.push(prisma.slot.updateMany({
+        where: { subjectId: subject.id, type: { in: removedTypes }, retiredAt: null },
+        data: { retiredAt: new Date() },
+      }));
     }
     ops.push(
       prisma.subject.update({
@@ -139,8 +145,12 @@ router.delete("/:id", async (req, res) => {
   const semester = await getOwnedSemester(subject.semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Subject not found" });
 
+  // Retire the slots (soft-delete) rather than hard-deleting them — a hard
+  // delete cascades away every attendance record tied to them, which would
+  // silently gut the subject's history even though the subject row itself
+  // is only being archived, not erased.
   await prisma.$transaction([
-    prisma.slot.deleteMany({ where: { subjectId: subject.id } }),
+    prisma.slot.updateMany({ where: { subjectId: subject.id, retiredAt: null }, data: { retiredAt: new Date() } }),
     prisma.subject.update({ where: { id: subject.id }, data: { archived: true } }),
   ]);
   res.json({ success: true });

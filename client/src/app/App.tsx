@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import {
   Home, CalendarDays, LayoutGrid, Settings, Plus, ChevronLeft, ChevronRight, ChevronDown,
-  Eye, EyeOff, X, Check, Ban, RotateCcw, Bell, Cpu, Calculator, PenLine, TrendingUp, Code2,
-  Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle, FileText,
-  Sparkles, Star, Clock, Smartphone, Trash2, AlertTriangle, LogOut, ArrowRight,
+  Eye, EyeOff, X, Check, Ban, RotateCcw, Cpu, Calculator, PenLine, TrendingUp, Code2,
+  Edit2, Download, Archive, BookOpen, GraduationCap, AlertCircle,
+  Sparkles, Clock, Smartphone, Trash2, AlertTriangle, LogOut, ArrowRight,
 } from "lucide-react";
 import AuthScreen from "./AuthScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
@@ -199,10 +199,6 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
       <span style={{ width:4, height:4, borderRadius:"50%", background:"#C9A24B", flexShrink:0 }} />
     </p>
   );
-}
-
-function Divider() {
-  return <div style={{ height:1, background:"rgba(110,79,145,0.07)", margin:"0 0" }} />;
 }
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -2030,7 +2026,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
               ))}
             </div>
 
-            {dates.map((d,di) => {
+            {dates.map((_d,di) => {
               const isToday = di === todayIdx;
               const { laidOut, height: rowHeight, laneH } = dayLayouts[di];
               return (
@@ -2040,7 +2036,7 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
                   borderBottom: di===dates.length-1 ? `1px solid ${hair}` : "none",
                   background: isToday ? "rgba(239,231,246,0.35)" : "transparent",
                 }}>
-                  {laidOut.map(({ slot, track, trackCount }) => {
+                  {laidOut.map(({ slot, track }) => {
                     const typeLabel = slot.type === "practical" ? "Lab" : slot.type === "tutorial" ? "Tut" : null;
                     const top = ROW_PAD + track*(laneH + LANE_GAP);
                     const color = subjectColor.get(slot.subjectId)!;
@@ -2094,12 +2090,6 @@ function TimetableScreen({ onMark, isLandscape, onBack, onEditTimetable }: {
     </div>
   );
 }
-
-const navBtn: React.CSSProperties = {
-  width:34, height:34, borderRadius:10,
-  border:`1px solid rgba(110,79,145,0.14)`, background:T.card,
-  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-};
 
 function todayLocalStr(): string {
   const d = new Date();

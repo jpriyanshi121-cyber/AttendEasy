@@ -131,7 +131,7 @@ async function countRemainingClasses(prisma, { subjectId, semesterId, type, endD
         if (s.day === dow && !replacedKeys.has(`${s.id}|${dateKey}`)) hours += slotHours(s);
       }
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return Math.round(hours * 100) / 100;
 }

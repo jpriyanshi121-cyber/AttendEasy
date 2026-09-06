@@ -53,6 +53,7 @@ async function findConflictingSlot(semesterId, day, startTime, endTime, excludeS
       semesterId,
       day,
       isExtra: false,
+      retiredAt: null,
       ...(excludeSlotId ? { id: { not: excludeSlotId } } : {}),
     },
     include: { subject: true },

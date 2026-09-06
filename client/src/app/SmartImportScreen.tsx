@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Sparkles, UploadCloud, FileText, Loader2, Trash2, Plus, X, Check, AlertTriangle, Clock, MapPin } from "lucide-react";
-import { T, F, S } from "./App";
+import { T, F } from "./App";
 import { api } from "../lib/api";
 
 // Matches the JSON shape returned by POST /api/ai/extract-schedule

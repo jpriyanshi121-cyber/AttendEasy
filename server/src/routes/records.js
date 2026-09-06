@@ -43,14 +43,15 @@ function startOfDay(date) {
   return d;
 }
 
-// Builds a "YYYY-MM-DD" key using the server's LOCAL calendar date —
-// matching how startOfDay() stores records — instead of toISOString(),
-// which converts to UTC first and can land on the wrong day (e.g. IST
-// midnight becomes the previous day in UTC).
+// Builds a "YYYY-MM-DD" key from a Date's UTC calendar components — this
+// must match how dates are stored everywhere else in the app (bare
+// "YYYY-MM-DD" input -> UTC midnight). Using local getFullYear()/getMonth()
+// here would shift the date by the server's UTC offset, misfiling records
+// onto the wrong day depending on server locale.
 function localDateKey(d) {
-  const yr = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const da = String(d.getDate()).padStart(2, "0");
+  const yr = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(d.getUTCDate()).padStart(2, "0");
   return `${yr}-${mo}-${da}`;
 }
 
@@ -248,8 +249,13 @@ router.get("/calendar", async (req, res) => {
   const semester = await getOwnedSemester(semesterId, req.userId);
   if (!semester) return res.status(404).json({ error: "Semester not found" });
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  // UTC-explicit — new Date(year, month-1, 1) would use the server
+  // process's local timezone, which we can't guarantee is UTC (same
+  // reasoning as startOfDay()'s setUTCHours elsewhere). Getting this
+  // wrong would shift the month boundary and pull in/drop records from
+  // the wrong days at the edges of the month.
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
 
   const records = await prisma.attendanceRecord.findMany({ where: { semesterId, date: { gte: start, lt: end } } });
 

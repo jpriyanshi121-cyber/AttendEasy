@@ -14,8 +14,8 @@
 const STORAGE_KEY = "attendeasy_sound_enabled";
 
 // C-major pentatonic, low to high.
-const C4 = 261.63, D4 = 293.66, E4 = 329.63, G4 = 392.0, A4 = 440.0;
-const C5 = 523.25, D5 = 587.33, E5 = 659.25, G5 = 783.99, A5 = 880.0;
+const C4 = 261.63, D4 = 293.66, E4 = 329.63, A4 = 440.0;
+const C5 = 523.25, E5 = 659.25, G5 = 783.99, A5 = 880.0;
 const C6 = 1046.5;
 
 let ctx: AudioContext | null = null;
