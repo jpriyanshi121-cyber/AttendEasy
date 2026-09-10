@@ -448,10 +448,14 @@ function OnboardingScreen({ onDone, skipIntro }: { onDone:()=>void; skipIntro?: 
             <SmartImportScreen
               semesterId={semesterId}
               onClose={() => setShowSmartImport(false)}
-              onDone={async () => {
+              onDone={() => {
+                // Smart Import already created everything and its own
+                // confirmation screen showed the result — going on to
+                // Onboarding's manual "add subjects" step would just show
+                // the same subjects again on a near-identical screen.
+                // Finish onboarding entirely instead.
                 setShowSmartImport(false);
-                const { subjects: fetched } = await api.get(`/subjects?semesterId=${semesterId}`);
-                setSubjects(fetched);
+                onDone();
               }}
             />
           )}
