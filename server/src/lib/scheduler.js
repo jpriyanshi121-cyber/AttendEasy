@@ -44,6 +44,13 @@ function startScheduler() {
         const semester = await prisma.semester.findFirst({ where: { userId: user.id, isActive: true } });
         if (!semester) continue;
 
+        // Declared holiday for today (confirmed = definitely no classes) —
+        // skip every slot for this user without even checking them.
+        const holiday = await prisma.holiday.findUnique({
+          where: { semesterId_date: { semesterId: semester.id, date: todayStart } },
+        });
+        if (holiday && holiday.confirmed) continue;
+
         const recurring = await prisma.slot.findMany({
           where: { semesterId: semester.id, day: ourDay, isExtra: false, startTime: targetTime, retiredAt: null },
           include: { subject: true },
@@ -62,7 +69,25 @@ function startScheduler() {
         const replacedIds = new Set(allExtrasToday.map((e) => e.replacesSlotId));
         const activeRecurring = recurring.filter((s) => !replacedIds.has(s.id));
 
-        for (const slot of [...activeRecurring, ...extras]) {
+        const candidates = [...activeRecurring, ...extras];
+        if (candidates.length === 0) continue;
+
+        // A specific class can also be cancelled individually (prof absent,
+        // exam, etc.) without a semester-wide holiday — that's recorded as
+        // an AttendanceRecord with status "cancelled"/"rescheduled" for this
+        // exact slot+date. Skip the reminder for those too.
+        const cancelledRecords = await prisma.attendanceRecord.findMany({
+          where: {
+            slotId: { in: candidates.map((s) => s.id) },
+            date: todayStart,
+            status: { in: ["cancelled", "rescheduled"] },
+          },
+          select: { slotId: true },
+        });
+        const cancelledSlotIds = new Set(cancelledRecords.map((r) => r.slotId));
+
+        for (const slot of candidates) {
+          if (cancelledSlotIds.has(slot.id)) continue;
           const typeSuffix = slot.type === "practical" ? " (Lab)" : slot.type === "tutorial" ? " (Tutorial)" : "";
           await sendPushToUser(prisma, user.id, {
             title: `${slot.subject.name}${typeSuffix} in 15 minutes`,
