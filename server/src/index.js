@@ -1,5 +1,15 @@
 require("dotenv").config();
 require("express-async-errors");
+const dns = require("dns");
+// Node 18+ resolves DNS "verbatim" by default — if a hostname (like
+// smtp.gmail.com) has both an A and AAAA record, Node may try the IPv6
+// address first. Most PaaS hosts (Render, Railway, etc.) have no outbound
+// IPv6 route, so that attempt dies instantly with ENETUNREACH before ever
+// falling back to IPv4 — this is exactly what broke password-reset emails.
+// Forcing ipv4first restores Node <=16's old default and fixes it globally
+// for every outbound connection (SMTP included), with no code change needed
+// wherever those connections happen.
+dns.setDefaultResultOrder("ipv4first");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
