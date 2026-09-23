@@ -3205,9 +3205,7 @@ function CalendarScreen() {
                 style={{
                   position:"relative",
                   width:41, height:41, margin:"0 auto", borderRadius:13,
-                  border: isToday && !isSel
-                    ? `2px solid ${T.accent}`
-                    : (isUnmarked && !isSel ? "1.5px dashed rgba(110,79,145,0.45)" : "none"),
+                  border: isToday && !isSel ? `2px solid ${T.accent}` : "none",
                   background: isSel ? T.accent : (bg || "rgba(110,79,145,0.028)"),
                   display:"flex", alignItems:"center", justifyContent:"center",
                   cursor:"pointer", outline:"none",
@@ -3226,16 +3224,20 @@ function CalendarScreen() {
                     background: holiday.confirmed ? "#2F7A5C" : "#C9A24B",
                   }} />
                 )}
+                {isUnmarked && (
+                  <span style={{
+                    position:"absolute", bottom:3, right:3,
+                    width:5, height:5, borderRadius:"50%",
+                    background: isSel ? "rgba(255,255,255,0.7)" : "#8A8194",
+                  }} />
+                )}
               </button>
             );
           })}
         </div>
         {unmarkedDates.size > 0 && (
           <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:12, paddingLeft:2 }}>
-            <span style={{
-              width:9, height:9, borderRadius:4, flexShrink:0,
-              border:"1.5px dashed rgba(110,79,145,0.45)",
-            }} />
+            <span style={{ width:5, height:5, borderRadius:"50%", background:"#8A8194", flexShrink:0 }} />
             <span style={{ fontFamily:F.sans, fontSize:12, color:T.inkM }}>
               {unmarkedDates.size} day{unmarkedDates.size > 1 ? "s" : ""} with unmarked attendance
             </span>
