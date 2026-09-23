@@ -3092,6 +3092,25 @@ function CalendarScreen() {
   }, []);
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month:"long", year:"numeric" });
 
+  // Past dates that had scheduled classes (per the weekly timetable / extras)
+  // but don't have a mark for every one of them yet — i.e. attendance the
+  // user forgot to log. Confirmed holidays are excluded since no classes
+  // were expected that day. Flagged with a small dot on the calendar so
+  // these gaps are easy to spot and backfill.
+  const unmarkedDates = new Set(
+    Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }).filter((dateStr) => {
+      if (dateStr >= todayStr) return false;
+      if (holidayMap.get(dateStr)?.confirmed) return false;
+      const expected = slotsForDate(dateStr).length;
+      if (expected === 0) return false;
+      const marked = dayMap.get(dateStr)?.classCount || 0;
+      return marked < expected;
+    })
+  );
+
   const expLoading = expanded !== null && expRecsDate !== expanded;
   const expandedClasses = (expanded && !expLoading) ? slotsForDate(expanded).map(slot => ({
     slot, rec: expRecs.find((r:any) => r.slotId === slot.id) || null,
@@ -3174,11 +3193,12 @@ function CalendarScreen() {
             const holiday = holidayMap.get(dateStr);
             const isToday = dateStr === todayStr;
             const isSel = expanded === dateStr;
+            const isUnmarked = unmarkedDates.has(dateStr);
             const { bg, fg } = entry ? entry.color : { bg: "transparent", fg: T.inkL };
             return (
               <button key={day}
                 onClick={() => openDay(dateStr)}
-                title={holiday ? (holiday.label || (holiday.confirmed ? "Holiday" : "Possible no-class day")) : undefined}
+                title={holiday ? (holiday.label || (holiday.confirmed ? "Holiday" : "Possible no-class day")) : (isUnmarked ? "Attendance not marked" : undefined)}
                 style={{
                   position:"relative",
                   width:41, height:41, margin:"0 auto", borderRadius:13,
@@ -3201,10 +3221,26 @@ function CalendarScreen() {
                     background: holiday.confirmed ? "#2F7A5C" : "#C9A24B",
                   }} />
                 )}
+                {isUnmarked && (
+                  <span style={{
+                    position:"absolute", top:3, right:3,
+                    width:6, height:6, borderRadius:"50%",
+                    background:"#B03A45",
+                    boxShadow:"0 0 0 1.5px #FCFBFE",
+                  }} />
+                )}
               </button>
             );
           })}
         </div>
+        {unmarkedDates.size > 0 && (
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:12, paddingLeft:2 }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:"#B03A45", flexShrink:0 }} />
+            <span style={{ fontFamily:F.sans, fontSize:12, color:T.inkM }}>
+              {unmarkedDates.size} day{unmarkedDates.size > 1 ? "s" : ""} with unmarked attendance
+            </span>
+          </div>
+        )}
 
         {expanded && (
           <div style={{
