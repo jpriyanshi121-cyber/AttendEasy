@@ -3061,7 +3061,10 @@ function CalendarScreen() {
   function slotsForDate(dateStr: string) {
     const weekday = (new Date(dateStr + "T12:00:00").getDay() + 6) % 7;
     let list = allSlots.filter((s:any) =>
-      (!s.isExtra && s.day === weekday) ||
+      // A recurring slot only applies to dates on/after the day it was added
+      // to the timetable — otherwise adding a class today would make every
+      // past occurrence of that weekday look like a class that was missed.
+      (!s.isExtra && s.day === weekday && String(s.createdAt).slice(0,10) <= dateStr) ||
       (s.isExtra && s.extraDate && String(s.extraDate).slice(0,10) === dateStr)
     );
     const replaced = new Set(list.filter((s:any) => s.isExtra && s.replacesSlotId).map((s:any) => s.replacesSlotId));
@@ -3202,7 +3205,9 @@ function CalendarScreen() {
                 style={{
                   position:"relative",
                   width:41, height:41, margin:"0 auto", borderRadius:13,
-                  border: isToday && !isSel ? `2px solid ${T.accent}` : "none",
+                  border: isToday && !isSel
+                    ? `2px solid ${T.accent}`
+                    : (isUnmarked && !isSel ? "1.5px dashed rgba(110,79,145,0.45)" : "none"),
                   background: isSel ? T.accent : (bg || "rgba(110,79,145,0.028)"),
                   display:"flex", alignItems:"center", justifyContent:"center",
                   cursor:"pointer", outline:"none",
@@ -3221,21 +3226,16 @@ function CalendarScreen() {
                     background: holiday.confirmed ? "#2F7A5C" : "#C9A24B",
                   }} />
                 )}
-                {isUnmarked && (
-                  <span style={{
-                    position:"absolute", top:3, right:3,
-                    width:6, height:6, borderRadius:"50%",
-                    background:"#B03A45",
-                    boxShadow:"0 0 0 1.5px #FCFBFE",
-                  }} />
-                )}
               </button>
             );
           })}
         </div>
         {unmarkedDates.size > 0 && (
           <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:12, paddingLeft:2 }}>
-            <span style={{ width:6, height:6, borderRadius:"50%", background:"#B03A45", flexShrink:0 }} />
+            <span style={{
+              width:9, height:9, borderRadius:4, flexShrink:0,
+              border:"1.5px dashed rgba(110,79,145,0.45)",
+            }} />
             <span style={{ fontFamily:F.sans, fontSize:12, color:T.inkM }}>
               {unmarkedDates.size} day{unmarkedDates.size > 1 ? "s" : ""} with unmarked attendance
             </span>
