@@ -4876,6 +4876,8 @@ export default function App() {
   const [homeRefresh, setHomeRefresh] = useState(0);
   const [skipOnboardIntro, setSkipOnboardIntro] = useState(false);
   const [checkingOnboard, setCheckingOnboard] = useState(true);
+  const [serverDown, setServerDown] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [isLandscape, setIsLandscape] = useState(
     typeof window !== "undefined" ? window.matchMedia("(orientation: landscape)").matches : false
   );
@@ -4921,6 +4923,7 @@ export default function App() {
     if (!authed) { setCheckingOnboard(false); return; }
     let cancelled = false;
     setCheckingOnboard(true);
+    setServerDown(false);
     api.get("/semesters")
       .then(async (data) => {
         if (cancelled) return;
@@ -4937,16 +4940,28 @@ export default function App() {
           setScreen("onboarding");
         }
       })
-      .catch(() => {
-        // If the check fails, don't trap the user on onboarding forever —
-        // fall back to onboarding, they can navigate from there.
-        if (!cancelled) setScreen("onboarding");
+      .catch((err: any) => {
+        if (cancelled) return;
+        if (err?.status === 401) {
+          // Token's actually invalid — sign them out for real instead of
+          // stranding them on a screen that looks like they're logged in.
+          clearToken();
+          setAuthed(false);
+          return;
+        }
+        // Anything else (network error, 500, DB unreachable) means we
+        // genuinely don't know if this is a new or existing user — showing
+        // onboarding here would wipe an existing user's setup out from
+        // under them. Show a clear "we're down" screen instead so they
+        // know it's temporary and can retry, rather than silently landing
+        // them on the new-user flow.
+        setServerDown(true);
       })
       .finally(() => {
         if (!cancelled) setCheckingOnboard(false);
       });
     return () => { cancelled = true; };
-  }, [authed]);
+  }, [authed, retryTick]);
 
   const goTab = (t: TabId) => {
     setTab(t);
@@ -5049,6 +5064,43 @@ export default function App() {
         <style>{`
           @keyframes ae-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.6; transform:scale(0.94); } }
         `}</style>
+      </div>
+    );
+  }
+
+  if (serverDown) {
+    return (
+      <div style={{
+        minHeight: "100%", background: T.bg, display: "flex",
+        alignItems: "center", justifyContent: "center", fontFamily: F.sans,
+        padding: 24,
+      }}>
+        <div style={{ maxWidth: 340, textAlign: "center" }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 16, margin: "0 auto 20px",
+            background: "linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: S.acc,
+          }}>
+            <GraduationCap size={26} color="#fff" />
+          </div>
+          <h2 style={{ fontFamily: F.serif, fontSize: 19, fontWeight: 600, color: T.inkH, margin: "0 0 8px" }}>
+            We'll be right back
+          </h2>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: T.inkM, margin: "0 0 22px" }}>
+            AttendEasy's servers are temporarily unavailable. Your data is safe — this usually resolves shortly. Please try again in a bit.
+          </p>
+          <button
+            onClick={() => setRetryTick((n) => n + 1)}
+            style={{
+              padding: "11px 24px", borderRadius: 12, border: "none",
+              background: T.accent, color: "#fff", fontFamily: F.sans,
+              fontWeight: 600, fontSize: 14, cursor: "pointer",
+            }}
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }

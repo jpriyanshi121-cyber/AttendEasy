@@ -35,7 +35,9 @@ async function request(path: string, options: RequestInit = {}, retried = false)
       await new Promise((r) => setTimeout(r, 1500));
       return request(path, options, true);
     }
-    throw new Error(data.error || "Something went wrong");
+    const err = new Error(data.error || "Something went wrong") as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
