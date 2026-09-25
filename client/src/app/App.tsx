@@ -5071,31 +5071,40 @@ export default function App() {
   if (serverDown) {
     return (
       <div style={{
-        minHeight: "100%", background: T.bg, display: "flex",
-        alignItems: "center", justifyContent: "center", fontFamily: F.sans,
-        padding: 24,
+        minHeight: "100%",
+        background:
+          "radial-gradient(circle at 15% 8%, rgba(139,111,187,0.35), transparent 45%)," +
+          "radial-gradient(circle at 88% 12%, rgba(201,162,75,0.1), transparent 40%)," +
+          "linear-gradient(160deg, #201730 0%, #2E2044 45%, #1B1428 100%)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: F.sans, padding: 24,
       }}>
-        <div style={{ maxWidth: 340, textAlign: "center" }}>
+        <div style={{
+          width: "100%", maxWidth: 340, background: T.bg, borderRadius: 28,
+          padding: "44px 32px", textAlign: "center",
+          boxShadow: "0 30px 80px rgba(15,8,28,0.45), 0 10px 30px rgba(15,8,28,0.3)",
+        }}>
           <div style={{
-            width: 52, height: 52, borderRadius: 16, margin: "0 auto 20px",
+            width: 68, height: 68, borderRadius: 20, margin: "0 auto 24px",
             background: "linear-gradient(140deg,#6E4F91 0%,#9B7FCC 100%)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: S.acc,
+            boxShadow: "0 16px 36px rgba(94,63,138,0.4)",
           }}>
-            <GraduationCap size={26} color="#fff" />
+            <GraduationCap size={30} color="#fff" />
           </div>
-          <h2 style={{ fontFamily: F.serif, fontSize: 19, fontWeight: 600, color: T.inkH, margin: "0 0 8px" }}>
+          <h2 style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: T.inkH, margin: "0 0 12px", letterSpacing: "-0.01em" }}>
             We'll be right back
           </h2>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: T.inkM, margin: "0 0 22px" }}>
+          <p style={{ fontSize: 14.5, lineHeight: 1.65, color: T.inkM, margin: "0 0 28px" }}>
             AttendEasy's servers are temporarily unavailable. Your data is safe — this usually resolves shortly. Please try again in a bit.
           </p>
           <button
             onClick={() => setRetryTick((n) => n + 1)}
             style={{
-              padding: "11px 24px", borderRadius: 12, border: "none",
-              background: T.accent, color: "#fff", fontFamily: F.sans,
-              fontWeight: 600, fontSize: 14, cursor: "pointer",
+              width: "100%", padding: "15px 24px", borderRadius: 15, border: "none",
+              background: "linear-gradient(155deg,#8E6BB8,#6E4F91 55%,#4A3266)",
+              color: "#fff", fontFamily: F.sans, fontWeight: 700, fontSize: 15,
+              cursor: "pointer", boxShadow: "0 16px 32px rgba(94,63,138,0.4)",
             }}
           >
             Try again
